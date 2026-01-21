@@ -1,0 +1,13 @@
+# Python / Backend
+backend/venv/
+backend/__pycache__/
+backend/.env
+backend/*.sqlite3
+
+# Flutter / Frontend
+frontend/build/
+frontend/.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/ios/.symlinks/
+frontend/ios/Pods/
