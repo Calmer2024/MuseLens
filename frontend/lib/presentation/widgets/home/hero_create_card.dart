@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import '../../screens/editor/editor_screen.dart';
 
 class HeroCreateCard extends StatelessWidget {
   const HeroCreateCard({super.key});
@@ -78,9 +81,24 @@ class HeroCreateCard extends StatelessWidget {
                 Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    onTap: () {
-                      // TODO: 跳转到编辑页面
-                      print("New Project Clicked");
+                    onTap: () async {
+                      // 1. 调用相册
+                      final ImagePicker picker = ImagePicker();
+                      final XFile? image = await picker.pickImage(
+                        source: ImageSource.gallery,
+                      );
+
+                      // 2. 如果用户选了图，跳转到 EditorScreen
+                      if (image != null && context.mounted) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EditorScreen(
+                              selectedImage: File(image.path), // 传参
+                            ),
+                          ),
+                        );
+                      }
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(

@@ -9,6 +9,8 @@ class AppTheme {
   static const Color textWhite = Color(0xFFFFFFFF);
   static const Color textGrey = Color(0xFFAAAAAA);
   static const Color navBarColor = Color(0xFF252525); // 底部导航栏颜色
+  // Profile 界面专用的电光靛蓝
+  static const Color electricIndigo = Color(0xFF6C5CE7);
 
   // 2. 定义全局主题
   static ThemeData get darkTheme {
@@ -23,7 +25,6 @@ class AppTheme {
       colorScheme: const ColorScheme.dark(
         primary: primaryPurple,
         surface: cardSurface,
-        background: background,
       ),
     );
   }

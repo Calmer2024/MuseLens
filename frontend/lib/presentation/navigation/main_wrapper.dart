@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../screens/home/home_screen.dart';
+import '../screens/community/community_screen.dart';
+import '../screens/profile/profile_screen.dart';
 import '../../core/theme/app_theme.dart';
 
 class MainWrapper extends StatefulWidget {
@@ -15,8 +17,8 @@ class _MainWrapperState extends State<MainWrapper> {
   final List<Widget> _pages = [
     const HomeScreen(),
     const Center(child: Text("Edit Tools")), // 占位
-    const Center(child: Text("Community")), // 占位
-    const Center(child: Text("Profile")), // 占位
+    const CommunityScreen(),
+    const ProfileScreen(), // 占位
   ];
 
   @override
