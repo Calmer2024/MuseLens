@@ -1,0 +1,74 @@
+{
+  "3": {
+    "inputs": {
+      "seed": 0,
+      "steps": 20,
+      "cfg": 8,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1,
+      "model": ["4", 0],
+      "positive": ["6", 0],
+      "negative": ["7", 0],
+      "latent_image": ["5", 0]
+    },
+    "class_type": "KSampler"
+  },
+  "4": {
+    "inputs": {
+      "ckpt_name": "juggernautXL_ragnarokBy.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple"
+  },
+  "5": {
+    "inputs": {
+      "pixels": ["10", 0],
+      "vae": ["4", 2],
+      "mask": ["11", 0]
+    },
+    "class_type": "VAEEncodeForInpaint"
+  },
+  "6": {
+    "inputs": {
+      "text": "beautiful scenery",
+      "clip": ["4", 1]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "7": {
+    "inputs": {
+      "text": "text, watermark, blurry, low quality",
+      "clip": ["4", 1]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "8": {
+    "inputs": {
+      "samples": ["3", 0],
+      "vae": ["4", 2]
+    },
+    "class_type": "VAEDecode"
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "MuseLens_Output",
+      "images": ["8", 0]
+    },
+    "class_type": "SaveImage"
+  },
+  "10": {
+    "inputs": {
+      "image": "input_image.png",
+      "upload": "image"
+    },
+    "class_type": "LoadImage"
+  },
+  "11": {
+    "inputs": {
+      "image": "mask_image.png",
+      "upload": "image",
+      "channel": "alpha" 
+    },
+    "class_type": "LoadImage"
+  }
+}

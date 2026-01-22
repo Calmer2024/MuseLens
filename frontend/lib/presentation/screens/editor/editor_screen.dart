@@ -1,6 +1,9 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui; // 引入 ui 库用于 ImageByteFormat
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart'; // 假设你有svg图标，没有就用Icon
+import 'package:dio/dio.dart';
+import '../../../core/constants/api_constants.dart';
 import '../../../core/theme/app_theme.dart';
 
 class EditorScreen extends StatefulWidget {
@@ -13,81 +16,94 @@ class EditorScreen extends StatefulWidget {
 }
 
 class _EditorScreenState extends State<EditorScreen> {
-  final TextEditingController _controller = TextEditingController();
+  final TextEditingController _promptController = TextEditingController();
+
+  bool _isGenerating = false;
+  Uint8List? _resultImage;
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    _promptController.dispose();
+    super.dispose();
+  }
+
+  // --- 🔥 修复后的核心逻辑 ---
+  Future<void> _sendToBackend() async {
+    if (_promptController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Please enter a prompt")));
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    setState(() => _isGenerating = true);
+
+    try {
+      // 构建表单
+      String fileName = widget.selectedImage.path.split('/').last;
+      FormData formData = FormData.fromMap({
+        'prompt': _promptController.text,
+        'image': await MultipartFile.fromFile(
+          widget.selectedImage.path,
+          filename: fileName,
+        ),
+      });
+
+      // 5. 发送请求
+      Dio dio = Dio();
+      dio.options.connectTimeout = const Duration(seconds: 10);
+      dio.options.receiveTimeout = const Duration(seconds: 120);
+
+      debugPrint(
+        "Sending request to: ${ApiConstants.baseUrl}/api/v1/editor/inpaint",
+      );
+
+      var response = await dio.post(
+        '${ApiConstants.baseUrl}/api/v1/editor/inpaint',
+        data: formData,
+        options: Options(responseType: ResponseType.bytes),
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          _resultImage = Uint8List.fromList(response.data);
+        });
+      } else {
+        throw Exception("Backend error: ${response.statusCode}");
+      }
+    } catch (e) {
+      debugPrint("Generation failed: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isGenerating = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background, // 保持深色背景
+      backgroundColor: AppTheme.background,
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: Column(
           children: [
-            // --- 1. Top Header (Back, Title, Save) ---
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 12.0,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Back Button
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.arrow_back_ios_new,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          "Back",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontFamily: 'Poppins', // 假设用了Poppins
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+            _buildHeader(context),
 
-                  // Title
-                  const Text(
-                    "Editor",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  // Save Button (White Pill)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      "Save",
-                      style: TextStyle(
-                        color: Colors.black, // 黑字白底
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // --- 2. Main Image Canvas ---
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -98,122 +114,188 @@ class _EditorScreenState extends State<EditorScreen> {
                   width: double.infinity,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(24),
-                    image: DecorationImage(
-                      image: FileImage(widget.selectedImage),
-                      fit: BoxFit.cover, // 或者 contain，看你想怎么展示
-                    ),
+                    color: Colors.black,
                   ),
-                ),
-              ),
-            ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // 底层图片
+                        _resultImage != null
+                            ? Image.memory(_resultImage!, fit: BoxFit.contain)
+                            : Image.file(
+                                widget.selectedImage,
+                                fit: BoxFit.contain,
+                              ),
 
-            // --- 3. Bottom Chat Interface ---
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 30), // 底部留多点白
-              decoration: const BoxDecoration(
-                color: Color(0xFF1E1E1E), // 深灰色底板
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(30),
-                  topRight: Radius.circular(30),
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Mock User Message Bubble
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      margin: const EdgeInsets.only(bottom: 20),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF333333), // 气泡深灰
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        "Make it look like a rainy day",
-                        style: TextStyle(color: Colors.white, fontSize: 14),
-                      ),
-                    ),
-                  ),
-
-                  // AI Listening Waveform (模拟图中的紫色声波)
-                  // 这里用一个简单的紫色Icon或者自定义绘制模拟
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 20),
-                    child: Icon(
-                      Icons.graphic_eq,
-                      color: AppTheme.electricIndigo.withOpacity(0.8),
-                      size: 40,
-                    ),
-                  ),
-
-                  // Input Bar
-                  Row(
-                    children: [
-                      // Mic Button
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: const BoxDecoration(
-                          color: AppTheme.electricIndigo, // 紫色
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.mic, color: Colors.white),
-                      ),
-                      const SizedBox(width: 12),
-
-                      // Text Field
-                      Expanded(
-                        child: Container(
-                          height: 50,
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF000000), // 输入框纯黑背景
-                            borderRadius: BorderRadius.circular(25),
-                            border: Border.all(color: Colors.white10),
-                          ),
-                          child: const Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              "Ask the AI...",
-                              style: TextStyle(color: Colors.grey),
+                        // Loading 遮罩
+                        if (_isGenerating)
+                          Container(
+                            color: Colors.black54,
+                            child: const Center(
+                              child: CircularProgressIndicator(
+                                color: AppTheme.electricIndigo,
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-
-                      const SizedBox(width: 12),
-
-                      // Send Button
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppTheme.electricIndigo,
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                        child: const Text(
-                          "Send",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ],
+                ),
               ),
             ),
+
+            _buildBottomInterface(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: const Row(
+              children: [
+                Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+                SizedBox(width: 4),
+                Text(
+                  "Back",
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ],
+            ),
+          ),
+          const Text(
+            "Editor",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          // 如果已生成结果，显示 Reset 按钮
+          _resultImage != null
+              ? GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _resultImage = null;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      "Reset",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                )
+              : Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    "Save",
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomInterface() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: const BoxDecoration(
+                  color: AppTheme.electricIndigo,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.mic, color: Colors.white),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(25),
+                    border: Border.all(color: Colors.white10),
+                  ),
+                  child: TextField(
+                    controller: _promptController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                      hintText: "Describe changes...",
+                      hintStyle: TextStyle(color: Colors.grey),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 20),
+                    ),
+                    onSubmitted: (_) => _sendToBackend(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: _isGenerating ? null : _sendToBackend,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _isGenerating
+                        ? Colors.grey
+                        : AppTheme.electricIndigo,
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  child: const Text(
+                    "Send",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+        ],
       ),
     );
   }
