@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/community/community_screen.dart';
 import '../screens/profile/profile_screen.dart';
+import '../screens/lens/lens_library_screen.dart';
 import '../../core/theme/app_theme.dart';
 
 class MainWrapper extends StatefulWidget {
@@ -16,9 +17,9 @@ class _MainWrapperState extends State<MainWrapper> {
 
   final List<Widget> _pages = [
     const HomeScreen(),
-    const Center(child: Text("Edit Tools")), // 占位
+    const LensLibraryScreen(),
     const CommunityScreen(),
-    const ProfileScreen(), // 占位
+    const ProfileScreen(),
   ];
 
   @override
@@ -51,7 +52,7 @@ class _MainWrapperState extends State<MainWrapper> {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   _buildNavItem(0, Icons.home_rounded, "Home"),
-                  _buildNavItem(1, Icons.tune_rounded, "Edit Tools"),
+                  _buildNavItem(1, Icons.tune_rounded, "Lens"),
                   _buildNavItem(2, Icons.bubble_chart_rounded, "Community"),
                   _buildNavItem(3, Icons.person_rounded, "Profile"),
                 ],
