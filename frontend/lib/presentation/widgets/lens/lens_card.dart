@@ -14,14 +14,15 @@ class LensCard extends StatelessWidget {
         color: const Color(0xFF1E1E1E), // 深炭色背景
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: Colors.white.withOpacity(0.05), // 微弱的边框
-          width: 1,
+          color: AppTheme.electricIndigo.withOpacity(0.3),
+          width: 0.5, // 稍微加粗一点
         ),
         boxShadow: [
           // 只有微弱的阴影，保持扁平感
           BoxShadow(
-            color: Colors.black.withOpacity(0.5),
-            blurRadius: 10,
+            color: AppTheme.electricIndigo.withOpacity(0.25), // 25% 透明度的紫色光晕
+            blurRadius: 16,
+            spreadRadius: 0,
             offset: const Offset(0, 4),
           ),
         ],

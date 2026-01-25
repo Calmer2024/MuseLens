@@ -103,8 +103,8 @@ class ProfileScreen extends StatelessWidget {
                       child: const CircleAvatar(
                         radius: 50,
                         backgroundColor: Colors.black,
-                        backgroundImage: NetworkImage(
-                          "https://i.pravatar.cc/300?img=12",
+                        backgroundImage: AssetImage(
+                          "assets/images/profile.jpg",
                         ), // 用户头像
                       ),
                     ),
@@ -113,7 +113,7 @@ class ProfileScreen extends StatelessWidget {
                   const SizedBox(height: 16),
 
                   const Text(
-                    "Alex Creator",
+                    "Calmer",
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,

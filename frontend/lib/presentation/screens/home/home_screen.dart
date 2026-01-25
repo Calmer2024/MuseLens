@@ -46,9 +46,7 @@ class HomeScreen extends StatelessWidget {
                       color: Colors.grey[800],
                       borderRadius: BorderRadius.circular(12),
                       image: const DecorationImage(
-                        image: NetworkImage(
-                          "https://i.pravatar.cc/150?img=12",
-                        ), // 随机头像
+                        image: AssetImage("assets/images/profile.jpg"),
                         fit: BoxFit.cover,
                       ),
                     ),
