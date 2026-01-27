@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/lens_template_mock.dart';
 import '../../widgets/lens/lens_market_card.dart';
+import '../../screens/library/my_library_screen.dart';
 
 class LensLibraryScreen extends StatelessWidget {
   const LensLibraryScreen({super.key});
@@ -56,7 +57,14 @@ class LensLibraryScreen extends StatelessWidget {
                             // My Library Button
                             GestureDetector(
                               onTap: () {
-                                // TODO: 跳转到我的库
+                                // 2. 添加跳转逻辑
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const MyLibraryScreen(),
+                                  ),
+                                );
                               },
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
