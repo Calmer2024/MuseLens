@@ -8,10 +8,10 @@ class LensLibraryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 获取数据 (确保 LensTemplateMock 已修复)
+    // 获取数据
     final templates = LensTemplateMock.getTemplates();
 
-    // 简单的瀑布流逻辑：将列表分为左右两列
+    // 瀑布流逻辑：左右分栏
     final leftColumn = <LensTemplateMock>[];
     final rightColumn = <LensTemplateMock>[];
 
@@ -27,156 +27,165 @@ class LensLibraryScreen extends StatelessWidget {
       backgroundColor: AppTheme.background,
       body: SafeArea(
         bottom: false,
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            // --- 1. Header (Title & My Library) ---
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center, // 确保垂直居中
-                  children: [
-                    const Text(
-                      "Lens Market",
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    Row(
+        child: Column(
+          children: [
+            // --- 1. 固定头部区域 (Fixed Header Section) ---
+            Container(
+              color: AppTheme.background, // 确保背景不透明，遮挡下方滚动内容
+              padding: const EdgeInsets.only(bottom: 10), // 底部留一点呼吸感
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1.1 标题栏
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // My Library Button
-                        GestureDetector(
-                          onTap: () {
-                            // TODO: 跳转到我的库
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
-                              ),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              children: const [
-                                Icon(
-                                  Icons.bookmarks_outlined,
-                                  color: Colors.white,
-                                  size: 16,
-                                ),
-                                SizedBox(width: 6),
-                                Text(
-                                  "My Library",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        const Text(
+                          "Lens Market",
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: -0.5,
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        // Search Icon Circle
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: AppTheme.electricIndigo.withOpacity(0.2),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppTheme.electricIndigo.withOpacity(0.5),
+                        Row(
+                          children: [
+                            // My Library Button
+                            GestureDetector(
+                              onTap: () {
+                                // TODO: 跳转到我的库
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.2),
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  children: const [
+                                    Icon(
+                                      Icons.bookmarks_outlined,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      "My Library",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
-                          child: const Icon(
-                            Icons.search,
-                            color: AppTheme.electricIndigo,
-                            size: 20,
-                          ),
+                            const SizedBox(width: 12),
+                            // Search Icon Circle (Small)
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppTheme.electricIndigo.withOpacity(0.2),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppTheme.electricIndigo.withOpacity(
+                                    0.5,
+                                  ),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.search,
+                                color: AppTheme.electricIndigo,
+                                size: 20,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-            ),
+                  ),
 
-            // --- 2. Search Bar ---
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 10,
-                ),
-                child: Container(
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E1E1E),
-                    borderRadius: BorderRadius.circular(25),
-                    border: Border.all(
-                      color: AppTheme.electricIndigo.withOpacity(0.3),
+                  // 1.2 搜索栏 (Search Bar)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.electricIndigo.withOpacity(0.05),
-                        blurRadius: 10,
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      const SizedBox(width: 16),
-                      Icon(Icons.search, color: Colors.white.withOpacity(0.3)),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          "Find style, effect, or creator...",
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.3),
-                            fontSize: 14,
-                          ),
+                    child: Container(
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1E1E),
+                        borderRadius: BorderRadius.circular(25),
+                        border: Border.all(
+                          color: AppTheme.electricIndigo.withOpacity(0.3),
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.electricIndigo.withOpacity(0.05),
+                            blurRadius: 10,
+                          ),
+                        ],
                       ),
-                    ],
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 16),
+                          Icon(
+                            Icons.search,
+                            color: Colors.white.withOpacity(0.3),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              "Find style, effect, or creator...",
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.3),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+
+                  // 1.3 标签栏 (Filter Chips - Horizontal Scroll)
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 5,
+                    ),
+                    child: Row(
+                      children: [
+                        _buildFilterChip("Recommended", isActive: true),
+                        _buildFilterChip("Portrait"),
+                        _buildFilterChip("Cyberpunk"),
+                        _buildFilterChip("Film"),
+                        _buildFilterChip("Anime"),
+                        _buildFilterChip("Scenery"),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
 
-            // --- 3. Filter Chips ---
-            SliverToBoxAdapter(
+            // --- 2. 滚动内容区域 (Scrollable Body) ---
+            Expanded(
               child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 10,
-                ),
-                child: Row(
-                  children: [
-                    _buildFilterChip("Recommended", isActive: true),
-                    _buildFilterChip("Portrait"),
-                    _buildFilterChip("Cyberpunk"),
-                    _buildFilterChip("Film"),
-                    _buildFilterChip("Anime"),
-                    _buildFilterChip("Scenery"),
-                  ],
-                ),
-              ),
-            ),
-
-            // --- 4. Masonry Grid (Waterfall Layout) ---
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 10, 20, 100), // 底部留白给导航栏
-              sliver: SliverToBoxAdapter(
+                // 底部留白给导航栏 (100) + 顶部间隔 (10)
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

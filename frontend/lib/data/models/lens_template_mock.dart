@@ -13,7 +13,7 @@ class LensTemplateMock {
   final String afterImage;
   final bool isOfficial;
   final double aspectRatio;
-  final LensSplitStyle splitStyle; // 新增字段
+  final LensSplitStyle splitStyle;
 
   LensTemplateMock({
     required this.title,
@@ -24,61 +24,130 @@ class LensTemplateMock {
     required this.afterImage,
     this.isOfficial = false,
     this.aspectRatio = 1.2,
-    this.splitStyle = LensSplitStyle.diagonal, // 默认为斜向
+    this.splitStyle = LensSplitStyle.diagonal,
   });
 
   static List<LensTemplateMock> getTemplates() {
     return [
+      // 1. Neon Tokyo (赛博朋克)
       LensTemplateMock(
-        title: "Neon City",
-        author: "@CreatorX",
+        title: "Neon Tokyo",
+        author: "@CyberPunk",
         authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Felix",
-        usageCount: "2.4k",
-        beforeImage: "https://picsum.photos/seed/neon_before/600/800",
-        afterImage: "https://picsum.photos/seed/neon_after/600/800",
+        usageCount: "12.4k",
+        beforeImage: "assets/images/lens_market/NeonTokyo_before.jpg",
+        afterImage: "assets/images/lens_market/NeonTokyo_after.jpg",
         isOfficial: true,
         aspectRatio: 1.4,
-        splitStyle: LensSplitStyle.diagonal, // 斜切适合透视感强的街景
+        splitStyle: LensSplitStyle.diagonal,
       ),
+
+      // 2. Ghibli Breeze (日系动漫)
       LensTemplateMock(
-        title: "Soft Glow",
-        author: "@LightMaster",
-        authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Aneka",
-        usageCount: "1.8k",
-        beforeImage: "https://picsum.photos/seed/glow_before/600/600",
-        afterImage: "https://picsum.photos/seed/glow_after/600/600",
-        aspectRatio: 1.0,
-        splitStyle: LensSplitStyle.vertical, // 竖切适合正脸人像
-      ),
-      LensTemplateMock(
-        title: "Anime Style",
-        author: "@TokyoDreamer",
-        authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Zack",
-        usageCount: "7.3k",
-        beforeImage: "https://picsum.photos/seed/anime_before/600/800",
-        afterImage: "https://picsum.photos/seed/anime_after/600/800",
+        title: "Ghibli Breeze",
+        author: "@MiyazakiFan",
+        authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Luna",
+        usageCount: "8.9k",
+        beforeImage: "assets/images/lens_market/GhibliBreeze_before.jpg",
+        afterImage: "assets/images/lens_market/GhibliBreeze_after.jpg",
         aspectRatio: 1.3,
-        splitStyle: LensSplitStyle.vertical, // 竖切适合人物展示
+        splitStyle: LensSplitStyle.vertical,
       ),
+
+      // 3. Soft Glamour (高级人像)
       LensTemplateMock(
-        title: "Film Noir",
-        author: "@RetroLens",
+        title: "Soft Glamour",
+        author: "@BeautyPro",
         authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Bella",
-        usageCount: "1.2k",
-        beforeImage: "https://picsum.photos/seed/film_before/600/700",
-        afterImage: "https://picsum.photos/seed/film_after/600/700",
-        aspectRatio: 1.1,
-        splitStyle: LensSplitStyle.diagonal, // 斜切增加电影感
+        usageCount: "5.2k",
+        beforeImage: "assets/images/lens_market/SoftGlamour_before.jpg",
+        afterImage: "assets/images/lens_market/SoftGlamour_after.jpg",
+        aspectRatio: 1.0,
+        splitStyle: LensSplitStyle.vertical,
       ),
+
+      // 4. 1990s Film (复古胶片)
+      LensTemplateMock(
+        title: "1990s Film",
+        author: "@RetroVibes",
+        authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Jack",
+        usageCount: "3.1k",
+        beforeImage: "https://picsum.photos/seed/film_before/700/600",
+        afterImage: "https://picsum.photos/seed/film_after/700/600",
+        aspectRatio: 1.2,
+        splitStyle: LensSplitStyle.diagonal,
+      ),
+
+      // 5. Studio Minimal (电商产品)
+      LensTemplateMock(
+        title: "Studio Minimal",
+        author: "@ProductGuru",
+        authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Max",
+        usageCount: "1.5k",
+        beforeImage: "assets/images/lens_market/StudioMinimal_before.png",
+        afterImage: "assets/images/lens_market/StudioMinimal_after.png",
+        aspectRatio: 1.0,
+        splitStyle: LensSplitStyle.vertical,
+      ),
+
+      // 6. Pixar Avatar (皮克斯风)
+      LensTemplateMock(
+        title: "Pixar Avatar",
+        author: "@3DArtist",
+        authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Zoe",
+        usageCount: "22k",
+        beforeImage: "https://picsum.photos/seed/pixar_before/600/600",
+        afterImage: "https://picsum.photos/seed/pixar_after/600/600",
+        aspectRatio: 1.0,
+        splitStyle: LensSplitStyle.vertical,
+      ),
+
+      // 7. Fantasy Realm (史诗风景)
       LensTemplateMock(
         title: "Fantasy Realm",
         author: "@MagicWand",
-        authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Luna",
-        usageCount: "2.4k",
+        authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Wizard",
+        usageCount: "4.5k",
         beforeImage: "https://picsum.photos/seed/fantasy_before/600/900",
         afterImage: "https://picsum.photos/seed/fantasy_after/600/900",
         aspectRatio: 1.5,
+        splitStyle: LensSplitStyle.diagonal,
+      ),
+
+      // 8. Charcoal Sketch (素描)
+      LensTemplateMock(
+        title: "Charcoal Sketch",
+        author: "@Sketchy",
+        authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Art",
+        usageCount: "900",
+        beforeImage: "assets/images/lens_market/CharcoalSketch_before.jpg",
+        afterImage: "assets/images/lens_market/CharcoalSketch_after.jpg",
+        aspectRatio: 1.1,
         splitStyle: LensSplitStyle.vertical,
+      ),
+
+      // 9. Michelin Star (美食滤镜)
+      LensTemplateMock(
+        title: "Michelin Star",
+        author: "@FoodieOne",
+        authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Chef",
+        usageCount: "6.7k",
+        beforeImage: "https://picsum.photos/seed/food_before/600/600",
+        afterImage: "https://picsum.photos/seed/food_after/600/600",
+        aspectRatio: 1.0,
+        splitStyle: LensSplitStyle.vertical,
+      ),
+
+      // 10. Future Tech (科幻机械)
+      LensTemplateMock(
+        title: "Future Tech",
+        author: "@SciFiLab",
+        authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Robot",
+        usageCount: "15k",
+        beforeImage: "https://picsum.photos/seed/tech_before/800/600",
+        afterImage: "https://picsum.photos/seed/tech_after/800/600",
+        aspectRatio: 1.3,
+        splitStyle: LensSplitStyle.diagonal,
       ),
     ];
   }

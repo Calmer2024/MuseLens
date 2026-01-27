@@ -42,21 +42,16 @@ class LensMarketCard extends StatelessWidget {
                 aspectRatio: 1 / template.aspectRatio,
                 child: Container(
                   color: Colors.grey[800],
-                  child: Image.network(
+                  child: _buildSmartImage(
                     template.beforeImage,
-                    fit: BoxFit.cover,
                     color: Colors.black.withOpacity(0.3),
-                    colorBlendMode: BlendMode.darken,
-                    headers: const {'User-Agent': 'Mozilla/5.0'},
-                    errorBuilder: (context, error, stackTrace) =>
-                        Container(color: const Color(0xFF2A2A2A)),
+                    blendMode: BlendMode.darken,
                   ),
                 ),
               ),
 
               // 2. 前景图 (After) + 动态裁剪
               ClipPath(
-                // --- 核心修改：根据 style 选择不同的裁剪器 ---
                 clipper: template.splitStyle == LensSplitStyle.vertical
                     ? VerticalSplitClipper()
                     : DiagonalSplitClipper(),
@@ -71,15 +66,10 @@ class LensMarketCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    child: Image.network(
+                    child: _buildSmartImage(
                       template.afterImage,
-                      fit: BoxFit.cover,
                       color: AppTheme.electricIndigo.withOpacity(0.3),
-                      colorBlendMode: BlendMode.colorBurn,
-                      headers: const {'User-Agent': 'Mozilla/5.0'},
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: AppTheme.electricIndigo.withOpacity(0.2),
-                      ),
+                      blendMode: BlendMode.colorBurn,
                     ),
                   ),
                 ),
@@ -88,7 +78,6 @@ class LensMarketCard extends StatelessWidget {
               // 3. 分割线 + 动态绘制
               Positioned.fill(
                 child: CustomPaint(
-                  // --- 核心修改：根据 style 选择不同的画笔 ---
                   painter: template.splitStyle == LensSplitStyle.vertical
                       ? VerticalLinePainter()
                       : DiagonalLinePainter(),
@@ -174,7 +163,6 @@ class LensMarketCard extends StatelessWidget {
                                 width: 16,
                                 height: 16,
                                 fit: BoxFit.cover,
-                                headers: const {'User-Agent': 'Mozilla/5.0'},
                                 errorBuilder: (c, e, s) => const Icon(
                                   Icons.person,
                                   size: 10,
@@ -218,11 +206,41 @@ class LensMarketCard extends StatelessWidget {
       ),
     );
   }
+
+  // --- 智能图片加载方法 (支持本地和网络) ---
+  Widget _buildSmartImage(String path, {Color? color, BlendMode? blendMode}) {
+    if (path.startsWith('http')) {
+      return Image.network(
+        path,
+        fit: BoxFit.cover,
+        color: color,
+        colorBlendMode: blendMode,
+        headers: const {'User-Agent': 'Mozilla/5.0'},
+        errorBuilder: (context, error, stackTrace) =>
+            Container(color: const Color(0xFF2A2A2A)),
+      );
+    } else {
+      return Image.asset(
+        path,
+        fit: BoxFit.cover,
+        color: color,
+        colorBlendMode: blendMode,
+        errorBuilder: (context, error, stackTrace) => Container(
+          color: const Color(0xFF2A2A2A),
+          child: const Center(
+            child: Text(
+              "Asset Not Found",
+              style: TextStyle(color: Colors.white, fontSize: 10),
+            ),
+          ),
+        ),
+      );
+    }
+  }
 }
 
-// --- 剪裁器实现 ---
+// --- 剪裁器与画笔 ---
 
-// 1. 斜向剪裁器
 class DiagonalSplitClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
@@ -239,12 +257,10 @@ class DiagonalSplitClipper extends CustomClipper<Path> {
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
 
-// 2. 竖向剪裁器 (新增)
 class VerticalSplitClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     var path = Path();
-    // 简单的矩形，占右半边 (50%)
     path.addRect(Rect.fromLTRB(size.width * 0.5, 0, size.width, size.height));
     return path;
   }
@@ -253,9 +269,6 @@ class VerticalSplitClipper extends CustomClipper<Path> {
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
 
-// --- 画笔实现 ---
-
-// 1. 斜向分割线画笔
 class DiagonalLinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -274,7 +287,6 @@ class DiagonalLinePainter extends CustomPainter {
   bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
 
-// 2. 竖向分割线画笔 (新增)
 class VerticalLinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -283,7 +295,6 @@ class VerticalLinePainter extends CustomPainter {
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
-    // 从中间顶部画到中间底部
     final p1 = Offset(size.width * 0.5, 0);
     final p2 = Offset(size.width * 0.5, size.height);
 

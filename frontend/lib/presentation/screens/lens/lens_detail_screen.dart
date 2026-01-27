@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:ui'; // 用于 ImageFilter (毛玻璃效果)
+import 'dart:ui'; // 用于 ImageFilter
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/lens_template_mock.dart';
 
@@ -13,34 +13,27 @@ class LensDetailScreen extends StatefulWidget {
 }
 
 class _LensDetailScreenState extends State<LensDetailScreen> {
-  // 控制 Before/After 滑块位置 (0.0 - 1.0)
   double _splitValue = 0.5;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background, // #121212
+      backgroundColor: AppTheme.background,
       body: Stack(
         children: [
-          // --- 1. 可滚动内容区 ---
           SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: 120), // 底部留白给悬浮栏
+            padding: const EdgeInsets.only(bottom: 120),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1.1 交互式对比图 (Hero Slider)
                 _buildInteractiveSlider(context),
-
                 const SizedBox(height: 24),
-
-                // 1.2 信息详情区
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 标题 + PRO 标签
                       Row(
                         children: [
                           Text(
@@ -75,10 +68,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                             ),
                         ],
                       ),
-
                       const SizedBox(height: 16),
-
-                      // 作者栏
                       Row(
                         children: [
                           CircleAvatar(
@@ -151,10 +141,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 24),
-
-                      // 数据统计 (Stats Grid)
                       Container(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         decoration: BoxDecoration(
@@ -175,10 +162,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                           ],
                         ),
                       ),
-
                       const SizedBox(height: 30),
-
-                      // Workflow DNA (可视化模块)
                       const Text(
                         "Workflow DNA",
                         style: TextStyle(
@@ -210,8 +194,6 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
               ],
             ),
           ),
-
-          // --- 2. 顶部悬浮导航栏 (Glassmorphism) ---
           Positioned(
             top: 0,
             left: 0,
@@ -225,7 +207,6 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Back Button
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
                       child: ClipOval(
@@ -243,7 +224,6 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                         ),
                       ),
                     ),
-                    // Right Icons
                     Row(
                       children: [
                         _buildGlassIcon(Icons.share),
@@ -256,8 +236,6 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
               ),
             ),
           ),
-
-          // --- 3. 底部悬浮行动栏 (Action Bar) ---
           Positioned(
             bottom: 30,
             left: 20,
@@ -275,12 +253,9 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                   ),
                   child: Row(
                     children: [
-                      // Apply Button (Gradient)
                       Expanded(
                         child: GestureDetector(
-                          onTap: () {
-                            // TODO: 应用模板逻辑
-                          },
+                          onTap: () {},
                           child: Container(
                             height: 56,
                             decoration: BoxDecoration(
@@ -323,7 +298,6 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      // Like Button
                       Container(
                         width: 56,
                         height: 56,
@@ -347,9 +321,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
     );
   }
 
-  // --- 核心组件：Before/After 交互式滑块 ---
   Widget _buildInteractiveSlider(BuildContext context) {
-    // 屏幕高度的 55% 作为图片区域高度
     final double height = MediaQuery.of(context).size.height * 0.55;
 
     return SizedBox(
@@ -357,32 +329,20 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // 1. 底层：After Image (效果图)
-          Image.network(
+          // 1. After Image (智能加载)
+          _buildSmartImage(
             widget.template.afterImage,
-            fit: BoxFit.cover,
-            color: AppTheme.electricIndigo.withOpacity(0.1), // 微调滤镜
-            colorBlendMode: BlendMode.colorBurn,
-            headers: const {'User-Agent': 'Mozilla/5.0'},
-            errorBuilder: (context, error, stackTrace) => Container(
-              color: AppTheme.electricIndigo.withOpacity(0.2),
-              child: const Center(
-                child: Icon(Icons.broken_image, color: Colors.white24),
-              ),
-            ),
+            color: AppTheme.electricIndigo.withOpacity(0.1),
+            blendMode: BlendMode.colorBurn,
           ),
 
-          // 2. 顶层：Before Image (原图) - 使用 ClipRect 裁剪
+          // 2. Before Image (智能加载 + 裁剪)
           ClipRect(
             clipper: _SliderClipper(_splitValue),
-            child: Image.network(
+            child: _buildSmartImage(
               widget.template.beforeImage,
-              fit: BoxFit.cover,
-              color: Colors.black.withOpacity(0.3), // 压暗原图以突出对比
-              colorBlendMode: BlendMode.darken,
-              headers: const {'User-Agent': 'Mozilla/5.0'},
-              errorBuilder: (context, error, stackTrace) =>
-                  Container(color: Colors.grey[900]),
+              color: Colors.black.withOpacity(0.3),
+              blendMode: BlendMode.darken,
             ),
           ),
 
@@ -405,14 +365,13 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
             ),
           ),
 
-          // 4. 可拖动手柄 (Handle Tag)
+          // 4. 手柄
           Positioned(
             left: MediaQuery.of(context).size.width * _splitValue - 40,
             top: height / 2 - 20,
             child: GestureDetector(
               onHorizontalDragUpdate: (details) {
                 setState(() {
-                  // 计算新的分割位置
                   double newValue =
                       details.globalPosition.dx /
                       MediaQuery.of(context).size.width;
@@ -464,6 +423,34 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
     );
   }
 
+  // --- 智能图片加载方法 ---
+  Widget _buildSmartImage(String path, {Color? color, BlendMode? blendMode}) {
+    if (path.startsWith('http')) {
+      return Image.network(
+        path,
+        fit: BoxFit.cover,
+        color: color,
+        colorBlendMode: blendMode,
+        headers: const {'User-Agent': 'Mozilla/5.0'},
+        errorBuilder: (context, error, stackTrace) => Container(
+          color: const Color(0xFF2A2A2A),
+          child: const Center(
+            child: Icon(Icons.broken_image, color: Colors.white24),
+          ),
+        ),
+      );
+    } else {
+      return Image.asset(
+        path,
+        fit: BoxFit.cover,
+        color: color,
+        colorBlendMode: blendMode,
+        errorBuilder: (context, error, stackTrace) =>
+            Container(color: const Color(0xFF2A2A2A)),
+      );
+    }
+  }
+
   // --- 辅助组件 ---
   Widget _buildGlassIcon(IconData icon) {
     return ClipOval(
@@ -499,13 +486,8 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
     );
   }
 
-  Widget _buildDivider() {
-    return Container(
-      width: 1,
-      height: 24,
-      color: Colors.white.withOpacity(0.1),
-    );
-  }
+  Widget _buildDivider() =>
+      Container(width: 1, height: 24, color: Colors.white.withOpacity(0.1));
 
   Widget _buildDnaCard(int index, IconData icon, String label) {
     return Container(
@@ -525,7 +507,6 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
       ),
       child: Stack(
         children: [
-          // 序号
           Positioned(
             top: 8,
             left: 10,
@@ -538,7 +519,6 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
               ),
             ),
           ),
-          // 内容
           Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -562,18 +542,12 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
   }
 }
 
-// 裁剪器：根据百分比裁剪左侧图片
 class _SliderClipper extends CustomClipper<Rect> {
   final double splitValue;
-
   _SliderClipper(this.splitValue);
-
   @override
-  Rect getClip(Size size) {
-    // 只显示 0 到 splitValue 宽度的部分
-    return Rect.fromLTRB(0, 0, size.width * splitValue, size.height);
-  }
-
+  Rect getClip(Size size) =>
+      Rect.fromLTRB(0, 0, size.width * splitValue, size.height);
   @override
   bool shouldReclip(CustomClipper<Rect> oldClipper) => true;
 }
