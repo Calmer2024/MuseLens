@@ -15,16 +15,14 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
   // 控制 Saved / Created 切换 (0 = Saved, 1 = Created)
   int _selectedIndex = 0;
 
-  // 模拟数据：假设这是用户收藏的 Lens
+  // 模拟数据
   final List<LensTemplateMock> _savedTemplates = LensTemplateMock.getTemplates()
       .sublist(0, 6);
-  // 模拟数据：假设这是用户创建的 Lens
   final List<LensTemplateMock> _createdTemplates =
       LensTemplateMock.getTemplates().sublist(6, 9);
 
   @override
   Widget build(BuildContext context) {
-    // 根据当前 Tab 选择要展示的数据
     final currentTemplates = _selectedIndex == 0
         ? _savedTemplates
         : _createdTemplates;
@@ -52,7 +50,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 1.1 导航栏 (Title + Settings/Add)
+                  // 1.1 导航栏
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,
@@ -61,7 +59,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // 左侧：返回按钮 + 标题
+                        // 左侧：返回 + 标题
                         Row(
                           children: [
                             GestureDetector(
@@ -84,7 +82,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
                             ),
                           ],
                         ),
-                        // 右侧：设置与新建
+                        // 右侧：设置 + 新建
                         Row(
                           children: [
                             const Icon(
@@ -104,7 +102,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
                     ),
                   ),
 
-                  // 1.2 分段控制器 (Saved / Created)
+                  // 1.2 分段控制器
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Container(
@@ -164,7 +162,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
 
                   const SizedBox(height: 20),
 
-                  // 1.4 文件夹分组 (Collections)
+                  // 1.4 文件夹分组
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     physics: const BouncingScrollPhysics(),
@@ -186,7 +184,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
               ),
             ),
 
-            // --- 2. 滚动内容区域 (瀑布流) ---
+            // --- 2. 滚动内容区域 ---
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
@@ -221,7 +219,6 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
 
   // --- 组件构建方法 ---
 
-  // 分段按钮
   Widget _buildSegmentButton(int index, String text) {
     final bool isSelected = _selectedIndex == index;
     return Expanded(
@@ -248,7 +245,6 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
     );
   }
 
-  // 文件夹卡片
   Widget _buildCollectionCard(
     IconData icon,
     String label, {
@@ -300,7 +296,6 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
     );
   }
 
-  // 新建分组卡片 (虚线效果)
   Widget _buildAddGroupCard() {
     return Container(
       width: 80,
@@ -308,15 +303,10 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
       decoration: BoxDecoration(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.2),
-          style: BorderStyle
-              .none, // Flutter 原生不支持虚线边框，这里用简单边框代替，或引入 dashed_border 包
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
       ),
       child: CustomPaint(
-        painter: _DashedBorderPainter(), // 下方实现虚线画笔
+        painter: _DashedBorderPainter(),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -335,63 +325,124 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
     );
   }
 
-  // 库专用的卡片 (复用 LensMarketCard 并增加管理功能)
+  // --- 核心修改：库专用卡片 ---
   Widget _buildLibraryCard(LensTemplateMock template) {
     return Stack(
       children: [
         // 1. 基础卡片
         LensMarketCard(template: template),
 
-        // 2. 右上角管理按钮 (...)
+        // 2. 左上角：Downloaded 状态 (解决遮挡问题，移到顶部)
         Positioned(
-          top: 10,
-          right: 10,
-          child: GestureDetector(
-            onTap: () {
-              // TODO: 弹出底部菜单 (删除/移动)
-            },
-            child: ClipOval(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  color: Colors.black.withOpacity(0.4),
-                  child: const Icon(
-                    Icons.more_horiz,
-                    color: Colors.white,
-                    size: 20,
+          top: 12,
+          left: 12,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6), // 深色背景衬托
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppTheme.electricIndigo.withOpacity(0.5),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.check_circle,
+                  size: 10,
+                  color: AppTheme.electricIndigo,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  "Downloaded",
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
 
-        // 3. 底部状态 (Downloaded)
+        // 3. 右上角：弹出菜单 (置顶/删除)
         Positioned(
-          bottom: 28, // 放在标题上方一点
-          left: 12,
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(
-                  color: AppTheme.electricIndigo,
-                  shape: BoxShape.circle,
+          top: 6,
+          right: 6,
+          child: Theme(
+            data: Theme.of(context).copyWith(
+              // 自定义菜单样式
+              cardColor: const Color(0xFF2A2A2A),
+              popupMenuTheme: PopupMenuThemeData(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.check, size: 8, color: Colors.white),
+                color: const Color(0xFF2A2A2A),
+                textStyle: const TextStyle(color: Colors.white),
               ),
-              const SizedBox(width: 4),
-              Text(
-                "Downloaded",
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.6),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
+            ),
+            child: PopupMenuButton<String>(
+              offset: const Offset(0, 40), // 菜单向下偏移一点
+              icon: ClipOval(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    color: Colors.black.withOpacity(0.4),
+                    child: const Icon(
+                      Icons.more_horiz,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
                 ),
               ),
-            ],
+              onSelected: (String value) {
+                // TODO: 处理点击事件
+                if (value == 'pin') {
+                  print("Pin to top");
+                } else if (value == 'delete') {
+                  print("Delete template");
+                }
+              },
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(
+                  value: 'pin',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.push_pin_outlined,
+                        color: Colors.white70,
+                        size: 18,
+                      ),
+                      SizedBox(width: 12),
+                      Text("Pin to Top", style: TextStyle(fontSize: 14)),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(height: 1),
+                const PopupMenuItem<String>(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline,
+                        color: Colors.redAccent,
+                        size: 18,
+                      ),
+                      SizedBox(width: 12),
+                      Text(
+                        "Delete",
+                        style: TextStyle(fontSize: 14, color: Colors.redAccent),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -399,7 +450,6 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
   }
 }
 
-// 虚线画笔辅助类
 class _DashedBorderPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -416,7 +466,6 @@ class _DashedBorderPainter extends CustomPainter {
         ),
       );
 
-    // 简单的虚线模拟
     Path dashPath = Path();
     double dashWidth = 5.0;
     double dashSpace = 5.0;
