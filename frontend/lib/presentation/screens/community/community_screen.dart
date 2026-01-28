@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // 用于 ImageFilter
 import '../../../core/theme/app_theme.dart';
-import 'post_detail_screen.dart'; // 引入详情页
+import 'post_detail_screen.dart'; // 引入帖子详情页
+import 'chat_detail_screen.dart'; // 引入对话详情页
+import 'search_screen.dart'; // 引入搜索页
 
 // --- 1. 模拟数据模型 (扩充至10条 - 中文内容) ---
 class CommunityPostMock {
@@ -178,7 +180,13 @@ class _CommunityScreenState extends State<CommunityScreen>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   // 左侧：筛选按钮
-                  _buildIconButton(Icons.tune, "Filter"),
+                  _buildIconButton(
+                    Icons.tune,
+                    "Filter",
+                    onTap: () {
+                      // TODO: 打开筛选菜单
+                    },
+                  ),
 
                   // 中间：导航 Tab (Discover | Messages) - 保持英文
                   Container(
@@ -197,8 +205,19 @@ class _CommunityScreenState extends State<CommunityScreen>
                     ),
                   ),
 
-                  // 右侧：搜索按钮
-                  _buildIconButton(Icons.search, "Search"),
+                  // 右侧：搜索按钮 (跳转到搜索页)
+                  _buildIconButton(
+                    Icons.search,
+                    "Search",
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SearchScreen(),
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -303,16 +322,23 @@ class _CommunityScreenState extends State<CommunityScreen>
 
   // --- 辅助组件 ---
 
-  Widget _buildIconButton(IconData icon, String tooltip) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+  Widget _buildIconButton(
+    IconData icon,
+    String tooltip, {
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E1E),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
+        ),
+        child: Icon(icon, color: Colors.white, size: 20),
       ),
-      child: Icon(icon, color: Colors.white, size: 20),
     );
   }
 
@@ -349,102 +375,117 @@ class _CommunityScreenState extends State<CommunityScreen>
     bool isOfficial = false,
     bool isLocalImage = false,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
-      ),
-      child: Row(
-        children: [
-          // 头像
-          Stack(
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: Colors.grey[800],
-                child: ClipOval(
-                  child: isLocalImage
-                      ? Image.asset(
-                          avatar,
-                          width: 48,
-                          height: 48,
-                          fit: BoxFit.cover,
-                          errorBuilder: (c, e, s) =>
-                              const Icon(Icons.person, color: Colors.white),
-                        )
-                      : Image.network(
-                          avatar,
-                          width: 48,
-                          height: 48,
-                          fit: BoxFit.cover,
-                          headers: const {'User-Agent': 'Mozilla/5.0'},
-                          errorBuilder: (c, e, s) =>
-                              const Icon(Icons.person, color: Colors.white),
-                        ),
-                ),
-              ),
-              if (isOfficial)
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: const BoxDecoration(
-                      color: AppTheme.background,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.verified,
-                      color: AppTheme.electricIndigo,
-                      size: 14,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 12),
-          // 内容
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                    Text(
-                      time,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.4),
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  message,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.6),
-                    fontSize: 13,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+    return GestureDetector(
+      onTap: () {
+        // 跳转到对话详情
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChatDetailScreen(
+              userName: name,
+              avatarUrl:
+                  avatar, // 注意：如果是本地图片，ChatDetailScreen 可能需要适配，这里演示假设是网络图或兼容处理
             ),
           ),
-        ],
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.05)),
+        ),
+        child: Row(
+          children: [
+            // 头像
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: Colors.grey[800],
+                  child: ClipOval(
+                    child: isLocalImage
+                        ? Image.asset(
+                            avatar,
+                            width: 48,
+                            height: 48,
+                            fit: BoxFit.cover,
+                            errorBuilder: (c, e, s) =>
+                                const Icon(Icons.person, color: Colors.white),
+                          )
+                        : Image.network(
+                            avatar,
+                            width: 48,
+                            height: 48,
+                            fit: BoxFit.cover,
+                            headers: const {'User-Agent': 'Mozilla/5.0'},
+                            errorBuilder: (c, e, s) =>
+                                const Icon(Icons.person, color: Colors.white),
+                          ),
+                  ),
+                ),
+                if (isOfficial)
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: AppTheme.background,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.verified,
+                        color: AppTheme.electricIndigo,
+                        size: 14,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 12),
+            // 内容
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                      Text(
+                        time,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.4),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    message,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.6),
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
