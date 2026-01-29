@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui' as ui; // 引入 ui 库用于 ImageByteFormat
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../../../core/constants/api_constants.dart';
@@ -32,7 +31,7 @@ class _EditorScreenState extends State<EditorScreen> {
     super.dispose();
   }
 
-  // --- 🔥 修复后的核心逻辑 ---
+  // --- 🔥 核心逻辑：发送请求给后端 ---
   Future<void> _sendToBackend() async {
     if (_promptController.text.trim().isEmpty) {
       ScaffoldMessenger.of(
@@ -55,7 +54,7 @@ class _EditorScreenState extends State<EditorScreen> {
         ),
       });
 
-      // 5. 发送请求
+      // 发送请求
       Dio dio = Dio();
       dio.options.connectTimeout = const Duration(seconds: 10);
       dio.options.receiveTimeout = const Duration(seconds: 120);
@@ -98,12 +97,14 @@ class _EditorScreenState extends State<EditorScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: false, // 防止键盘顶起整个页面布局
       body: SafeArea(
         child: Column(
           children: [
+            // 1. 顶部导航栏
             _buildHeader(context),
 
+            // 2. 中间图片展示区
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -121,7 +122,7 @@ class _EditorScreenState extends State<EditorScreen> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        // 底层图片
+                        // 底层图片：优先显示生成结果，否则显示原图
                         _resultImage != null
                             ? Image.memory(_resultImage!, fit: BoxFit.contain)
                             : Image.file(
@@ -146,6 +147,7 @@ class _EditorScreenState extends State<EditorScreen> {
               ),
             ),
 
+            // 3. 底部操作区
             _buildBottomInterface(),
           ],
         ),
@@ -181,7 +183,7 @@ class _EditorScreenState extends State<EditorScreen> {
             ),
           ),
 
-          // 如果已生成结果，显示 Reset 按钮
+          // 如果已生成结果，显示 Reset 按钮；否则显示 Save (仅作展示)
           _resultImage != null
               ? GestureDetector(
                   onTap: () {

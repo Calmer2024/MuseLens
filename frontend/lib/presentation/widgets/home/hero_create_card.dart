@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import '../../screens/editor/editor_screen.dart';
+// 引入意向顾问界面
+import '../../screens/create/consultant_screen.dart';
 
 class HeroCreateCard extends StatelessWidget {
   const HeroCreateCard({super.key});
@@ -88,13 +89,13 @@ class HeroCreateCard extends StatelessWidget {
                         source: ImageSource.gallery,
                       );
 
-                      // 2. 如果用户选了图，跳转到 EditorScreen
+                      // 2. 如果用户选了图，先跳转到 ConsultantScreen (意向顾问)
                       if (image != null && context.mounted) {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => EditorScreen(
-                              selectedImage: File(image.path), // 传参
+                            builder: (context) => ConsultantScreen(
+                              selectedImagePath: image.path, // 传递图片路径
                             ),
                           ),
                         );
