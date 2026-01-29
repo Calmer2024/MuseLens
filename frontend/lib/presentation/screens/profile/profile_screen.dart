@@ -1,20 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../data/models/profile_mock.dart';
 
-class ProfileScreen extends StatelessWidget {
+// 引入之前定义的数据模型和详情页
+import '../../../data/models/lens_template_mock.dart';
+import '../community/community_screen.dart'; // 包含 CommunityPostMock
+import '../lens/lens_detail_screen.dart'; // Lens 详情页
+import '../community/post_detail_screen.dart'; // 帖子详情页
+
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final creations = ProfileCreationMock.getCreations();
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
 
+class _ProfileScreenState extends State<ProfileScreen> {
+  // 当前选中的 Tab 索引: 0=My Lens, 1=My Post, 2=Favorite
+  int _currentTab = 0;
+
+  // 模拟数据源
+  late List<LensTemplateMock> _myLenses;
+  late List<CommunityPostMock> _myPosts;
+  late List<CommunityPostMock> _favorites;
+
+  @override
+  void initState() {
+    super.initState();
+    // 1. 获取 My Lens 数据
+    _myLenses = LensTemplateMock.getTemplates();
+
+    // 2. 获取 My Post 数据 (取前5个作为模拟)
+    _myPosts = CommunityPostMock.getPosts().take(5).toList();
+
+    // 3. 获取 Favorite 数据 (取后5个作为模拟)
+    _favorites = CommunityPostMock.getPosts().skip(5).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0A), // 比纯黑稍微浅一点点的哑光黑
+      backgroundColor: const Color(0xFF0A0A0A), // 哑光黑背景
       body: Stack(
         children: [
-          // 背景微光 (可选，增加氛围)
+          // 背景微光
           Positioned(
             top: -100,
             left: 0,
@@ -38,6 +67,7 @@ class ProfileScreen extends StatelessWidget {
             bottom: false,
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24),
+              physics: const BouncingScrollPhysics(),
               child: Column(
                 children: [
                   const SizedBox(height: 10),
@@ -46,7 +76,7 @@ class ProfileScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const SizedBox(width: 40), // 占位，保持 Title 居中
+                      const SizedBox(width: 40), // 占位
                       const Text(
                         "Profile",
                         style: TextStyle(
@@ -56,7 +86,6 @@ class ProfileScreen extends StatelessWidget {
                           letterSpacing: 0.5,
                         ),
                       ),
-                      // Settings Icon (Glassmorphic)
                       Container(
                         width: 40,
                         height: 40,
@@ -78,7 +107,7 @@ class ProfileScreen extends StatelessWidget {
 
                   const SizedBox(height: 30),
 
-                  // --- 2. User Info (Avatar & Glow) ---
+                  // --- 2. User Info ---
                   Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
@@ -91,7 +120,7 @@ class ProfileScreen extends StatelessWidget {
                       ],
                     ),
                     child: Container(
-                      padding: const EdgeInsets.all(3), // 边框宽度
+                      padding: const EdgeInsets.all(3),
                       decoration: const BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: LinearGradient(
@@ -105,7 +134,7 @@ class ProfileScreen extends StatelessWidget {
                         backgroundColor: Colors.black,
                         backgroundImage: AssetImage(
                           "assets/images/profile.jpg",
-                        ), // 用户头像
+                        ),
                       ),
                     ),
                   ),
@@ -122,7 +151,7 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    "@alex_makes_art",
+                    "@Calmer_makes_art",
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.white.withOpacity(0.5),
@@ -174,45 +203,31 @@ class ProfileScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildStatItem("1.2k", "Followers"),
-                      _buildStatItem("85", "Following"),
+                      _buildStatItem("12", "Lens"),
+                      _buildStatItem("85", "Posts"),
                       _buildStatItem("4.5k", "Likes"),
                     ],
                   ),
 
                   const SizedBox(height: 30),
 
-                  // --- 5. Tabs ---
-                  const Row(
+                  // --- 5. Tabs (Updated) ---
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _TabItem(label: "My Recipes", isActive: true),
-                      _TabItem(label: "Saved", isActive: false),
-                      _TabItem(label: "About", isActive: false),
+                      _buildTabButton(0, "My Lens"),
+                      _buildTabButton(1, "My Post"),
+                      _buildTabButton(2, "Favorite"),
                     ],
                   ),
 
                   const SizedBox(height: 20),
 
-                  // --- 6. Content Grid ---
-                  // 使用 GridView.builder
-                  GridView.builder(
-                    shrinkWrap: true, // 关键：允许在 ScrollView 中嵌套
-                    physics:
-                        const NeverScrollableScrollPhysics(), // 禁用 Grid 自身滚动
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 0.75, // 调整长宽比以匹配原型图
-                          crossAxisSpacing: 16,
-                          mainAxisSpacing: 16,
-                        ),
-                    itemCount: creations.length,
-                    padding: const EdgeInsets.only(bottom: 120), // 避开底部导航栏
-                    itemBuilder: (context, index) {
-                      return _buildGridItem(creations[index]);
-                    },
-                  ),
+                  // --- 6. Content Grid (Dynamic) ---
+                  _buildContentGrid(),
+
+                  // 底部留白
+                  const SizedBox(height: 100),
                 ],
               ),
             ),
@@ -222,8 +237,207 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  // --- Helper Widgets ---
+  // --- 逻辑组件 ---
 
+  // 构建 Tab 按钮
+  Widget _buildTabButton(int index, String label) {
+    final bool isActive = _currentTab == index;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _currentTab = index;
+        });
+      },
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: isActive ? Colors.white : Colors.white.withOpacity(0.5),
+              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 6),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            height: 3,
+            width: isActive ? 40 : 0,
+            decoration: BoxDecoration(
+              color: AppTheme.electricIndigo,
+              borderRadius: BorderRadius.circular(2),
+              boxShadow: isActive
+                  ? [
+                      BoxShadow(
+                        color: AppTheme.electricIndigo.withOpacity(0.6),
+                        blurRadius: 8,
+                      ),
+                    ]
+                  : [],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 根据当前 Tab 构建网格内容
+  Widget _buildContentGrid() {
+    if (_currentTab == 0) {
+      // --- Tab 1: My Lens ---
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.7, // Lens 卡片通常是竖长的
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        itemCount: _myLenses.length,
+        itemBuilder: (context, index) {
+          return _buildLensCard(_myLenses[index]);
+        },
+      );
+    } else if (_currentTab == 1) {
+      // --- Tab 2: My Post ---
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.75, // 帖子卡片比例
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        itemCount: _myPosts.length,
+        itemBuilder: (context, index) {
+          return _buildPostCard(_myPosts[index]);
+        },
+      );
+    } else {
+      // --- Tab 3: Favorite ---
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.75,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        itemCount: _favorites.length,
+        itemBuilder: (context, index) {
+          return _buildPostCard(_favorites[index]);
+        },
+      );
+    }
+  }
+
+  // 构建 Lens 卡片 (样式一)
+  Widget _buildLensCard(LensTemplateMock lens) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => LensDetailScreen(template: lens),
+          ),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: const Color(0xFF1E1E1E),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(16),
+                ),
+                child: _buildSmartImage(lens.afterImage), // 展示效果图
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(10.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    lens.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "${lens.usageCount} uses",
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.5),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 构建 Post 卡片 (样式二)
+  Widget _buildPostCard(CommunityPostMock post) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => PostDetailScreen(post: post)),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: const Color(0xFF1E1E1E),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(16),
+                ),
+                child: _buildSmartImage(post.imageUrl),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(10.0),
+              child: Text(
+                post.description,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 12,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 辅助方法：统计块
   Widget _buildStatItem(String count, String label) {
     return Container(
       width: 100,
@@ -256,86 +470,26 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildGridItem(ProfileCreationMock item) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: const Color(0xFF1E1E1E),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(20),
-              ),
-              child: CachedNetworkImage(
-                imageUrl: item.imageUrl,
-                fit: BoxFit.cover,
-                width: double.infinity,
-                placeholder: (context, url) =>
-                    Container(color: const Color(0xFF2C2C2C)),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Text(
-              item.title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TabItem extends StatelessWidget {
-  final String label;
-  final bool isActive;
-
-  const _TabItem({required this.label, required this.isActive});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: isActive ? Colors.white : Colors.white.withOpacity(0.5),
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-            fontSize: 16,
-          ),
-        ),
-        const SizedBox(height: 6),
-        // Active Indicator
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          height: 3,
-          width: isActive ? 40 : 0,
-          decoration: BoxDecoration(
-            color: AppTheme.electricIndigo,
-            borderRadius: BorderRadius.circular(2),
-            boxShadow: isActive
-                ? [
-                    BoxShadow(
-                      color: AppTheme.electricIndigo.withOpacity(0.6),
-                      blurRadius: 8,
-                    ),
-                  ]
-                : [],
-          ),
-        ),
-      ],
-    );
+  // 辅助方法：智能图片加载
+  Widget _buildSmartImage(String path) {
+    if (path.startsWith('http')) {
+      return CachedNetworkImage(
+        imageUrl: path,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        placeholder: (context, url) =>
+            Container(color: const Color(0xFF2C2C2C)),
+        errorWidget: (context, url, error) =>
+            Container(color: Colors.grey[850]),
+      );
+    } else {
+      return Image.asset(
+        path,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        errorBuilder: (context, error, stackTrace) =>
+            Container(color: Colors.grey[850]),
+      );
+    }
   }
 }
