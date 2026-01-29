@@ -3,7 +3,7 @@ import 'dart:io';
 import '../../../core/theme/app_theme.dart';
 import '../editor/editor_screen.dart';
 
-// 模拟消息模型
+// 消息模型
 class ConsultantMessage {
   final bool isAi;
   final String content;
@@ -44,47 +44,33 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF121212), // Matte Black
-      // 防止键盘顶起布局导致图片位置错乱，根据需要开启或关闭
       resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: Column(
           children: [
-            // --- 1. Top Header (Simplified) ---
-            // 顶部只保留标题，缩略图移走
+            // --- 1. Top Header ---
             _buildHeader(),
 
-            // --- 2. Main Content Area (Stack) ---
-            Expanded(
-              child: Stack(
-                children: [
-                  // Layer A: Chat List
-                  ListView.builder(
-                    controller: _scrollController,
-                    // 给顶部留出一点空间，或者给右侧留出一点空间防止遮挡(可选)
-                    padding: const EdgeInsets.only(
-                      left: 16,
-                      right: 16,
-                      top: 20,
-                      bottom: 180, // 底部留白给浮动卡片和输入框，防止遮挡最后一条消息
-                    ),
-                    itemCount: _messages.length,
-                    itemBuilder: (context, index) {
-                      return _buildMessageBubble(_messages[index]);
-                    },
-                  ),
+            // --- 2. Image Preview Panel (Fixed Top) ---
+            // 核心修改：将图片放在 Column 中，固定在对话上方，不再遮挡
+            _buildProjectContextPanel(),
 
-                  // Layer B: Floating Image Card (Right Middle)
-                  // 放在右侧中部，稍微靠上一点，避免遮挡底部最新的对话
-                  Positioned(
-                    top: 20, // 距离 Header 底部 20
-                    right: 16, // 距离右侧 16
-                    child: _buildFloatingImageCard(),
-                  ),
-                ],
+            // --- 3. Chat Area ---
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 20,
+                ),
+                itemCount: _messages.length,
+                itemBuilder: (context, index) {
+                  return _buildMessageBubble(_messages[index]);
+                },
               ),
             ),
 
-            // --- 3. Bottom Interaction Area ---
+            // --- 4. Bottom Interaction Area ---
             _buildBottomArea(),
           ],
         ),
@@ -92,76 +78,13 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
     );
   }
 
-  // --- 悬浮图片卡片 (New Design) ---
-  Widget _buildFloatingImageCard() {
-    return Container(
-      width: 120, // 卡片宽度加大
-      height: 160, // 卡片高度加大 (4:3 比例左右)
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.5),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // 图片区域
-          Expanded(
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(15),
-              ),
-              child: widget.selectedImagePath.startsWith('assets')
-                  ? Image.asset(
-                      widget.selectedImagePath,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                    )
-                  : Image.file(
-                      File(widget.selectedImagePath),
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                    ),
-            ),
-          ),
-          // 底部小标签
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            decoration: const BoxDecoration(
-              color: Color(0xFF2A2A2A),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(15)),
-            ),
-            child: const Center(
-              child: Text(
-                "Original",
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   // --- 顶部导航栏 ---
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: const BoxDecoration(
         color: Color(0xFF1E1E1E),
-        border: Border(bottom: BorderSide(color: Color(0xFF2A2A2A))),
+        border: Border(bottom: BorderSide(color: Colors.white10)),
       ),
       child: Row(
         children: [
@@ -192,20 +115,145 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
               ],
             ),
           ),
-          // 右侧可以放一个 More 按钮或者留空
           const Icon(Icons.more_horiz, color: Colors.white),
         ],
       ),
     );
   }
 
+  // --- 🔥 核心修改：项目看板区域 ---
+  // 图片固定在这里，不会随对话滚动，也不会遮挡文字
+  Widget _buildProjectContextPanel() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF181818), // 比背景稍亮一点，区分区域
+        border: Border(
+          bottom: BorderSide(color: Colors.white.withOpacity(0.05)),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. 左侧：大缩略图卡片
+          Container(
+            width: 100, // 足够大的尺寸
+            height: 130, // 4:3 比例
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.1)),
+              color: Colors.black,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(11),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  widget.selectedImagePath.startsWith('assets')
+                      ? Image.asset(widget.selectedImagePath, fit: BoxFit.cover)
+                      : Image.file(
+                          File(widget.selectedImagePath),
+                          fit: BoxFit.cover,
+                        ),
+
+                  // "Original" 标签
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      color: Colors.black.withOpacity(0.6),
+                      child: const Center(
+                        child: Text(
+                          "Original",
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 16),
+
+          // 2. 右侧：项目信息
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Current Project",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // 模拟的 AI 分析标签
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildTag("Night Scene"),
+                    _buildTag("High Contrast"),
+                    _buildTag("Street"),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  "The AI is ready to receive your instructions.",
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.5),
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 辅助 Tag 组件
+  Widget _buildTag(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppTheme.electricIndigo.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppTheme.electricIndigo.withOpacity(0.3)),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: AppTheme.electricIndigo,
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
   // --- 消息气泡 ---
   Widget _buildMessageBubble(ConsultantMessage msg) {
-    // 为了防止气泡被右侧的大卡片遮挡，如果是用户消息(右侧)，可以增加右边距
-    // 但因为卡片是悬浮的，有时遮挡也是一种设计风格(层级感)。
-    // 这里我们稍微给 User 消息加一点 Right Padding 避让顶部区域
-    // 实际更复杂的做法是计算位置，这里做简单处理。
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
       child: Row(
@@ -234,8 +282,6 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
           // Bubble Content
           Flexible(
             child: Container(
-              // 如果是第一条 AI 消息，为了不被右侧图片遮挡太多，可以限制一下最大宽度
-              // 或者让它自然换行
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: msg.isAi
@@ -259,7 +305,6 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
             ),
           ),
 
-          // 如果是用户消息，右侧留出一点空隙 (可选)
           if (!msg.isAi) const SizedBox(width: 4),
         ],
       ),
@@ -312,9 +357,9 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                   ),
                 ],
               ),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
+                children: [
                   Icon(
                     Icons.check_circle_outline,
                     color: Colors.white,
