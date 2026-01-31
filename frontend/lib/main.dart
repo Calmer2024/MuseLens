@@ -1,30 +1,24 @@
+// 在 main.dart 中
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'core/theme/app_theme.dart';
-import 'presentation/navigation/main_wrapper.dart';
+// 引入欢迎页
+import 'presentation/screens/welcome/welcome_screen.dart';
 
 void main() {
-  // 设置状态栏透明，使应用沉浸式
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-    ),
-  );
-
-  runApp(const NanoBananaApp());
+  runApp(const MyApp());
 }
 
-class NanoBananaApp extends StatelessWidget {
-  const NanoBananaApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Nano Banana',
-      debugShowCheckedModeBanner: false, // 去掉 Debug 标签
-      theme: AppTheme.darkTheme, // 应用我们定义的主题
-      home: const MainWrapper(), // 启动主导航页
+      title: 'MuseLens',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.darkTheme, // 确保使用深色主题
+      // 将 home 设置为 WelcomeScreen
+      home: const WelcomeScreen(),
     );
   }
 }
