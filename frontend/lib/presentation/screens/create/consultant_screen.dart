@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'dart:async';
+import 'package:flutter_animate/flutter_animate.dart'; // 动画库
 import '../../../core/theme/app_theme.dart';
 import '../editor/editor_screen.dart';
 
@@ -7,8 +9,13 @@ import '../editor/editor_screen.dart';
 class ConsultantMessage {
   final bool isAi;
   final String content;
+  final bool isTyping; // 是否为输入状态 (...)
 
-  ConsultantMessage({required this.isAi, required this.content});
+  ConsultantMessage({
+    required this.isAi,
+    required this.content,
+    this.isTyping = false,
+  });
 }
 
 class ConsultantScreen extends StatefulWidget {
@@ -27,35 +34,135 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  final List<ConsultantMessage> _messages = [
-    ConsultantMessage(
-      isAi: true,
-      content:
-          "我已分析了您的照片。这张夜景构图很稳，光线层次丰富。\n\n目前的风格偏向写实，您是想增强这种“电影氛围感”，还是想彻底改变风格（比如变成动漫或赛博朋克）？",
-    ),
-    ConsultantMessage(isAi: false, content: "我想让它看起来像雨天，更有赛博朋克的感觉。"),
-    ConsultantMessage(
-      isAi: true,
-      content: "明白了。增加“雨天湿地反射”效果，并强化霓虹灯的“蓝紫色调”。\n\n还需要添加一些科幻元素（如全息投影）来丰富细节吗？",
-    ),
-  ];
+  // 初始为空，通过动画逐条添加
+  final List<ConsultantMessage> _messages = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // 启动对话演示
+    _startConversationDemo();
+  }
+
+  // --- 🔥 核心逻辑：全自动对话演示流程 ---
+  Future<void> _startConversationDemo() async {
+    // 1. AI: 开场分析 (延迟 500ms)
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+    _addMessage(
+      ConsultantMessage(
+        isAi: true,
+        content:
+            "已完成图像深度分析。📸\n\n识别到【夜景、街道、人像】要素。构图很稳，光影层次丰富。您希望保持这种“电影质感”，还是尝试彻底的风格化改造？",
+      ),
+    );
+
+    // 2. User: 提出需求 (延迟 1500ms)
+    await Future.delayed(const Duration(milliseconds: 1500));
+    if (!mounted) return;
+    _addMessage(
+      ConsultantMessage(isAi: false, content: "我想试试赛博朋克风格，感觉这里的霓虹灯光很适合。"),
+    );
+
+    // 3. AI: 思考 + 确认方案 (先显示 Typing, 再显示内容)
+    await _simulateAiThinking(); // 显示 ... 动画
+    if (!mounted) return;
+    _addMessage(
+      ConsultantMessage(
+        isAi: true,
+        content:
+            "收到。正在构建赛博朋克方案... 🤖\n\n建议增强“蓝紫色调”的对比度，并添加“雨天湿地反射”效果来增强氛围感。需要为您添加一些科幻元素细节吗？",
+      ),
+    );
+
+    // 4. User: 补充细节 (延迟 2000ms)
+    await Future.delayed(const Duration(milliseconds: 2000));
+    if (!mounted) return;
+    _addMessage(
+      ConsultantMessage(isAi: false, content: "听起来不错！可以加一点全息投影的招牌或者是飞行汽车吗？"),
+    );
+
+    // 5. AI: 最终确认 (先显示 Typing)
+    await _simulateAiThinking();
+    if (!mounted) return;
+    _addMessage(
+      ConsultantMessage(
+        isAi: true,
+        content: "没问题。已添加 [全息投影] 和 [未来载具] 节点。\n\n所有参数已就绪，请点击下方按钮确认并开始生成。",
+      ),
+    );
+  }
+
+  // 模拟 AI 思考过程 (显示 Typing Indicator 1.5秒)
+  Future<void> _simulateAiThinking() async {
+    if (!mounted) return;
+    // 添加 Typing 状态
+    setState(() {
+      _messages.add(ConsultantMessage(isAi: true, content: "", isTyping: true));
+    });
+    _scrollToBottom();
+
+    // 等待 1.5秒
+    await Future.delayed(const Duration(milliseconds: 1500));
+
+    if (!mounted) return;
+    // 移除 Typing 状态
+    setState(() {
+      _messages.removeLast();
+    });
+  }
+
+  // 添加消息并滚动的辅助方法
+  void _addMessage(ConsultantMessage msg) {
+    setState(() {
+      _messages.add(msg);
+    });
+    _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
+    // 稍微延迟以确保 ListView 渲染完成
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
+  }
+
+  // 用户手动发送消息
+  void _handleUserSend() {
+    if (_textController.text.isNotEmpty) {
+      _addMessage(
+        ConsultantMessage(isAi: false, content: _textController.text),
+      );
+      _textController.clear();
+
+      // 触发 AI 简单回复 (为了闭环逻辑)
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted)
+          _simulateAiThinking().then((_) {
+            _addMessage(ConsultantMessage(isAi: true, content: "好的，已记录您的新需求。"));
+          });
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF121212), // Matte Black
+      backgroundColor: const Color(0xFF121212),
       resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: Column(
           children: [
-            // --- 1. Top Header ---
             _buildHeader(),
-
-            // --- 2. Image Preview Panel (Fixed Top) ---
-            // 核心修改：将图片放在 Column 中，固定在对话上方，不再遮挡
             _buildProjectContextPanel(),
 
-            // --- 3. Chat Area ---
+            // --- Chat Area ---
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
@@ -70,7 +177,6 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
               ),
             ),
 
-            // --- 4. Bottom Interaction Area ---
             _buildBottomArea(),
           ],
         ),
@@ -78,7 +184,6 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
     );
   }
 
-  // --- 顶部导航栏 ---
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -121,14 +226,12 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
     );
   }
 
-  // --- 🔥 核心修改：项目看板区域 ---
-  // 图片固定在这里，不会随对话滚动，也不会遮挡文字
   Widget _buildProjectContextPanel() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818), // 比背景稍亮一点，区分区域
+        color: const Color(0xFF181818),
         border: Border(
           bottom: BorderSide(color: Colors.white.withOpacity(0.05)),
         ),
@@ -143,10 +246,9 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. 左侧：大缩略图卡片
           Container(
-            width: 100, // 足够大的尺寸
-            height: 130, // 4:3 比例
+            width: 80,
+            height: 100,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.white.withOpacity(0.1)),
@@ -163,8 +265,6 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                           File(widget.selectedImagePath),
                           fit: BoxFit.cover,
                         ),
-
-                  // "Original" 标签
                   Positioned(
                     bottom: 0,
                     left: 0,
@@ -188,10 +288,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
               ),
             ),
           ),
-
           const SizedBox(width: 16),
-
-          // 2. 右侧：项目信息
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -205,7 +302,6 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                // 模拟的 AI 分析标签
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -217,11 +313,10 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  "The AI is ready to receive your instructions.",
+                  "AI is establishing a conversation context...",
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.5),
                     fontSize: 12,
-                    height: 1.4,
                   ),
                 ),
               ],
@@ -232,7 +327,6 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
     );
   }
 
-  // 辅助 Tag 组件
   Widget _buildTag(String text) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -279,31 +373,37 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
             ),
           ],
 
-          // Bubble Content
+          // Bubble
           Flexible(
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: msg.isAi
-                    ? const Color(0xFF2A2A2A)
-                    : AppTheme.electricIndigo,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(20),
-                  topRight: const Radius.circular(20),
-                  bottomLeft: Radius.circular(msg.isAi ? 4 : 20),
-                  bottomRight: Radius.circular(msg.isAi ? 20 : 4),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: msg.isAi
+                        ? const Color(0xFF2A2A2A)
+                        : AppTheme.electricIndigo,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(20),
+                      topRight: const Radius.circular(20),
+                      bottomLeft: Radius.circular(msg.isAi ? 4 : 20),
+                      bottomRight: Radius.circular(msg.isAi ? 20 : 4),
+                    ),
+                  ),
+                  child: msg.isTyping
+                      ? const TypingIndicator() // 显示跳动动画
+                      : Text(
+                          msg.content,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            height: 1.5,
+                          ),
+                        ),
                 ),
-              ),
-              child: Text(
-                msg.content,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  height: 1.5,
-                ),
-              ),
-            ),
-          ),
+              )
+              // 消息出现动画：淡入 + 上浮
+              .animate()
+              .fadeIn(duration: 400.ms)
+              .slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
 
           if (!msg.isAi) const SizedBox(width: 4),
         ],
@@ -311,7 +411,6 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
     );
   }
 
-  // --- 底部交互区 ---
   Widget _buildBottomArea() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -329,7 +428,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 1. Confirm Button
+          // Confirm Button
           GestureDetector(
             onTap: () {
               Navigator.push(
@@ -378,10 +477,8 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
               ),
             ),
           ),
-
           const SizedBox(height: 16),
-
-          // 2. Input Row
+          // Input Row
           Row(
             children: [
               Expanded(
@@ -413,6 +510,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                             border: InputBorder.none,
                             isDense: true,
                           ),
+                          onSubmitted: (_) => _handleUserSend(),
                         ),
                       ),
                     ],
@@ -420,8 +518,6 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-
-              // Send Button
               Container(
                 width: 48,
                 height: 48,
@@ -435,31 +531,45 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                     color: Colors.white,
                     size: 20,
                   ),
-                  onPressed: () {
-                    if (_textController.text.isNotEmpty) {
-                      setState(() {
-                        _messages.add(
-                          ConsultantMessage(
-                            isAi: false,
-                            content: _textController.text,
-                          ),
-                        );
-                        _textController.clear();
-                        Future.delayed(const Duration(milliseconds: 100), () {
-                          _scrollController.animateTo(
-                            _scrollController.position.maxScrollExtent,
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeOut,
-                          );
-                        });
-                      });
-                    }
-                  },
+                  onPressed: _handleUserSend,
                 ),
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// --- Typing Indicator 组件 ---
+class TypingIndicator extends StatelessWidget {
+  const TypingIndicator({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 40,
+      height: 20,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: List.generate(3, (index) {
+          return Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: Colors.white70,
+                  shape: BoxShape.circle,
+                ),
+              )
+              .animate(onPlay: (controller) => controller.repeat(reverse: true))
+              .scale(
+                delay: (index * 200).ms,
+                duration: 600.ms,
+                begin: const Offset(0.5, 0.5),
+                end: const Offset(1.2, 1.2),
+              );
+        }),
       ),
     );
   }
