@@ -403,7 +403,7 @@ class HomeScreen extends StatelessWidget {
   // 4. 话题挑战卡片 (已优化图片加载)
   Widget _buildChallengeCard(OfficialChallengeItem item) {
     return Container(
-      height: 100,
+      height: 120,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         image: DecorationImage(
@@ -424,7 +424,7 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
@@ -455,6 +455,9 @@ class HomeScreen extends StatelessWidget {
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
+                  // 修改 3: 限制行数，防止标题过长导致溢出
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -463,6 +466,9 @@ class HomeScreen extends StatelessWidget {
                     color: Colors.white.withOpacity(0.7),
                     fontSize: 12,
                   ),
+                  // 修改 4: 限制描述行数
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),

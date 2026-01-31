@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 
 class EditorHeader extends StatelessWidget {
-  final VoidCallback onBack; // 新增：返回上一页
-  final VoidCallback onMenuTap; // 打开历史记录
+  final VoidCallback onBack;
+  final VoidCallback onMenuTap;
   final VoidCallback onUndo;
   final VoidCallback onRedo;
   final VoidCallback onSave;
+  final VoidCallback onExport; // 新增
 
   const EditorHeader({
     super.key,
@@ -15,6 +16,7 @@ class EditorHeader extends StatelessWidget {
     required this.onUndo,
     required this.onRedo,
     required this.onSave,
+    required this.onExport, // 新增
   });
 
   @override
@@ -24,10 +26,9 @@ class EditorHeader extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Left Group: Back + History
+          // Left: Back + History
           Row(
             children: [
-              // 1. Back Button
               GestureDetector(
                 onTap: onBack,
                 child: const Icon(
@@ -37,7 +38,6 @@ class EditorHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 16),
-              // 2. History Button
               GestureDetector(
                 onTap: onMenuTap,
                 child: Container(
@@ -56,40 +56,61 @@ class EditorHeader extends StatelessWidget {
             ],
           ),
 
-          // Center Group: Undo/Redo
+          // Center: Undo/Redo
           Row(
             children: [
               IconButton(
                 icon: const Icon(Icons.undo_rounded, color: Colors.white70),
                 onPressed: onUndo,
-                tooltip: "Undo",
               ),
               const SizedBox(width: 4),
               IconButton(
                 icon: const Icon(Icons.redo_rounded, color: Colors.white70),
                 onPressed: onRedo,
-                tooltip: "Redo",
               ),
             ],
           ),
 
-          // Right Group: Save
-          GestureDetector(
-            onTap: onSave,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppTheme.electricIndigo,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Text(
-                "Save",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+          // Right: Save + Export
+          Row(
+            children: [
+              GestureDetector(
+                onTap: onSave,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.white30),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    "Save",
+                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: onExport,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.electricIndigo,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(
+                    Icons.ios_share,
+                    color: Colors.white,
+                    size: 16,
+                  ), // 导出图标
+                ),
+              ),
+            ],
           ),
         ],
       ),
