@@ -5,9 +5,10 @@ import 'post_detail_screen.dart'; // 引入帖子详情页
 import 'chat_detail_screen.dart'; // 引入对话详情页
 import 'search_screen.dart'; // 引入搜索页
 
-// --- 1. 模拟数据模型 (扩充至10条 - 中文内容) ---
+// --- 1. 模拟数据模型 (已更新支持多图和本地资源) ---
 class CommunityPostMock {
-  final String imageUrl;
+  final String imageUrl; // 封面图
+  final List<String> galleryImages; // 🔥 新增：画廊多图列表
   final String description;
   final String authorName;
   final String authorAvatar;
@@ -17,6 +18,7 @@ class CommunityPostMock {
 
   CommunityPostMock({
     required this.imageUrl,
+    this.galleryImages = const [], // 默认为空
     required this.description,
     required this.authorName,
     required this.authorAvatar,
@@ -27,19 +29,29 @@ class CommunityPostMock {
 
   static List<CommunityPostMock> getPosts() {
     return [
-      // 1. Cyberpunk
+      // 1. Cyberpunk (使用本地资源)
       CommunityPostMock(
-        imageUrl: "https://picsum.photos/seed/post1/600/800",
+        imageUrl: "assets/images/community/N1.png", // 封面
+        galleryImages: [
+          "assets/images/community/N1.png",
+          "assets/images/community/N2.png",
+          "assets/images/community/N3.png",
+        ],
         description: "用了最新的 Neon Tokyo V2 滤镜，光影效果太绝了！仿佛穿越到了2077年。🌃✨",
         authorName: "赛博少女",
         authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Felix",
         likeCount: 128,
         commentCount: 45,
-        aspectRatio: 1.3,
+        aspectRatio: 1.0,
       ),
-      // 2. Ghibli Nature
+      // 2. Ghibli Nature (使用本地资源)
       CommunityPostMock(
-        imageUrl: "https://picsum.photos/seed/post2/600/600",
+        imageUrl: "assets/images/community/G1.png", // 封面
+        galleryImages: [
+          "assets/images/community/G1.png",
+          "assets/images/community/G2.png",
+          "assets/images/community/G3.png",
+        ],
         description: "把后院拍出了宫崎骏电影的感觉，太治愈了。🍃",
         authorName: "旅行家杰克",
         authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Jack",
@@ -47,9 +59,10 @@ class CommunityPostMock {
         commentCount: 120,
         aspectRatio: 1.0,
       ),
-      // 3. Film Noir
+      // 3. Film Noir (网络图)
       CommunityPostMock(
         imageUrl: "https://picsum.photos/seed/post3/600/900",
+        galleryImages: ["https://picsum.photos/seed/post3/600/900"],
         description: "经典永不过时。Film Noir 模板简直是街拍神器，黑白质感满分。",
         authorName: "复古控",
         authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Bella",
@@ -60,6 +73,7 @@ class CommunityPostMock {
       // 4. Street Snap
       CommunityPostMock(
         imageUrl: "https://picsum.photos/seed/post4/600/700",
+        galleryImages: ["https://picsum.photos/seed/post4/600/700"],
         description: "黄金时刻抓拍的一瞬间。没有后期，原图直出，MuseLens 的色彩科学很强。",
         authorName: "街头摄影师",
         authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Max",
@@ -70,6 +84,7 @@ class CommunityPostMock {
       // 5. Portrait
       CommunityPostMock(
         imageUrl: "https://picsum.photos/seed/post5/800/600",
+        galleryImages: ["https://picsum.photos/seed/post5/800/600"],
         description: "分享一下 Soft Glamour 滤镜的参数设置，链接在主页！需要的自取~ 💄",
         authorName: "美妆Queen",
         authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Luna",
@@ -77,9 +92,10 @@ class CommunityPostMock {
         commentCount: 99,
         aspectRatio: 0.8,
       ),
-      // 6. Food (New)
+      // 6. Food
       CommunityPostMock(
         imageUrl: "https://picsum.photos/seed/food1/600/600",
+        galleryImages: ["https://picsum.photos/seed/food1/600/600"],
         description: "深夜放毒。这碗拉面加上 Michelin Star 滤镜，看着也太有食欲了吧！🍜",
         authorName: "吃货小汤姆",
         authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Tom",
@@ -87,9 +103,10 @@ class CommunityPostMock {
         commentCount: 24,
         aspectRatio: 1.0,
       ),
-      // 7. Cat (New)
+      // 7. Cat
       CommunityPostMock(
         imageUrl: "https://picsum.photos/seed/cat1/600/800",
+        galleryImages: ["https://picsum.photos/seed/cat1/600/800"],
         description: "哈哈，我把我家猫变成了皮克斯主角！眼神太到位了 😂 #PixarPet",
         authorName: "猫奴99号",
         authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Kitty",
@@ -97,9 +114,10 @@ class CommunityPostMock {
         commentCount: 600,
         aspectRatio: 1.2,
       ),
-      // 8. Abstract Art (New)
+      // 8. Abstract Art
       CommunityPostMock(
         imageUrl: "https://picsum.photos/seed/art1/700/900",
+        galleryImages: ["https://picsum.photos/seed/art1/700/900"],
         description: "正在测试抽象艺术风格转换。大家觉得这幅画怎么样？",
         authorName: "数字艺术家",
         authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Art",
@@ -107,9 +125,10 @@ class CommunityPostMock {
         commentCount: 12,
         aspectRatio: 1.4,
       ),
-      // 9. Architecture (New)
+      // 9. Architecture
       CommunityPostMock(
         imageUrl: "https://picsum.photos/seed/arch1/800/600",
+        galleryImages: ["https://picsum.photos/seed/arch1/800/600"],
         description: "现代线条遇上极简镜头。删繁就简，建筑之美。",
         authorName: "每日建筑",
         authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Arch",
@@ -117,9 +136,10 @@ class CommunityPostMock {
         commentCount: 5,
         aspectRatio: 0.75,
       ),
-      // 10. Mountain (New)
+      // 10. Mountain
       CommunityPostMock(
         imageUrl: "https://picsum.photos/seed/mountain1/600/750",
+        galleryImages: ["https://picsum.photos/seed/mountain1/600/750"],
         description: "Alien Vista 滤镜让这座山看起来像外星基地。🪐 下次徒步还要带上它。",
         authorName: "徒步的大卫",
         authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Dave",
@@ -141,7 +161,6 @@ class CommunityScreen extends StatefulWidget {
 
 class _CommunityScreenState extends State<CommunityScreen>
     with SingleTickerProviderStateMixin {
-  // 0 = Discover, 1 = Messages
   int _currentTab = 0;
   late TabController _tabController;
 
@@ -172,23 +191,14 @@ class _CommunityScreenState extends State<CommunityScreen>
         bottom: false,
         child: Column(
           children: [
-            // --- 1. 顶部自定义导航栏 (Header) ---
+            // --- 1. Header ---
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               color: AppTheme.background,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // 左侧：筛选按钮
-                  _buildIconButton(
-                    Icons.tune,
-                    "Filter",
-                    onTap: () {
-                      // TODO: 打开筛选菜单
-                    },
-                  ),
-
-                  // 中间：导航 Tab (Discover | Messages) - 保持英文
+                  _buildIconButton(Icons.tune, "Filter", onTap: () {}),
                   Container(
                     height: 40,
                     decoration: BoxDecoration(
@@ -199,13 +209,11 @@ class _CommunityScreenState extends State<CommunityScreen>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _buildTabItem(0, "Discover"), // 英文标签
-                        _buildTabItem(1, "Messages"), // 英文标签
+                        _buildTabItem(0, "Discover"),
+                        _buildTabItem(1, "Messages"),
                       ],
                     ),
                   ),
-
-                  // 右侧：搜索按钮 (跳转到搜索页)
                   _buildIconButton(
                     Icons.search,
                     "Search",
@@ -222,18 +230,12 @@ class _CommunityScreenState extends State<CommunityScreen>
               ),
             ),
 
-            // --- 2. 内容区域 (Content) ---
+            // --- 2. Content ---
             Expanded(
               child: TabBarView(
                 controller: _tabController,
                 physics: const BouncingScrollPhysics(),
-                children: [
-                  // Tab 1: Discover (瀑布流)
-                  _buildDiscoverView(),
-
-                  // Tab 2: Messages (列表)
-                  _buildMessagesView(),
-                ],
+                children: [_buildDiscoverView(), _buildMessagesView()],
               ),
             ),
           ],
@@ -242,9 +244,8 @@ class _CommunityScreenState extends State<CommunityScreen>
     );
   }
 
-  // --- 构建 Tab 1: Discover (瀑布流) ---
+  // 构建发现页 (瀑布流)
   Widget _buildDiscoverView() {
-    // 简单的瀑布流分列逻辑
     final leftColumn = <CommunityPostMock>[];
     final rightColumn = <CommunityPostMock>[];
 
@@ -258,7 +259,7 @@ class _CommunityScreenState extends State<CommunityScreen>
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 100), // 底部留白给导航栏
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 100),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -282,24 +283,22 @@ class _CommunityScreenState extends State<CommunityScreen>
     );
   }
 
-  // --- 构建 Tab 2: Messages (列表 - 中文内容) ---
+  // 构建消息页
   Widget _buildMessagesView() {
     return ListView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 100),
       children: [
-        // 官方消息
         _buildMessageItem(
           "MuseLens 官方小助手",
           "🎉 恭喜！您的作品入选了本周精选推荐。",
-          "assets/images/logo.png", // 假设这是本地 logo
+          "assets/images/logo.png",
           "上午 10:00",
           isOfficial: true,
           isLocalImage: true,
         ),
-        // 好友消息
         _buildMessageItem(
-          "cher老师",
+          "Tim",
           "那个赛博朋克的参数可以发我一份吗？我也想试试。",
           "https://api.dicebear.com/7.x/avataaars/png?seed=Cher",
           "昨天",
@@ -319,8 +318,6 @@ class _CommunityScreenState extends State<CommunityScreen>
       ],
     );
   }
-
-  // --- 辅助组件 ---
 
   Widget _buildIconButton(
     IconData icon,
@@ -359,7 +356,7 @@ class _CommunityScreenState extends State<CommunityScreen>
           label,
           style: TextStyle(
             color: isActive ? Colors.white : Colors.white.withOpacity(0.5),
-            fontWeight: FontWeight.bold, // 保持粗体风格
+            fontWeight: FontWeight.bold,
             fontSize: 14,
           ),
         ),
@@ -377,15 +374,11 @@ class _CommunityScreenState extends State<CommunityScreen>
   }) {
     return GestureDetector(
       onTap: () {
-        // 跳转到对话详情
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ChatDetailScreen(
-              userName: name,
-              avatarUrl:
-                  avatar, // 注意：如果是本地图片，ChatDetailScreen 可能需要适配，这里演示假设是网络图或兼容处理
-            ),
+            builder: (context) =>
+                ChatDetailScreen(userName: name, avatarUrl: avatar),
           ),
         );
       },
@@ -399,7 +392,6 @@ class _CommunityScreenState extends State<CommunityScreen>
         ),
         child: Row(
           children: [
-            // 头像
             Stack(
               children: [
                 CircleAvatar(
@@ -446,7 +438,6 @@ class _CommunityScreenState extends State<CommunityScreen>
               ],
             ),
             const SizedBox(width: 12),
-            // 内容
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -500,7 +491,6 @@ class CommunityPostCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      // --- 核心修改：添加点击跳转 ---
       onTap: () {
         Navigator.push(
           context,
@@ -523,7 +513,7 @@ class CommunityPostCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. 图片区域
+            // 封面图片
             ClipRRect(
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(16),
@@ -533,14 +523,12 @@ class CommunityPostCard extends StatelessWidget {
                 child: _buildSmartImage(post.imageUrl),
               ),
             ),
-
-            // 2. 内容区域
+            // 内容
             Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 2.1 描述文字
                   Text(
                     post.description,
                     maxLines: 2,
@@ -552,12 +540,9 @@ class CommunityPostCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-
-                  // 2.2 底部信息行
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // 左侧：作者信息
                       Expanded(
                         child: Row(
                           children: [
@@ -585,8 +570,6 @@ class CommunityPostCard extends StatelessWidget {
                           ],
                         ),
                       ),
-
-                      // 右侧：交互数据 (紫色椭圆)
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -602,7 +585,6 @@ class CommunityPostCard extends StatelessWidget {
                         ),
                         child: Row(
                           children: [
-                            // 点赞
                             const Icon(
                               Icons.favorite,
                               size: 12,
@@ -617,16 +599,12 @@ class CommunityPostCard extends StatelessWidget {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-
-                            // 分割线
                             Container(
                               margin: const EdgeInsets.symmetric(horizontal: 6),
                               width: 1,
                               height: 8,
                               color: AppTheme.electricIndigo.withOpacity(0.5),
                             ),
-
-                            // 评论
                             const Icon(
                               Icons.chat_bubble_outline,
                               size: 12,
@@ -662,7 +640,7 @@ class CommunityPostCard extends StatelessWidget {
     return count.toString();
   }
 
-  // 智能图片加载 helper
+  // 🔥 核心：智能加载方法 (支持本地 Asset 和 网络 URL)
   Widget _buildSmartImage(String path, {bool isAvatar = false}) {
     if (path.startsWith('http')) {
       return Image.network(
@@ -684,8 +662,14 @@ class CommunityPostCard extends StatelessWidget {
         fit: BoxFit.cover,
         width: isAvatar ? 18 : null,
         height: isAvatar ? 18 : null,
-        errorBuilder: (context, error, stackTrace) =>
-            Container(color: Colors.grey[850]),
+        errorBuilder: (context, error, stackTrace) => Container(
+          color: Colors.grey[850],
+          child: isAvatar
+              ? const Icon(Icons.person, size: 10, color: Colors.white)
+              : const Center(
+                  child: Icon(Icons.broken_image, color: Colors.white24),
+                ),
+        ),
       );
     }
   }

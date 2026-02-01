@@ -55,6 +55,8 @@ flutter:
     - assets/images/lens_market/
     - assets/images/home/
     - assets/images/simulation/
+    - assets/images/community/
+    - assets/images/logo_foreground.png
 
   # To add custom fonts to your application, add a fonts section here,
   # in this "flutter" section.

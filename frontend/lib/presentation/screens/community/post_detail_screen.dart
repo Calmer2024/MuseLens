@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // 用于 ImageFilter
 import '../../../core/theme/app_theme.dart';
-import 'community_screen.dart'; // 引入上一节定义的 CommunityPostMock
+import 'community_screen.dart'; // 引入 CommunityPostMock
 
 class PostDetailScreen extends StatefulWidget {
   final CommunityPostMock post;
@@ -55,12 +55,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   @override
   void initState() {
     super.initState();
-    // 基于传入的封面图，简单的复制几份作为多图演示
-    _postImages = [
-      widget.post.imageUrl,
-      "https://picsum.photos/seed/detail2/600/800",
-      "https://picsum.photos/seed/detail3/600/800",
-    ];
+    // 🔥 核心修改：如果数据模型中有画廊数据（本地资源），则使用；否则回退到旧逻辑（复制封面）
+    if (widget.post.galleryImages.isNotEmpty) {
+      _postImages = widget.post.galleryImages;
+    } else {
+      _postImages = [
+        widget.post.imageUrl,
+        "https://picsum.photos/seed/detail2/600/800",
+        "https://picsum.photos/seed/detail3/600/800",
+      ];
+    }
   }
 
   @override
@@ -69,14 +73,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       backgroundColor: AppTheme.background,
       body: Stack(
         children: [
-          // --- 1. 可滚动的主体内容 ---
+          // 1. 可滚动的主体内容
           SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.only(bottom: 100), // 底部留出互动栏空间
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1.1 图片轮播 (占据主体)
+                // 1.1 图片轮播 (支持本地/网络混合)
                 _buildImageCarousel(context),
 
                 // 1.2 帖子文本内容
@@ -88,19 +92,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // --- 修改：已删除标题 Text ---
-
-                      // 描述文字
                       Text(
                         widget.post.description,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.9), // 稍微调亮一点
+                          color: Colors.white.withOpacity(0.9),
                           fontSize: 15,
                           height: 1.6,
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // 标签
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -141,15 +141,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // --- 核心：同款 Lens 推荐卡片 (置顶) ---
                       _buildPinnedLensCard(),
 
                       const SizedBox(height: 24),
 
-                      // 评论列表
                       ListView.separated(
-                        shrinkWrap: true, // 嵌套在 ScrollView 中必须为 true
-                        physics: const NeverScrollableScrollPhysics(), // 禁止内部滚动
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
                         itemCount: _comments.length,
                         separatorBuilder: (c, i) => const SizedBox(height: 20),
                         itemBuilder: (context, index) {
@@ -164,10 +162,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ),
           ),
 
-          // --- 2. 顶部悬浮导航栏 (Top Bar) ---
+          // 2. 顶部悬浮导航栏
           Positioned(top: 0, left: 0, right: 0, child: _buildTopBar(context)),
 
-          // --- 3. 底部固定互动栏 (Bottom Bar) ---
+          // 3. 底部固定互动栏
           Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomBar()),
         ],
       ),
@@ -176,13 +174,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   // --- 组件构建方法 ---
 
-  // 1. 图片轮播
   Widget _buildImageCarousel(BuildContext context) {
     return Stack(
       alignment: Alignment.bottomCenter,
       children: [
         SizedBox(
-          height: MediaQuery.of(context).size.width * 1.25, // 4:5 比例，占据主体
+          height: MediaQuery.of(context).size.width * 1.25,
           child: PageView.builder(
             controller: _pageController,
             itemCount: _postImages.length,
@@ -190,26 +187,44 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               setState(() => _currentImageIndex = index);
             },
             itemBuilder: (context, index) {
-              return Image.network(
-                _postImages[index],
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Container(
-                    color: const Color(0xFF1E1E1E),
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                            : null,
-                        color: AppTheme.electricIndigo,
+              final path = _postImages[index];
+              // 🔥 核心修改：区分加载逻辑
+              if (path.startsWith('http')) {
+                return Image.network(
+                  path,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      color: const Color(0xFF1E1E1E),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                              : null,
+                          color: AppTheme.electricIndigo,
+                        ),
                       ),
-                    ),
-                  );
-                },
-                errorBuilder: (c, e, s) => Container(color: Colors.grey[900]),
-              );
+                    );
+                  },
+                  errorBuilder: (c, e, s) => Container(color: Colors.grey[900]),
+                );
+              } else {
+                // 本地资源
+                return Image.asset(
+                  path,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: Colors.grey[900],
+                      child: const Center(
+                        child: Icon(Icons.broken_image, color: Colors.white24),
+                      ),
+                    );
+                  },
+                );
+              }
             },
           ),
         ),
@@ -238,7 +253,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  // 2. 顶部导航栏
   Widget _buildTopBar(BuildContext context) {
     return Container(
       padding: EdgeInsets.only(
@@ -256,7 +270,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       ),
       child: Row(
         children: [
-          // 返回按钮
           GestureDetector(
             onTap: () => Navigator.pop(context),
             child: ClipOval(
@@ -272,8 +285,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ),
           ),
           const SizedBox(width: 12),
-
-          // 作者信息 (悬浮显示)
           Expanded(
             child: Row(
               children: [
@@ -321,8 +332,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               ],
             ),
           ),
-
-          // 分享按钮
           ClipOval(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -339,16 +348,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  // 3. 置顶 Lens 卡片
   Widget _buildPinnedLensCard() {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E), // 深灰背景
+        color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppTheme.electricIndigo.withOpacity(0.3),
-        ), // 微弱的紫色边框
+        border: Border.all(color: AppTheme.electricIndigo.withOpacity(0.3)),
         boxShadow: [
           BoxShadow(
             color: AppTheme.electricIndigo.withOpacity(0.05),
@@ -359,14 +365,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       ),
       child: Row(
         children: [
-          // 左侧：缩略图 (模拟 Before/After)
           Container(
             width: 48,
             height: 48,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
+              // 使用帖子封面图作为缩略图，智能判断类型
               image: DecorationImage(
-                image: NetworkImage(widget.post.imageUrl),
+                image: widget.post.imageUrl.startsWith('http')
+                    ? NetworkImage(widget.post.imageUrl) as ImageProvider
+                    : AssetImage(widget.post.imageUrl),
                 fit: BoxFit.cover,
               ),
             ),
@@ -388,8 +396,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ),
           ),
           const SizedBox(width: 12),
-
-          // 中间：文字信息
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -413,8 +419,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               ],
             ),
           ),
-
-          // 右侧：按钮
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
@@ -435,7 +439,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  // 4. 单条评论
   Widget _buildCommentItem(Map<String, dynamic> comment) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -518,7 +521,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  // 5. 底部固定互动栏
   Widget _buildBottomBar() {
     return ClipRect(
       child: BackdropFilter(
@@ -538,7 +540,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           ),
           child: Row(
             children: [
-              // 评论输入框
               Expanded(
                 child: Container(
                   height: 40,
@@ -558,8 +559,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 ),
               ),
               const SizedBox(width: 16),
-
-              // 互动图标组
               _buildInteractionIcon(
                 Icons.favorite,
                 "${widget.post.likeCount}",

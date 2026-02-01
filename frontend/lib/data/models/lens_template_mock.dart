@@ -32,7 +32,7 @@ class LensTemplateMock {
       // 1. Neon Tokyo (赛博朋克)
       LensTemplateMock(
         title: "Neon Tokyo",
-        author: "@CyberPunk",
+        author: "@Calmer",
         authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Felix",
         usageCount: "12.4k",
         beforeImage: "assets/images/lens_market/NeonTokyo_before.jpg",
