@@ -21,9 +21,10 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
       backgroundColor: AppTheme.background,
       body: Stack(
         children: [
+          // 1. 内容滚动区
           SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: 120),
+            padding: const EdgeInsets.only(bottom: 120), // 底部留白给悬浮按钮
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -34,6 +35,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // 标题行
                       Row(
                         children: [
                           Text(
@@ -69,6 +71,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
+                      // 作者信息
                       Row(
                         children: [
                           CircleAvatar(
@@ -113,6 +116,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                             ],
                           ),
                           const Spacer(),
+                          // 关注按钮
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,
@@ -142,6 +146,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                         ],
                       ),
                       const SizedBox(height: 24),
+                      // 统计信息
                       Container(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         decoration: BoxDecoration(
@@ -163,6 +168,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                         ),
                       ),
                       const SizedBox(height: 30),
+                      // Workflow DNA
                       const Text(
                         "Workflow DNA",
                         style: TextStyle(
@@ -194,6 +200,8 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
               ],
             ),
           ),
+
+          // 2. 顶部透明导航栏 (返回 & 分享)
           Positioned(
             top: 0,
             left: 0,
@@ -209,20 +217,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                   children: [
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
-                      child: ClipOval(
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                          child: Container(
-                            width: 44,
-                            height: 44,
-                            color: Colors.black.withOpacity(0.3),
-                            child: const Icon(
-                              Icons.arrow_back,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
+                      child: _buildGlassIcon(Icons.arrow_back),
                     ),
                     Row(
                       children: [
@@ -236,84 +231,128 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
               ),
             ),
           ),
+
+          // 3. 🔥 底部悬浮操作区 (核心修改：高级磨砂质感按钮)
           Positioned(
-            bottom: 30,
-            left: 20,
-            right: 20,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(30),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E1E1E).withOpacity(0.85),
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: Colors.white.withOpacity(0.1)),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {},
-                          child: Container(
-                            height: 56,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [
-                                  AppTheme.electricIndigo,
-                                  Color(0xFF8E2DE2),
+            bottom: 40,
+            left: 24,
+            right: 24,
+            child: Row(
+              children: [
+                // 3.1 Apply 按钮 (主体)
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      // TODO: 跳转到编辑页或应用效果
+                    },
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(28),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                        child: Container(
+                          height: 56,
+                          decoration: BoxDecoration(
+                            // 极深色半透明背景，透出高级感
+                            color: const Color(0xFF1E1E1E).withOpacity(0.8),
+                            borderRadius: BorderRadius.circular(28),
+                            // 高光边框
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.15),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              // 底部柔和辉光
+                              BoxShadow(
+                                color: AppTheme.electricIndigo.withOpacity(0.3),
+                                blurRadius: 20,
+                                spreadRadius: -5,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              // 内部微光装饰 (左上角光斑)
+                              Positioned(
+                                left: 10,
+                                top: -20,
+                                child: Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: AppTheme.electricIndigo.withOpacity(
+                                      0.2,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppTheme.electricIndigo,
+                                        blurRadius: 40,
+                                        spreadRadius: 5,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+
+                              // 按钮内容
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const [
+                                  Icon(
+                                    Icons.auto_fix_high,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    "Apply Lens",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
                                 ],
                               ),
-                              borderRadius: BorderRadius.circular(24),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppTheme.electricIndigo.withOpacity(
-                                    0.4,
-                                  ),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: const [
-                                Icon(
-                                  Icons.auto_fix_normal,
-                                  color: Colors.white,
-                                ),
-                                SizedBox(width: 8),
-                                Text(
-                                  "Apply to Image",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
+                            ],
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Container(
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 16),
+
+                // 3.2 收藏按钮 (圆形玻璃质感)
+                GestureDetector(
+                  onTap: () {},
+                  child: ClipOval(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
                         width: 56,
                         height: 56,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
+                          color: Colors.white.withOpacity(0.1), // 浅色半透明
                           shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.15),
+                          ),
                         ),
                         child: const Icon(
-                          Icons.favorite_border,
+                          Icons.bookmark_border_rounded,
                           color: Colors.white,
+                          size: 24,
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         ],
@@ -321,6 +360,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
     );
   }
 
+  // --- 交互式对比滑块 ---
   Widget _buildInteractiveSlider(BuildContext context) {
     final double height = MediaQuery.of(context).size.height * 0.55;
 
