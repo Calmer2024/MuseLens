@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../screens/editor/editor_screen.dart';
 
-// --- Adjust Icons (优化：对应参数的图标) ---
+// --- Adjust Icons ---
 final Map<String, IconData> _adjustIcons = {
   "Exposure": Icons.exposure,
   "Brilliance": Icons.flare,
@@ -15,16 +15,17 @@ final Map<String, IconData> _adjustIcons = {
   "Vibrance": Icons.leak_add,
   "Warmth": Icons.thermostat,
   "Tint": Icons.colorize,
-  "Sharpness": Icons.change_history, // 三角形代表锐化
+  "Sharpness": Icons.change_history,
   "Definition": Icons.high_quality,
 };
 
-// --- Lens 数据模型 ---
+// --- Lens Data Model ---
 class LensTool {
   final String id;
   final String name;
   final IconData icon;
-  final String category;
+  final String category; // L1, L2...
+
   LensTool({
     required this.id,
     required this.name,
@@ -42,21 +43,21 @@ class EditorToolsPanel extends StatelessWidget {
   final VoidCallback onSendPrompt;
   final VoidCallback onClosePanel;
 
-  // Crop
+  // Crop State
   final double cropAspectRatio;
   final ValueChanged<double> onCropRatioChanged;
 
-  // Adjust
+  // Adjust State
   final String activeAdjustParam;
   final double adjustValue;
   final ValueChanged<String> onAdjustParamChanged;
   final ValueChanged<double> onAdjustValueChanged;
 
-  // Lens
+  // Lens State
   final String? selectedLensId;
   final ValueChanged<String?> onLensSelected;
 
-  const EditorToolsPanel({
+  EditorToolsPanel({
     super.key,
     required this.activeTool,
     required this.promptController,
@@ -74,9 +75,83 @@ class EditorToolsPanel extends StatelessWidget {
     required this.onLensSelected,
   });
 
+  // --- Lens Definition List (L1 - L4) ---
+  final List<LensTool> _allLenses = [
+    // L1: Foundation
+    LensTool(
+      id: "lens_matting",
+      name: "Matting",
+      icon: Icons.layers_clear,
+      category: "L1",
+    ),
+    LensTool(
+      id: "lens_crop",
+      name: "Smart Crop",
+      icon: Icons.crop_free,
+      category: "L1",
+    ),
+    LensTool(
+      id: "lens_upscale",
+      name: "Upscale",
+      icon: Icons.high_quality,
+      category: "L1",
+    ),
+    // L2: Subject
+    LensTool(
+      id: "lens_face_beauty",
+      name: "Beauty",
+      icon: Icons.face_retouching_natural,
+      category: "L2",
+    ),
+    LensTool(
+      id: "lens_replace",
+      name: "Inpaint",
+      icon: Icons.brush,
+      category: "L2",
+    ),
+    LensTool(
+      id: "lens_structure",
+      name: "Pose",
+      icon: Icons.accessibility_new,
+      category: "L2",
+    ),
+    // L3: Environment
+    LensTool(
+      id: "lens_background",
+      name: "BG Swap",
+      icon: Icons.wallpaper,
+      category: "L3",
+    ),
+    LensTool(
+      id: "lens_relight",
+      name: "Relight",
+      icon: Icons.light_mode,
+      category: "L3",
+    ),
+    LensTool(
+      id: "lens_effect",
+      name: "Effects",
+      icon: Icons.auto_fix_high,
+      category: "L3",
+    ),
+    // L4: Style
+    LensTool(
+      id: "lens_dimension",
+      name: "Dimension",
+      icon: Icons.animation,
+      category: "L4",
+    ),
+    LensTool(
+      id: "lens_color_grade",
+      name: "Color",
+      icon: Icons.palette,
+      category: "L4",
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    // 判断是否处于 Lens 详情模式 (Lens工具且已选中具体功能)
+    // Lens详情模式判断
     final bool isLensDetailMode =
         activeTool == ToolType.lens && selectedLensId != null;
 
@@ -88,7 +163,7 @@ class EditorToolsPanel extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 1. 动画容器：子工具面板 (上下滑动动画)
+          // 1. 动画容器：子工具面板
           AnimatedSize(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
@@ -100,57 +175,23 @@ class EditorToolsPanel extends StatelessWidget {
             ),
           ),
 
-          // 2. 主工具栏 (仅在非工具模式下显示)
+          // 2. 主工具栏 (仅在未选中任何工具时显示)
           if (activeTool == ToolType.none) _buildMainToolsRow(),
 
-          // 3. 对话输入框 (Lens详情模式下隐藏，避免干扰)
-          if (!isLensDetailMode) _buildChatInput(),
+          // 3. 对话输入框 (始终显示，即便在 Lens 详情模式下)
+          _buildChatInput(),
         ],
       ),
     );
   }
 
-  // 主工具栏入口
-  Widget _buildMainToolsRow() {
-    return Container(
-      height: 60,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildToolItem(Icons.crop, "Crop", ToolType.crop),
-          _buildToolItem(Icons.tune, "Adjust", ToolType.adjust),
-          _buildToolItem(Icons.auto_awesome, "Lens AI", ToolType.lens),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildToolItem(IconData icon, String label, ToolType type) {
-    return GestureDetector(
-      onTap: () => onToolChanged(type),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: Colors.white70),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white70, fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- 子面板内容 ---
+  // --- Sub Tool Content Manager ---
   Widget _buildSubToolContent(bool isLensDetailMode) {
     return Container(
       color: const Color(0xFF252525),
       child: Column(
         children: [
-          // A. 通用头部 (Close | Title | Check)
-          // 仅在非 Lens 详情模式下显示
+          // 通用 Header (仅在非 Lens 详情模式显示，Lens 详情有自己的底部操作栏)
           if (!isLensDetailMode)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -177,7 +218,7 @@ class EditorToolsPanel extends StatelessWidget {
               ),
             ),
 
-          // B. 具体工具体
+          // 具体工具 Body
           if (activeTool == ToolType.crop) _buildCropBody(),
           if (activeTool == ToolType.adjust) _buildAdjustBody(),
           if (activeTool == ToolType.lens) _buildLensBody(isLensDetailMode),
@@ -188,18 +229,16 @@ class EditorToolsPanel extends StatelessWidget {
     );
   }
 
-  // --- Crop Body (包含所有比例) ---
+  // --- 1. Crop Body ---
   Widget _buildCropBody() {
     final ratios = [
-      {"label": "Custom", "value": -1.0}, // Free
+      {"label": "Free", "value": -1.0},
       {"label": "Original", "value": 0.0},
       {"label": "1:1", "value": 1.0},
       {"label": "3:4", "value": 0.75},
       {"label": "4:3", "value": 1.33},
       {"label": "9:16", "value": 0.56},
       {"label": "16:9", "value": 1.77},
-      {"label": "2:3", "value": 0.66},
-      {"label": "3:2", "value": 1.5},
     ];
 
     return SizedBox(
@@ -248,23 +287,29 @@ class EditorToolsPanel extends StatelessWidget {
     );
   }
 
-  // --- Adjust Body ---
+  // --- 2. Adjust Body ---
   Widget _buildAdjustBody() {
     return Column(
       children: [
-        // Slider
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          child: Slider(
-            value: adjustValue,
-            min: -100,
-            max: 100,
-            activeColor: AppTheme.electricIndigo,
-            inactiveColor: Colors.grey[800],
-            onChanged: onAdjustValueChanged,
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Row(
+            children: [
+              const Icon(Icons.remove, size: 16, color: Colors.grey),
+              Expanded(
+                child: Slider(
+                  value: adjustValue,
+                  min: -100,
+                  max: 100,
+                  activeColor: AppTheme.electricIndigo,
+                  inactiveColor: Colors.grey[800],
+                  onChanged: onAdjustValueChanged,
+                ),
+              ),
+              const Icon(Icons.add, size: 16, color: Colors.grey),
+            ],
           ),
         ),
-        // Icon List
         SizedBox(
           height: 70,
           child: ListView.builder(
@@ -275,7 +320,6 @@ class EditorToolsPanel extends StatelessWidget {
               final key = _adjustIcons.keys.elementAt(index);
               final icon = _adjustIcons.values.elementAt(index);
               final isSelected = activeAdjustParam == key;
-
               return GestureDetector(
                 onTap: () => onAdjustParamChanged(key),
                 child: Container(
@@ -316,52 +360,18 @@ class EditorToolsPanel extends StatelessWidget {
     );
   }
 
-  // --- Lens Body (核心重构：详情模式) ---
+  // --- 3. Lens Body (核心重构) ---
   Widget _buildLensBody(bool isDetailMode) {
-    // 模拟 Lens 数据
-    final lenses = [
-      LensTool(
-        id: "lens_matting",
-        name: "Matting",
-        icon: Icons.person_remove,
-        category: "L1",
-      ),
-      LensTool(
-        id: "lens_crop",
-        name: "Smart Crop",
-        icon: Icons.crop_free,
-        category: "L1",
-      ),
-      LensTool(
-        id: "lens_face_beauty",
-        name: "Beauty",
-        icon: Icons.face_retouching_natural,
-        category: "L2",
-      ),
-      LensTool(
-        id: "lens_relight",
-        name: "Relight",
-        icon: Icons.light_mode,
-        category: "L3",
-      ),
-      LensTool(
-        id: "lens_filter",
-        name: "Style",
-        icon: Icons.filter_b_and_w,
-        category: "L4",
-      ),
-    ];
-
     if (!isDetailMode) {
-      // 1. 列表模式：显示所有 Lens 图标
+      // --- A. Lens Library (列表模式) ---
       return SizedBox(
         height: 90,
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: lenses.length,
+          itemCount: _allLenses.length,
           itemBuilder: (context, index) {
-            final tool = lenses[index];
+            final tool = _allLenses[index];
             return GestureDetector(
               onTap: () => onLensSelected(tool.id),
               child: Container(
@@ -401,64 +411,55 @@ class EditorToolsPanel extends StatelessWidget {
         ),
       );
     } else {
-      // 2. 详情模式：特定工具 UI + 底部导航栏
-      final activeLens = lenses.firstWhere(
+      // --- B. Specific Lens UI (详情模式) ---
+      final activeLens = _allLenses.firstWhere(
         (t) => t.id == selectedLensId,
-        orElse: () => lenses[0],
+        orElse: () => _allLenses[0],
       );
+
       return Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // 工具具体参数 UI (例如 Slider)
+          // 1. 动态生成特定工具的 UI
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 20),
-            child: Column(
-              children: [
-                Text(
-                  "Adjusting ${activeLens.name}",
-                  style: const TextStyle(
-                    color: AppTheme.electricIndigo,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Slider(
-                    value: 0.5,
-                    onChanged: (v) {},
-                    activeColor: AppTheme.electricIndigo,
-                  ),
-                ),
-              ],
-            ),
+            child: _buildSpecificLensUI(activeLens),
           ),
 
-          // 底部操作栏：左返回，右确认
+          // 2. 返回与确认栏 (悬浮在对话框上方)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: const BoxDecoration(
               border: Border(top: BorderSide(color: Colors.white10)),
+              color: Color(0xFF2A2A2A), // 稍微区分背景
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // 左侧：返回图标
+                // Back Button
                 GestureDetector(
-                  onTap: () => onLensSelected(null), // 返回 Lens 列表
-                  child: const Icon(
-                    Icons.arrow_back,
-                    color: Colors.white,
-                    size: 24,
+                  onTap: () => onLensSelected(null), // 返回列表
+                  child: const Row(
+                    children: [
+                      Icon(Icons.arrow_back, color: Colors.white70, size: 20),
+                      SizedBox(width: 4),
+                      Text("Library", style: TextStyle(color: Colors.white70)),
+                    ],
                   ),
                 ),
 
-                // 右侧：确认图标
+                // Title
+                Text(
+                  activeLens.name,
+                  style: const TextStyle(
+                    color: AppTheme.electricIndigo,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                // Apply Button
                 GestureDetector(
-                  onTap: () {
-                    // TODO: 应用效果逻辑
-                    onLensSelected(null); // 应用后返回
-                  },
+                  onTap: () => onLensSelected(null), // Confirm logic
                   child: const Icon(
                     Icons.check,
                     color: AppTheme.electricIndigo,
@@ -473,12 +474,186 @@ class EditorToolsPanel extends StatelessWidget {
     }
   }
 
-  // --- 聊天输入框 ---
+  // --- 动态生成各个 Lens 的专属 UI ---
+  Widget _buildSpecificLensUI(LensTool tool) {
+    switch (tool.id) {
+      case "lens_matting":
+        return const Center(
+          child: Text(
+            "Auto Background Removal Active",
+            style: TextStyle(color: Colors.white54),
+          ),
+        );
+
+      case "lens_crop":
+        // 复用 Crop 的 UI，或者提供更智能的选项
+        return _buildChipSelector(["Auto", "Person", "Object", "Sky"]);
+
+      case "lens_upscale":
+        return _buildChipSelector(["2x", "4x", "Ultra"]);
+
+      case "lens_face_beauty":
+        return _buildSliderUI("Smoothness");
+
+      case "lens_replace":
+        return const Center(
+          child: Text(
+            "Select area & Describe below",
+            style: TextStyle(color: Colors.white54),
+          ),
+        );
+
+      case "lens_structure":
+        return _buildChipSelector(["Pose", "Depth", "Canny", "Lineart"]);
+
+      case "lens_background":
+        return _buildChipSelector(["Studio", "Nature", "City", "Cyberpunk"]);
+
+      case "lens_relight":
+        // 模拟光照方向盘
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.light_mode, color: Colors.yellow, size: 20),
+            const SizedBox(width: 10),
+            Container(
+              width: 100,
+              height: 20,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Colors.blue, Colors.purple, Colors.orange],
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              "Color",
+              style: TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+          ],
+        );
+
+      case "lens_effect":
+        return _buildChipSelector(["Rain", "Snow", "Fog", "Flare", "Bokeh"]);
+
+      case "lens_dimension":
+        return _buildChipSelector([
+          "2D Anime",
+          "3D Pixar",
+          "Sketch",
+          "Oil Painting",
+        ]);
+
+      case "lens_color_grade":
+        return _buildChipSelector([
+          "Cyberpunk",
+          "Film Noir",
+          "Vintage",
+          "Warm",
+        ]);
+
+      default:
+        return _buildSliderUI("Intensity");
+    }
+  }
+
+  // 辅助：构建滑块 UI
+  Widget _buildSliderUI(String label) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white54, fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Slider(
+            value: 0.5,
+            onChanged: (v) {},
+            activeColor: AppTheme.electricIndigo,
+            inactiveColor: Colors.grey[800],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 辅助：构建标签选择器
+  Widget _buildChipSelector(List<String> options) {
+    return SizedBox(
+      height: 40,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: options.length,
+        itemBuilder: (context, index) {
+          final isSelected = index == 0; // 模拟选中第一个
+          return Container(
+            margin: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppTheme.electricIndigo
+                  : Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: isSelected ? null : Border.all(color: Colors.white24),
+            ),
+            child: Text(
+              options[index],
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.white70,
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // --- Main Tools Row (Entrance) ---
+  Widget _buildMainToolsRow() {
+    return Container(
+      height: 60,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildToolItem(Icons.crop, "Crop", ToolType.crop),
+          _buildToolItem(Icons.tune, "Adjust", ToolType.adjust),
+          _buildToolItem(Icons.auto_awesome, "Lens AI", ToolType.lens),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToolItem(IconData icon, String label, ToolType type) {
+    return GestureDetector(
+      onTap: () => onToolChanged(type),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: Colors.white70),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Chat Input ---
   Widget _buildChatInput() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: Colors.white10)),
+        color: Color(0xFF1E1E1E), // 确保有背景色，防止内容穿透
       ),
       child: Row(
         children: [
