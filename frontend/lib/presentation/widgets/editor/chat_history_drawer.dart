@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart'; // 需要引入 google_fonts
+import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/theme/app_theme.dart';
 
 class ChatHistoryDrawer extends StatelessWidget {
@@ -7,17 +7,46 @@ class ChatHistoryDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 模拟的对话历史数据 (数据内容为中文)
+    final List<Map<String, String>> historyItems = [
+      {
+        "summary": "把这张图改成赛博朋克风...",
+        "user": "把这张图改成赛博朋克风，加点霓虹灯。",
+        "ai": "已应用“霓虹东京”滤镜，并增强了画面对比度与蓝紫色调。",
+      },
+      {
+        "summary": "帮我把背景换成埃菲尔铁塔...",
+        "user": "帮我把背景换成埃菲尔铁塔，要黄昏的感觉。",
+        "ai": "已完成背景替换，并调整了光影以匹配黄昏氛围。",
+      },
+      {
+        "summary": "这张照片太模糊了，修清楚一点...",
+        "user": "这张照片太模糊了，能修清楚一点吗？",
+        "ai": "已使用超清画质增强功能，面部细节已修复。",
+      },
+      {
+        "summary": "去掉路人，只保留主角...",
+        "user": "把后面的路人去掉，只保留主角。",
+        "ai": "已移除背景中的干扰人物，并自动填充了背景。",
+      },
+      {
+        "summary": "想要一种胶片电影的感觉...",
+        "user": "想要一种王家卫电影那种胶片质感。",
+        "ai": "已添加颗粒质感与复古滤镜，色调已调整。",
+      },
+    ];
+
     return Drawer(
       backgroundColor: const Color(0xFF1E1E1E),
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // --- Header: History ---
             Padding(
               padding: const EdgeInsets.all(20.0),
               child: Text(
-                "History",
-                // 字体保持一致 (Orbitron)
+                "History", // UI 保持英文
                 style: GoogleFonts.orbitron(
                   textStyle: const TextStyle(
                     color: Colors.white,
@@ -28,11 +57,16 @@ class ChatHistoryDrawer extends StatelessWidget {
               ),
             ),
             const Divider(color: Colors.white10),
+
+            // --- List: Sessions ---
             Expanded(
               child: ListView.builder(
-                itemCount: 5,
+                itemCount: historyItems.length,
                 itemBuilder: (context, index) {
-                  // 使用 ExpansionTile 实现展开详情
+                  final item = historyItems[index];
+                  // Session 编号倒序显示 (Session #5, #4...)
+                  final sessionNumber = historyItems.length - index;
+
                   return Theme(
                     data: Theme.of(
                       context,
@@ -43,7 +77,7 @@ class ChatHistoryDrawer extends StatelessWidget {
                         color: AppTheme.electricIndigo,
                       ),
                       title: Text(
-                        "Project Session #${5 - index}",
+                        "Project Session #$sessionNumber", // UI 保持英文
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -51,7 +85,7 @@ class ChatHistoryDrawer extends StatelessWidget {
                         ),
                       ),
                       subtitle: Text(
-                        "Make it cyberpunk style...",
+                        item["summary"]!, // 数据显示中文
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.5),
                           fontSize: 12,
@@ -71,22 +105,23 @@ class ChatHistoryDrawer extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               _buildHistoryMsg(
-                                "User",
-                                "Make it cyberpunk style with neon lights.",
+                                "User", // UI 保持英文
+                                item["user"]!, // 数据显示中文
                               ),
                               const SizedBox(height: 8),
                               _buildHistoryMsg(
-                                "AI",
-                                "I've applied a Neon Tokyo filter and adjusted the contrast.",
+                                "AI", // UI 保持英文
+                                item["ai"]!, // 数据显示中文
                               ),
                               const SizedBox(height: 12),
+
                               // 恢复会话按钮
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: TextButton(
                                   onPressed: () => Navigator.pop(context),
                                   child: const Text(
-                                    "Restore Session",
+                                    "Restore Session", // UI 保持英文
                                     style: TextStyle(
                                       color: AppTheme.electricIndigo,
                                     ),
