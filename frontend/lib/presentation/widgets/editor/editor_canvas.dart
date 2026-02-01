@@ -7,6 +7,7 @@ import '../../screens/editor/editor_screen.dart';
 class EditorCanvas extends StatelessWidget {
   final File originalImage;
   final Uint8List? resultImage;
+  final String? simulationImagePath;
   final bool isGenerating;
   final ToolType activeTool;
   final VoidCallback onFlipHorizontal;
@@ -15,7 +16,8 @@ class EditorCanvas extends StatelessWidget {
   const EditorCanvas({
     super.key,
     required this.originalImage,
-    required this.resultImage,
+    this.resultImage,
+    this.simulationImagePath,
     required this.isGenerating,
     required this.activeTool,
     required this.onFlipHorizontal,
@@ -39,11 +41,9 @@ class EditorCanvas extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               // 1. Image Layer
-              resultImage != null
-                  ? Image.memory(resultImage!, fit: BoxFit.contain)
-                  : Image.file(originalImage, fit: BoxFit.contain),
+              _buildImageContent(),
 
-              // 2. Crop Overlay Controls
+              // 2. Crop Overlay
               if (activeTool == ToolType.crop)
                 Positioned(
                   top: 16,
@@ -57,7 +57,7 @@ class EditorCanvas extends StatelessWidget {
                   ),
                 ),
 
-              // 3. Loading Layer
+              // 3. Loading Layer (🔥 移除文字，纯转圈)
               if (isGenerating)
                 Container(
                   color: Colors.black54,
@@ -72,6 +72,28 @@ class EditorCanvas extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildImageContent() {
+    if (simulationImagePath != null) {
+      return Image.asset(
+        simulationImagePath!,
+        fit: BoxFit.contain,
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+          if (wasSynchronouslyLoaded) return child;
+          return AnimatedOpacity(
+            opacity: frame == null ? 0 : 1,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeOut,
+            child: child,
+          );
+        },
+      );
+    } else if (resultImage != null) {
+      return Image.memory(resultImage!, fit: BoxFit.contain);
+    } else {
+      return Image.file(originalImage, fit: BoxFit.contain);
+    }
   }
 
   Widget _buildControl(IconData icon, VoidCallback onTap) {

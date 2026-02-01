@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:async';
-import 'package:flutter_animate/flutter_animate.dart'; // 动画库
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/theme/app_theme.dart';
 import '../editor/editor_screen.dart';
 
@@ -9,7 +9,7 @@ import '../editor/editor_screen.dart';
 class ConsultantMessage {
   final bool isAi;
   final String content;
-  final bool isTyping; // 是否为输入状态 (...)
+  final bool isTyping;
 
   ConsultantMessage({
     required this.isAi,
@@ -34,85 +34,80 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  // 初始为空，通过动画逐条添加
   final List<ConsultantMessage> _messages = [];
 
   @override
   void initState() {
     super.initState();
-    // 启动对话演示
     _startConversationDemo();
   }
 
-  // --- 🔥 核心逻辑：全自动对话演示流程 ---
+  // --- 全自动对话演示流程 ---
   Future<void> _startConversationDemo() async {
-    // 1. AI: 开场分析 (延迟 500ms)
     await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
     _addMessage(
       ConsultantMessage(
         isAi: true,
         content:
-            "已完成图像深度分析。📸\n\n识别到【夜景、街道、人像】要素。构图很稳，光影层次丰富。您希望保持这种“电影质感”，还是尝试彻底的风格化改造？",
+            "已收到您的照片。这是一张非常唯美的人像，光线柔和，草地背景也很自然。\n\n您希望将场景转换为【海边黄昏】，并对人物进行【美化】，是吗？",
       ),
     );
 
-    // 2. User: 提出需求 (延迟 1500ms)
     await Future.delayed(const Duration(milliseconds: 1500));
     if (!mounted) return;
     _addMessage(
-      ConsultantMessage(isAi: false, content: "我想试试赛博朋克风格，感觉这里的霓虹灯光很适合。"),
-    );
-
-    // 3. AI: 思考 + 确认方案 (先显示 Typing, 再显示内容)
-    await _simulateAiThinking(); // 显示 ... 动画
-    if (!mounted) return;
-    _addMessage(
       ConsultantMessage(
-        isAi: true,
-        content:
-            "收到。正在构建赛博朋克方案... 🤖\n\n建议增强“蓝紫色调”的对比度，并添加“雨天湿地反射”效果来增强氛围感。需要为您添加一些科幻元素细节吗？",
+        isAi: false,
+        content: "是的，背景换成那种金色的沙滩和大海，夕阳的光打在身上。人脸稍微精致一点，但不要太假。",
       ),
     );
 
-    // 4. User: 补充细节 (延迟 2000ms)
-    await Future.delayed(const Duration(milliseconds: 2000));
-    if (!mounted) return;
-    _addMessage(
-      ConsultantMessage(isAi: false, content: "听起来不错！可以加一点全息投影的招牌或者是飞行汽车吗？"),
-    );
-
-    // 5. AI: 最终确认 (先显示 Typing)
     await _simulateAiThinking();
     if (!mounted) return;
     _addMessage(
       ConsultantMessage(
         isAi: true,
-        content: "没问题。已添加 [全息投影] 和 [未来载具] 节点。\n\n所有参数已就绪，请点击下方按钮确认并开始生成。",
+        content:
+            "明白了。方案如下：\n1. 场景重构：将草地背景替换为【日落海滩】，调整环境光为暖色调的【夕阳余晖】。\n2. 人物美化：保留皮肤质感的同时进行微磨皮，提亮眼神，优化五官立体感。\n\n您觉得这个方向如何？",
+      ),
+    );
+
+    await Future.delayed(const Duration(milliseconds: 2000));
+    if (!mounted) return;
+    _addMessage(
+      ConsultantMessage(
+        isAi: false,
+        content: "听起来不错。对了，衣服能不能也稍微调整一下？让它看起来更飘逸一点，符合海边的感觉。",
+      ),
+    );
+
+    await _simulateAiThinking();
+    if (!mounted) return;
+    _addMessage(
+      ConsultantMessage(
+        isAi: true,
+        content:
+            "没问题。已追加【服饰优化】节点，将增强薄纱袖口的飘逸感，使其与海风环境更融合。\n\n一切准备就绪，请点击下方按钮开始生成。",
       ),
     );
   }
 
-  // 模拟 AI 思考过程 (显示 Typing Indicator 1.5秒)
   Future<void> _simulateAiThinking() async {
     if (!mounted) return;
-    // 添加 Typing 状态
     setState(() {
       _messages.add(ConsultantMessage(isAi: true, content: "", isTyping: true));
     });
     _scrollToBottom();
 
-    // 等待 1.5秒
     await Future.delayed(const Duration(milliseconds: 1500));
 
     if (!mounted) return;
-    // 移除 Typing 状态
     setState(() {
       _messages.removeLast();
     });
   }
 
-  // 添加消息并滚动的辅助方法
   void _addMessage(ConsultantMessage msg) {
     setState(() {
       _messages.add(msg);
@@ -121,7 +116,6 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
   }
 
   void _scrollToBottom() {
-    // 稍微延迟以确保 ListView 渲染完成
     Future.delayed(const Duration(milliseconds: 100), () {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -133,15 +127,12 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
     });
   }
 
-  // 用户手动发送消息
   void _handleUserSend() {
     if (_textController.text.isNotEmpty) {
       _addMessage(
         ConsultantMessage(isAi: false, content: _textController.text),
       );
       _textController.clear();
-
-      // 触发 AI 简单回复 (为了闭环逻辑)
       Future.delayed(const Duration(seconds: 1), () {
         if (mounted)
           _simulateAiThinking().then((_) {
@@ -161,8 +152,6 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
           children: [
             _buildHeader(),
             _buildProjectContextPanel(),
-
-            // --- Chat Area ---
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
@@ -176,7 +165,6 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                 },
               ),
             ),
-
             _buildBottomArea(),
           ],
         ),
@@ -306,9 +294,9 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    _buildTag("Night Scene"),
-                    _buildTag("High Contrast"),
-                    _buildTag("Street"),
+                    _buildTag("Portrait"),
+                    _buildTag("Nature"),
+                    _buildTag("Soft Light"),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -346,7 +334,6 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
     );
   }
 
-  // --- 消息气泡 ---
   Widget _buildMessageBubble(ConsultantMessage msg) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
@@ -356,7 +343,6 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
             : MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // AI Avatar
           if (msg.isAi) ...[
             Container(
               margin: const EdgeInsets.only(right: 12),
@@ -372,8 +358,6 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
               ),
             ),
           ],
-
-          // Bubble
           Flexible(
                 child: Container(
                   padding: const EdgeInsets.all(16),
@@ -389,7 +373,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                     ),
                   ),
                   child: msg.isTyping
-                      ? const TypingIndicator() // 显示跳动动画
+                      ? const TypingIndicator()
                       : Text(
                           msg.content,
                           style: const TextStyle(
@@ -400,11 +384,9 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                         ),
                 ),
               )
-              // 消息出现动画：淡入 + 上浮
               .animate()
               .fadeIn(duration: 400.ms)
               .slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
-
           if (!msg.isAi) const SizedBox(width: 4),
         ],
       ),
@@ -428,7 +410,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Confirm Button
+          // 🔥 核心修改：点击 Confirm 跳转到 Editor 并开启自动模拟
           GestureDetector(
             onTap: () {
               Navigator.push(
@@ -436,6 +418,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                 MaterialPageRoute(
                   builder: (context) => EditorScreen(
                     selectedImage: File(widget.selectedImagePath),
+                    autoStartSimulation: true, // 开启自动模拟
                   ),
                 ),
               );
@@ -478,7 +461,6 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          // Input Row
           Row(
             children: [
               Expanded(
@@ -542,7 +524,6 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
   }
 }
 
-// --- Typing Indicator 组件 ---
 class TypingIndicator extends StatelessWidget {
   const TypingIndicator({super.key});
 
