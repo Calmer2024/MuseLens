@@ -11,3 +11,6 @@ frontend/.flutter-plugins
 frontend/.flutter-plugins-dependencies
 frontend/ios/.symlinks/
 frontend/ios/Pods/
+
+# vscode/
+.vscode/
