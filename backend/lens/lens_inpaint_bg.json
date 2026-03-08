@@ -1,0 +1,148 @@
+{
+  "1": {
+    "inputs": {
+      "image": "woman-8463055_1280.jpg"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "[INPUT] Base_Image"
+    }
+  },
+  "2": {
+    "inputs": {
+      "image": "ComfyUI_00040_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "[INPUT] Mask_Target"
+    }
+  },
+  "3": {
+    "inputs": {
+      "channel": "red",
+      "image": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "ImageToMask",
+    "_meta": {
+      "title": "图像转换为遮罩"
+    }
+  },
+  "5": {
+    "inputs": {
+      "ckpt_name": "RealVisXL_V4.0.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Checkpoint加载器（简易）"
+    }
+  },
+  "6": {
+    "inputs": {
+      "grow_mask_by": 6,
+      "pixels": [
+        "1",
+        0
+      ],
+      "vae": [
+        "5",
+        2
+      ],
+      "mask": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VAEEncodeForInpaint",
+    "_meta": {
+      "title": "VAE编码（局部重绘）"
+    }
+  },
+  "7": {
+    "inputs": {
+      "seed": 318396450520100,
+      "steps": 30,
+      "cfg": 7,
+      "sampler_name": "dpmpp_2m",
+      "scheduler": "karras",
+      "denoise": 1,
+      "model": [
+        "5",
+        0
+      ],
+      "positive": [
+        "8",
+        0
+      ],
+      "negative": [
+        "9",
+        0
+      ],
+      "latent_image": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "K采样器"
+    }
+  },
+  "8": {
+    "inputs": {
+      "text": "womon's hair be white",
+      "clip": [
+        "5",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "[PARAM] Positive_Prompt"
+    }
+  },
+  "9": {
+    "inputs": {
+      "text": "ugly, deformed, lowres, bad anatomy, text, watermark",
+      "clip": [
+        "5",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP文本编码"
+    }
+  },
+  "10": {
+    "inputs": {
+      "samples": [
+        "7",
+        0
+      ],
+      "vae": [
+        "5",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "11": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "[OUTPUT] Result_Image"
+    }
+  }
+}

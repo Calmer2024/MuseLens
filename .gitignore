@@ -3,6 +3,7 @@ backend/venv/
 backend/app/__pycache__/
 backend/.env
 backend/*.sqlite3
+**/__pycache__/
 
 # Flutter / Frontend
 frontend/build/
