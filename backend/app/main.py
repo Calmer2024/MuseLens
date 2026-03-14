@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 
 # 导入路由
 from app.api.v1.endpoints import editor
+from app.api.v1.endpoints import router as router_endpoint
 from app.api.v1.endpoints import test_run
 
 app = FastAPI(title="MuseLens API", version="1.0.0")
@@ -28,6 +29,8 @@ app.add_middleware(
 # --- 2. 挂载路由 ---
 # 将 editor.py 中的接口挂载到 /api/v1/editor 下
 app.include_router(editor.router, prefix="/api/v1/editor", tags=["editor"])
+# Router：意图路由与追问机制
+app.include_router(router_endpoint.router, prefix="/api/v1/router", tags=["router"])
 # 将 test_run.py 中的测试接口挂载到 /api/v1/test 下
 app.include_router(test_run.router, prefix="/api/v1/test", tags=["test"])
 
