@@ -1,12 +1,14 @@
 """
 MuseLens 透镜注册表 (Lens Registry)
 
-从本地 JSON 文件加载 ComfyUI 工作流，并硬编码创建 3 个 LensTemplate 实例。
-此版本对应 Phase 2：数据流（Assets）与控制流（Params）彻底分离。
+通过「配置文件 + ComfyUI JSON 模板」自动加载 LensTemplate，实现数据与代码分离。
 """
 
 import json
 import os
+from glob import glob
+from typing import Dict
+
 from app.schemas.lens import (
     LensTemplate, LensLayer, LensAsset, LensParam,
     AssetType, ParamType, NodeMapping,
@@ -14,11 +16,14 @@ from app.schemas.lens import (
 
 
 # ============================================================
-# 工具函数：加载本地 JSON 工作流文件
+# 路径约定
 # ============================================================
 
-# lens JSON 文件所在目录 (backend/lens/)
+# ComfyUI 工作流 JSON 所在目录 (backend/lens/)
 _LENS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "lens")
+
+# Lens 配置文件所在目录 (backend/app/lenses/config/)
+_LENS_CONFIG_DIR = os.path.join(os.path.dirname(__file__), "config")
 
 
 def _load_workflow(filename: str) -> dict:
@@ -28,116 +33,96 @@ def _load_workflow(filename: str) -> dict:
         return json.load(f)
 
 
-# ============================================================
-# 实例化 3 个 LensTemplate
-# ============================================================
+def _load_lens_from_config(config_path: str) -> LensTemplate:
+    """
+    根据单个 Lens 配置文件 (.lens.json) 构建 LensTemplate 实例。
+    配置格式详见文档《Lens 规范文档 + 新建 Lens checklist》。
+    """
+    with open(config_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-# ----------------------------------------------------------
-# 1. lens_sam2_matting (A1 视觉解析层 — SAM2 语义抠图)
-# ----------------------------------------------------------
-lens_sam2_matting = LensTemplate(
-    lens_id="lens_sam2_matting",
-    layer=LensLayer.A1,
-    description="SAM2 语义抠图：根据文本 prompt 提取目标主体的遮罩 (Mask)",
-    raw_workflow=_load_workflow("lens_sam2_matting .json"),
-    inputs=[
-        LensAsset(
-            name="base_image",
-            type=AssetType.IMAGE,
-            mapping=NodeMapping(node_id="1", field_name="image"),
-        ),
-    ],
-    outputs=[
-        LensAsset(
-            name="mask_result",
-            type=AssetType.MASK,
-            mapping=NodeMapping(node_id="14", field_name="images"),
-        ),
-    ],
-    params=[
-        LensParam(
-            name="prompt",
-            type=ParamType.TEXT,
-            description="需要抠图的目标主体描述，例如 'a cat'",
-            mapping=NodeMapping(node_id="8", field_name="prompt"),
-        ),
-    ]
-)
+    lens_id = data["lens_id"]
+    layer = LensLayer(data["layer"])
+    description = data.get("description", "")
+    workflow_file = data["workflow_file"]
+
+    raw_workflow = _load_workflow(workflow_file)
+
+    def _build_assets(items, is_input: bool) -> list[LensAsset]:
+        result: list[LensAsset] = []
+        for item in items or []:
+            mapping_data = item["mapping"]
+            mapping = NodeMapping(
+                node_id=str(mapping_data["node_id"]),
+                field_name=str(mapping_data["field_name"]),
+            )
+            asset = LensAsset(
+                name=item["name"],
+                type=AssetType(item["type"]),
+                mapping=mapping,
+            )
+            result.append(asset)
+        return result
+
+    def _build_params(items) -> list[LensParam]:
+        result: list[LensParam] = []
+        for item in items or []:
+            mapping_data = item["mapping"]
+            mapping = NodeMapping(
+                node_id=str(mapping_data["node_id"]),
+                field_name=str(mapping_data["field_name"]),
+            )
+            param = LensParam(
+                name=item["name"],
+                type=ParamType(item["type"]),
+                description=item.get("description", ""),
+                mapping=mapping,
+            )
+            result.append(param)
+        return result
+
+    inputs = _build_assets(data.get("inputs", []), is_input=True)
+    outputs = _build_assets(data.get("outputs", []), is_input=False)
+    params = _build_params(data.get("params", []))
+
+    return LensTemplate(
+        lens_id=lens_id,
+        layer=layer,
+        description=description,
+        raw_workflow=raw_workflow,
+        inputs=inputs,
+        outputs=outputs,
+        params=params,
+    )
 
 
-# ----------------------------------------------------------
-# 2. lens_depth_extract (A1 视觉解析层 — 深度图提取)
-# ----------------------------------------------------------
-lens_depth_extract = LensTemplate(
-    lens_id="lens_depth_extract",
-    layer=LensLayer.A1,
-    description="DepthAnythingV2 深度图提取：生成画面的 3D 深度信息",
-    raw_workflow=_load_workflow("lens_depth_extract.json"),
-    inputs=[
-        LensAsset(
-            name="base_image",
-            type=AssetType.IMAGE,
-            mapping=NodeMapping(node_id="1", field_name="image"),
-        ),
-    ],
-    outputs=[
-        LensAsset(
-            name="depth_map",
-            type=AssetType.DEPTH_MAP,
-            mapping=NodeMapping(node_id="3", field_name="images"),
-        ),
-    ],
-    params=[]
-)
+def _build_registry() -> Dict[str, LensTemplate]:
+    """
+    从配置目录自动扫描 .lens.json 配置，构建全局 LENS_REGISTRY。
+    """
+    registry: Dict[str, LensTemplate] = {}
 
+    # 若目录不存在，则保持空注册表，避免导入时报错
+    if not os.path.isdir(_LENS_CONFIG_DIR):
+        return registry
 
-# ----------------------------------------------------------
-# 3. lens_inpaint_bg (A2 像素修改层 — 局部重绘/换背景)
-# ----------------------------------------------------------
-lens_inpaint_bg = LensTemplate(
-    lens_id="lens_inpaint_bg",
-    layer=LensLayer.A2,
-    description="SDXL 局部重绘：基于遮罩对指定区域进行语义重构（如换背景）",
-    raw_workflow=_load_workflow("lens_inpaint_bg.json"),
-    inputs=[
-        LensAsset(
-            name="base_image",
-            type=AssetType.IMAGE,
-            mapping=NodeMapping(node_id="1", field_name="image"),
-        ),
-        LensAsset(
-            name="mask_target",
-            type=AssetType.MASK,
-            mapping=NodeMapping(node_id="2", field_name="image"),
-        ),
-    ],
-    outputs=[
-        LensAsset(
-            name="result_image",
-            type=AssetType.IMAGE,
-            mapping=NodeMapping(node_id="11", field_name="images"),
-        ),
-    ],
-    params=[
-        LensParam(
-            name="positive_prompt",
-            type=ParamType.TEXT,
-            description="描述要重绘出来的内容，例如 'a beautiful beach, sunset'",
-            mapping=NodeMapping(node_id="8", field_name="text"),
-        ),
-    ]
-)
+    pattern = os.path.join(_LENS_CONFIG_DIR, "*.lens.json")
+    for config_path in glob(pattern):
+        lens = _load_lens_from_config(config_path)
+        if lens.lens_id in registry:
+            raise ValueError(
+                f"重复的 lens_id '{lens.lens_id}'，配置文件冲突。请确保每个 lens_id 只在一个配置中定义。"
+            )
+        registry[lens.lens_id] = lens
+
+    return registry
 
 
 # ============================================================
 # 全局注册表：lens_id -> LensTemplate
 # ============================================================
 
-LENS_REGISTRY: dict[str, LensTemplate] = {
-    lens_sam2_matting.lens_id: lens_sam2_matting,
-    lens_depth_extract.lens_id: lens_depth_extract,
-    lens_inpaint_bg.lens_id: lens_inpaint_bg,
-}
+LENS_REGISTRY: Dict[str, LensTemplate] = _build_registry()
 
 
 def get_lens(lens_id: str) -> LensTemplate:
@@ -145,3 +130,4 @@ def get_lens(lens_id: str) -> LensTemplate:
     if lens_id not in LENS_REGISTRY:
         raise KeyError(f"透镜 '{lens_id}' 未在注册表中找到。可用: {list(LENS_REGISTRY.keys())}")
     return LENS_REGISTRY[lens_id]
+
