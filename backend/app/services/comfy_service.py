@@ -1,96 +1,101 @@
+"""
+MuseLens 异步通信服务 (Async ComfyService)
+
+重写底层的 ComfyUI 通信机制：
+完全抛弃了阻塞的 requests, urllib 和 websocket-client。
+引入 httpx.AsyncClient 和 websockets 库来实现非阻塞的协程流式获取，
+包含对生成进度的异步回调支持。
+"""
+
 import json
-import urllib.request
-import urllib.parse
-import requests
-import websocket # pip install websocket-client
 import uuid
 import os
+import asyncio
+import logging
+import httpx
+import websockets
 
-# ComfyUI 地址 (根据你实际情况修改)
+logger = logging.getLogger(__name__)
+
+# ComfyUI 地址
 COMFY_URL = "127.0.0.1:8188"
 SERVER_ADDRESS = f"http://{COMFY_URL}"
 WS_ADDRESS = f"ws://{COMFY_URL}/ws?clientId="
 
-class ComfyService:
+
+class AsyncComfyRunner:
+    """
+    负责与 ComfyUI 进行异步通信的执行器类。
+    """
     def __init__(self):
         self.client_id = str(uuid.uuid4())
-        self.ws = websocket.WebSocket()
-        self.ws.connect(WS_ADDRESS + self.client_id)
+        # 设置较大的超时门限，防止大图生成超时
+        self.http_client = httpx.AsyncClient(timeout= httpx.Timeout(600.0))
 
-    def upload_image(self, file_path, file_name, image_type="input"):
-        """上传图片到 ComfyUI 的 input 目录"""
+    async def upload_image(self, file_path: str, file_name: str, image_type: str = "input") -> dict:
+        """异步上传图片"""
         with open(file_path, 'rb') as f:
             files = {"image": (file_name, f)}
             data = {"type": image_type, "overwrite": "true"}
-            response = requests.post(f"{SERVER_ADDRESS}/upload/image", files=files, data=data)
+            response = await self.http_client.post(f"{SERVER_ADDRESS}/upload/image", data=data, files=files)
+            response.raise_for_status()
             return response.json()
 
-    def queue_prompt(self, workflow_json):
-        """发送工作流任务"""
-        p = {"prompt": workflow_json, "client_id": self.client_id}
-        data = json.dumps(p).encode('utf-8')
-        req = urllib.request.Request(f"{SERVER_ADDRESS}/prompt", data=data)
-        return json.loads(urllib.request.urlopen(req).read())
+    async def queue_prompt(self, workflow_json: dict) -> str:
+        """异步排队提交任务"""
+        payload = {"prompt": workflow_json, "client_id": self.client_id}
+        response = await self.http_client.post(f"{SERVER_ADDRESS}/prompt", json=payload)
+        response.raise_for_status()
+        return response.json()["prompt_id"]
 
-    def get_history(self, prompt_id):
-        """获取生成历史"""
-        with urllib.request.urlopen(f"{SERVER_ADDRESS}/history/{prompt_id}") as response:
-            return json.loads(response.read())
+    async def get_history(self, prompt_id: str) -> dict:
+        """异步获取生成历史与输出详情"""
+        response = await self.http_client.get(f"{SERVER_ADDRESS}/history/{prompt_id}")
+        response.raise_for_status()
+        return response.json()
 
-    def get_image(self, filename, subfolder, folder_type):
-        """下载生成的图片"""
-        data = {"filename": filename, "subfolder": subfolder, "type": folder_type}
-        url_values = urllib.parse.urlencode(data)
-        with urllib.request.urlopen(f"{SERVER_ADDRESS}/view?{url_values}") as response:
-            return response.read()
+    async def get_image(self, filename: str, subfolder: str, folder_type: str) -> bytes:
+        """异步下载 ComfyUI 的输出图字节"""
+        params = {"filename": filename, "subfolder": subfolder, "type": folder_type}
+        response = await self.http_client.get(f"{SERVER_ADDRESS}/view", params=params)
+        response.raise_for_status()
+        return response.content
 
-    # 🔥 关键修改：去掉了 mask_path 参数
-    def generate_image(self, input_path, prompt_text):
-        try:
-            # 1. 上传图片 (只传原图，不再传 mask)
-            self.upload_image(input_path, "input_image.png")
-            
-            # 2. 读取工作流 JSON (确保这里的路径是对的)
-            workflow_path = os.path.join(os.path.dirname(__file__), "../workflows/img2img_api.json")
-            
-            if not os.path.exists(workflow_path):
-                print(f"Error: Workflow file not found at {workflow_path}")
-                return None
-
-            with open(workflow_path, 'r', encoding='utf-8') as f:
-                workflow = json.load(f)
-
-            # 3. 修改节点参数 (根据 img2img_api.json 的 ID)
-            # 正向提示词 (ID: 6)
-            workflow["6"]["inputs"]["text"] = prompt_text 
-            # 原图加载 (ID: 10)
-            workflow["10"]["inputs"]["image"] = "input_image.png"
-            
-            # 注意：不再修改 ID 为 11 的蒙版节点，因为新工作流里没有它了
-
-            # 4. 发送任务
-            prompt_id = self.queue_prompt(workflow)['prompt_id']
-            
-            # 5. 监听 WebSocket 等待完成
+    async def wait_for_completion(self, prompt_id: str) -> None:
+        """
+        异步监听 WebSocket 等待指定的 prompt_id 执行完成。
+        """
+        async with websockets.connect(WS_ADDRESS + self.client_id) as ws:
             while True:
-                out = self.ws.recv()
+                out = await ws.recv()
                 if isinstance(out, str):
                     message = json.loads(out)
-                    if message['type'] == 'executing':
+                    # ComfyUI 进度日志
+                    if message['type'] == 'progress':
                         data = message['data']
-                        if data['node'] is None and data['prompt_id'] == prompt_id:
-                            break # 执行完成
+                        logger.debug(f"[ComfyUI] 正在推理节点 {data.get('node')}: {data.get('value')}/{data.get('max')}")
+                    # ComfyUI 节点执行状态
+                    elif message['type'] == 'executing':
+                        data = message['data']
+                        # 如果 node 为 null 并且 prompt_id 对应，则表示这个管线跑完了
+                        if data['node'] is None and data.get('prompt_id') == prompt_id:
+                            return
 
-            # 6. 获取结果
-            history = self.get_history(prompt_id)[prompt_id]
-            for node_id in history['outputs']:
-                node_output = history['outputs'][node_id]
-                if 'images' in node_output:
-                    image_info = node_output['images'][0]
-                    # 下载图片数据
-                    image_data = self.get_image(image_info['filename'], image_info['subfolder'], image_info['type'])
-                    return image_data
+    async def get_output_filename(self, prompt_id: str, output_node_id: str) -> str:
+        """
+        从历史记录中抽取出指定的 SaveImage 节点生成的文件名。
+        """
+        history = await self.get_history(prompt_id)
+        if prompt_id not in history:
+            raise RuntimeError(f"未能在 ComfyUI History 中找到 prompt_id {prompt_id}")
+            
+        node_output = history[prompt_id]["outputs"].get(output_node_id)
+        if not node_output or "images" not in node_output or len(node_output["images"]) == 0:
+             raise RuntimeError(f"节点 {output_node_id} 未产出任何 image 输出")
+             
+        # {"filename": "...", "subfolder": "", "type": "output"}
+        return node_output["images"][0]["filename"]
 
-        except Exception as e:
-            print(f"Error generating image: {e}")
-            return None
+    async def close(self):
+        """关闭底层 HTTP Client"""
+        await self.http_client.aclose()

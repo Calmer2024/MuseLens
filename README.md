@@ -10,28 +10,29 @@ backend/
 │   ├── __init__.py
 │   ├── main.py              # 入口文件：启动 FastAPI，挂载路由
 │   ├── core/                # 核心配置
-│   │   ├── config.py        # 读取 .env 配置（如数据库URL，ComfyUI地址）
-│   │   └── security.py      # JWT 认证逻辑（如果有登录功能）
 │   ├── models/              # 数据库模型 (ORM)
-│   │   ├── user.py
-│   │   └── recipe.py        # 存储用户的“配方”
-│   ├── schemas/             # Pydantic 数据模型 (用于请求/响应验证)
-│   │   ├── chat.py          # 定义聊天消息、Widget指令的结构
-│   │   └── generation.py    # 定义生图参数结构
+│   ├── schemas/             # Pydantic 数据模型
+│   │   ├── lens.py          # [v3.0/Phase 2] A1-A5 LensAsset/LensParam 资产分离与拓扑定义
 │   ├── api/                 # API 路由层
 │   │   └── v1/
 │   │       ├── endpoints/
-│   │       │   ├── auth.py
-│   │       │   ├── editor.py    # 处理图片上传、修图指令
-│   │       │   └── recipes.py   # 社区配方接口
-│   │       └── websocket.py     # 专门处理 WebSocket 连接 (进度条、Chat)
-│   └── services/            # 业务逻辑层 (最重要！)
-│       ├── llm_service.py       # 调用 OpenAI/Claude 进行 Prompt 扩写
-│       └── comfy_service.py     # 封装与 ComfyUI 的通信、队列管理、WebSocket监听
-├── .env                     # 环境变量 (不要上传到 Git)
+│   │       │   ├── editor.py    # [Phase 2] 基于 WebSocket 的实时非阻塞推理流
+│   │       │   └── test_run.py  # [Phase 2] 测试本地 A1->A2 异步 DAG 盲执行管线
+│   ├── lenses/              # [v3.0 核心] 透镜注册表与实例化
+│   │   └── registry.py      # 将 JSON 工作流注册为 Python 对象
+│   └── services/            # 业务逻辑层
+│       ├── compiler.py      # [v3.0 核心] 盲执行器、沙盒参数注入中心
+│       └── comfy_service.py # 封装与 ComfyUI 的通信
+├── .env                     # 环境变量
 ├── .gitignore
 └── requirements.txt
 ```
+
+### 核心架构理念 (v3.0)
+系统后端架构遵循 **AOT链接 (Ahead-Of-Time Linking)** 与 **盲执行管线 (Blind Execution Pipeline)**，核心分为以下层：
+1. **意图路由与沙盒注入:** 意图解析后分配唯一的变脸名 `asset_name` 和隔离前缀 `Session_ID`，交由 FastAPI 注入到独立的子任务 json 中。
+2. **盲执行器 (Pipeline Executor):** 不再将不同功能的图拼接，而是作为一个个独立的微服务节点，独立发给 ComfyUI 计算。
+3. **搬运中枢 (IO Mover):** 强制监听 ComfyUI `output` 的产出图，并按约定重命名搬回 `input` 目录完成无缝接力。
 
 前端目录结构
 
@@ -87,7 +88,7 @@ frontend/
 
 1. ### 初始化后端 (Backend)
 
-后端负责处理业务逻辑及与 AI 服务的通信。
+后端负责处理业务逻辑及与 AI 服务的通信。必须**确保你的 ComfyUI 已经先在本地启动（默认 8188 端口）**。
 
 打开终端，进入 `backend` 目录：
 
@@ -96,8 +97,6 @@ cd backend
 ```
 
 #### 2.1 创建并激活虚拟环境
-
-这是为了隔离依赖，防止污染全局 Python 环境。
 
 - **Windows:**
 
@@ -113,22 +112,25 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 
-*(注意：激活成功后，终端命令行前面会出现* *`(venv)`* *字样)*
-
-#### 2.2 安装依赖
+#### 2.2 安装依赖及配置
 
 ```Bash
 pip install -r requirements.txt
 ```
+> **注意**：你需要去配置好 `COMFYUI_OUTPUT_DIR` 和 `COMFYUI_INPUT_DIR` 二个环境变量让 FastAPI 控制文件搬运。默认代码 (compiler) 中是写死了 `D:\AI\ComfyUI_windows_portable\ComfyUI\`，请自行在代码或系统中修改为你机器上的路径。
 
 #### 2.3 启动后端服务
 
 ```Bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+- 服务启动后，请打开浏览器访问：`http://127.0.0.1:8000/docs` 查看 Swagger 接口。
 
-- 看到 `Application startup complete` 即表示启动成功。
-- 默认运行在: `http://127.0.0.1:8000`
+#### 2.4 Phase 2 本地管线连通测试 (纯异步 DAG) 
+1. 确保你的 ComfyUI `input` 目录中有一张图片，比如叫 `woman-8463055_1280.jpg`。
+2. 在 Swagger 页面 `http://127.0.0.1:8000/docs` 中，找到 `GET /run_pipeline` 接口。
+3. 输入图片名称和要处理的 Prompt，点击 Execute 即可验证 A1->A2 本地异步 DAG 编排引擎与拓扑变量绑定 ($step_1.mask_result) 的闭环能力。
+4. (可选) 对于前端调试，也可以使用 WebSocket 客户端连接 `ws://127.0.0.1:8000/ws/editor/test` 并发送 `{"action": "generate"}`，测试纯无阻塞的流式进度推流。
 
 1. ### 初始化前端 (Frontend)
 
