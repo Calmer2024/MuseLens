@@ -12,12 +12,12 @@ backend/
 │   ├── core/                # 核心配置
 │   ├── models/              # 数据库模型 (ORM)
 │   ├── schemas/             # Pydantic 数据模型
-│   │   ├── lens.py          # [v3.0 核心] A1-A5 Pydantic Lens 模型与参数注入逻辑
+│   │   ├── lens.py          # [v3.0/Phase 2] A1-A5 LensAsset/LensParam 资产分离与拓扑定义
 │   ├── api/                 # API 路由层
 │   │   └── v1/
 │   │       ├── endpoints/
-│   │       │   ├── editor.py    # 旧版 (逐步废弃)
-│   │       │   └── test_run.py  # [Phase 1: 核心] 测试本地 A1->A2 盲执行管线
+│   │       │   ├── editor.py    # [Phase 2] 基于 WebSocket 的实时非阻塞推理流
+│   │       │   └── test_run.py  # [Phase 2] 测试本地 A1->A2 异步 DAG 盲执行管线
 │   ├── lenses/              # [v3.0 核心] 透镜注册表与实例化
 │   │   └── registry.py      # 将 JSON 工作流注册为 Python 对象
 │   └── services/            # 业务逻辑层
@@ -126,10 +126,11 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 - 服务启动后，请打开浏览器访问：`http://127.0.0.1:8000/docs` 查看 Swagger 接口。
 
-#### 2.4 Phase 1 本地管线连通测试 
+#### 2.4 Phase 2 本地管线连通测试 (纯异步 DAG) 
 1. 确保你的 ComfyUI `input` 目录中有一张图片，比如叫 `woman-8463055_1280.jpg`。
-2. 在 Swagger 页面中，找到 `GET /api/v1/test/run_pipeline` 接口。
-3. 输入图片名称和要处理的 Prompt，点击 Execute 即可验证 A1->A2 物理管线的闭环能力。
+2. 在 Swagger 页面 `http://127.0.0.1:8000/docs` 中，找到 `GET /run_pipeline` 接口。
+3. 输入图片名称和要处理的 Prompt，点击 Execute 即可验证 A1->A2 本地异步 DAG 编排引擎与拓扑变量绑定 ($step_1.mask_result) 的闭环能力。
+4. (可选) 对于前端调试，也可以使用 WebSocket 客户端连接 `ws://127.0.0.1:8000/ws/editor/test` 并发送 `{"action": "generate"}`，测试纯无阻塞的流式进度推流。
 
 1. ### 初始化前端 (Frontend)
 

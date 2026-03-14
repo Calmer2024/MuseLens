@@ -2,16 +2,14 @@
 MuseLens 透镜注册表 (Lens Registry)
 
 从本地 JSON 文件加载 ComfyUI 工作流，并硬编码创建 3 个 LensTemplate 实例。
-每个实例精确声明了自己的 Inputs/Outputs 及其在 JSON 中的节点映射坐标。
-
-注册表充当全局的"透镜字典"，供 Compiler / Executor 按 lens_id 检索使用。
+此版本对应 Phase 2：数据流（Assets）与控制流（Params）彻底分离。
 """
 
 import json
 import os
 from app.schemas.lens import (
-    LensTemplate, LensLayer, LensInput, LensOutput,
-    InputType, NodeMapping,
+    LensTemplate, LensLayer, LensAsset, LensParam,
+    AssetType, ParamType, NodeMapping,
 )
 
 
@@ -37,43 +35,38 @@ def _load_workflow(filename: str) -> dict:
 # ----------------------------------------------------------
 # 1. lens_sam2_matting (A1 视觉解析层 — SAM2 语义抠图)
 # ----------------------------------------------------------
-# 节点映射:
-#   Node 1  (LoadImage)                       <- base_image (输入)
-#   Node 8  (GroundingDinoSAM2Segment)        <- prompt     (输入, text)
-#   Node 14 (SaveImage, title=[OUTPUT] Mask)  -> mask_result (输出)
-# ----------------------------------------------------------
 lens_sam2_matting = LensTemplate(
     lens_id="lens_sam2_matting",
     layer=LensLayer.A1,
     description="SAM2 语义抠图：根据文本 prompt 提取目标主体的遮罩 (Mask)",
     raw_workflow=_load_workflow("lens_sam2_matting .json"),
     inputs=[
-        LensInput(
+        LensAsset(
             name="base_image",
-            type=InputType.IMAGE,
+            type=AssetType.IMAGE,
             mapping=NodeMapping(node_id="1", field_name="image"),
-        ),
-        LensInput(
-            name="prompt",
-            type=InputType.TEXT,
-            mapping=NodeMapping(node_id="8", field_name="prompt"),
         ),
     ],
     outputs=[
-        LensOutput(
+        LensAsset(
             name="mask_result",
+            type=AssetType.MASK,
             mapping=NodeMapping(node_id="14", field_name="images"),
         ),
     ],
+    params=[
+        LensParam(
+            name="prompt",
+            type=ParamType.TEXT,
+            description="需要抠图的目标主体描述，例如 'a cat'",
+            mapping=NodeMapping(node_id="8", field_name="prompt"),
+        ),
+    ]
 )
 
 
 # ----------------------------------------------------------
 # 2. lens_depth_extract (A1 视觉解析层 — 深度图提取)
-# ----------------------------------------------------------
-# 节点映射:
-#   Node 1 (LoadImage)                         <- base_image (输入)
-#   Node 3 (SaveImage, title=[OUTPUT] Depth)   -> depth_map  (输出)
 # ----------------------------------------------------------
 lens_depth_extract = LensTemplate(
     lens_id="lens_depth_extract",
@@ -81,29 +74,25 @@ lens_depth_extract = LensTemplate(
     description="DepthAnythingV2 深度图提取：生成画面的 3D 深度信息",
     raw_workflow=_load_workflow("lens_depth_extract.json"),
     inputs=[
-        LensInput(
+        LensAsset(
             name="base_image",
-            type=InputType.IMAGE,
+            type=AssetType.IMAGE,
             mapping=NodeMapping(node_id="1", field_name="image"),
         ),
     ],
     outputs=[
-        LensOutput(
+        LensAsset(
             name="depth_map",
+            type=AssetType.DEPTH_MAP,
             mapping=NodeMapping(node_id="3", field_name="images"),
         ),
     ],
+    params=[]
 )
 
 
 # ----------------------------------------------------------
 # 3. lens_inpaint_bg (A2 像素修改层 — 局部重绘/换背景)
-# ----------------------------------------------------------
-# 节点映射:
-#   Node 1  (LoadImage, title=[INPUT] Base_Image)     <- base_image      (输入)
-#   Node 2  (LoadImage, title=[INPUT] Mask_Target)     <- mask_target     (输入)
-#   Node 8  (CLIPTextEncode, title=[PARAM] Positive)   <- positive_prompt (输入, text)
-#   Node 11 (SaveImage, title=[OUTPUT] Result_Image)   -> result_image    (输出)
 # ----------------------------------------------------------
 lens_inpaint_bg = LensTemplate(
     lens_id="lens_inpaint_bg",
@@ -111,28 +100,32 @@ lens_inpaint_bg = LensTemplate(
     description="SDXL 局部重绘：基于遮罩对指定区域进行语义重构（如换背景）",
     raw_workflow=_load_workflow("lens_inpaint_bg.json"),
     inputs=[
-        LensInput(
+        LensAsset(
             name="base_image",
-            type=InputType.IMAGE,
+            type=AssetType.IMAGE,
             mapping=NodeMapping(node_id="1", field_name="image"),
         ),
-        LensInput(
+        LensAsset(
             name="mask_target",
-            type=InputType.IMAGE,
+            type=AssetType.MASK,
             mapping=NodeMapping(node_id="2", field_name="image"),
-        ),
-        LensInput(
-            name="positive_prompt",
-            type=InputType.TEXT,
-            mapping=NodeMapping(node_id="8", field_name="text"),
         ),
     ],
     outputs=[
-        LensOutput(
+        LensAsset(
             name="result_image",
+            type=AssetType.IMAGE,
             mapping=NodeMapping(node_id="11", field_name="images"),
         ),
     ],
+    params=[
+        LensParam(
+            name="positive_prompt",
+            type=ParamType.TEXT,
+            description="描述要重绘出来的内容，例如 'a beautiful beach, sunset'",
+            mapping=NodeMapping(node_id="8", field_name="text"),
+        ),
+    ]
 )
 
 
