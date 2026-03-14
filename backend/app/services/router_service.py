@@ -18,7 +18,6 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from app.lenses.registry import LENS_REGISTRY
 from app.schemas.lens import DAGBlueprint, DAGStep
 from app.schemas.router import (
     ClarifyQuestion,
@@ -30,6 +29,7 @@ from app.schemas.router import (
     RouterResponse,
     RouterStatus,
 )
+from app.services.rag_client import BaseLensRAGClient, InMemoryLensRAGClient, LensCandidate
 
 
 @dataclass
@@ -52,9 +52,11 @@ class RouterService:
     你可以在此基础上逐步引入 LLM 与真实 RAG 逻辑。
     """
 
-    def __init__(self) -> None:
+    def __init__(self, rag_client: Optional[BaseLensRAGClient] = None) -> None:
         # 简单的内存会话存储，后续可替换为 Redis / 数据库
         self._sessions: Dict[str, _RouterSession] = {}
+        # RAG 客户端：默认使用内存版，实现最小可用的“RAG”
+        self._rag_client: BaseLensRAGClient = rag_client or InMemoryLensRAGClient()
 
     # ------------------------------------------------------------------
     # 对外主入口
@@ -88,13 +90,16 @@ class RouterService:
         target_obj = self._extract_target_object(user_prompt)
         replace_with = self._extract_replace_object(user_prompt)
 
+        # 3. 透镜检索（RAG）：当前使用内存版实现，后续可平滑替换为 pgvector
+        retrieved_lenses: List[LensCandidate] = self._retrieve_lenses(user_prompt)
+
         # 如果会话中已经有补充答案，则优先采用答案覆盖缺失信息
         if "q_target_object" in sess.answers and not target_obj:
             target_obj = str(sess.answers["q_target_object"])
         if "q_replace_with" in sess.answers and not replace_with:
             replace_with = str(sess.answers["q_replace_with"])
 
-        # 3. 构造步骤草案（固定的 A1->A2 管线）
+        # 4. 构造步骤草案（当前仍为固定的 A1->A2 管线）
         steps: List[DAGStep] = [
             DAGStep(
                 step_id="step_1_matting",
@@ -155,7 +160,9 @@ class RouterService:
                 )
             )
 
-        # 4. 如有追问，返回 need_clarification
+        retrieved_ids = [c.lens_id for c in retrieved_lenses]
+
+        # 5. 如有追问，返回 need_clarification
         if questions:
             return RouterResponse(
                 session_id=sess.session_id,
@@ -163,10 +170,13 @@ class RouterService:
                 thought_process="根据当前提示词无法完整确定抠图目标或重绘内容，需要向用户补充询问。",
                 questions=questions,
                 blueprint=None,
-                extra={"draft_steps": [s.model_dump() for s in steps]},
+                extra={
+                    "draft_steps": [s.model_dump() for s in steps],
+                    "retrieved_lenses": retrieved_ids,
+                },
             )
 
-        # 5. 若信息已经足够，直接生成 Blueprint 并做静态校验
+        # 6. 若信息已经足够，直接生成 Blueprint 并做静态校验
         blueprint = DAGBlueprint(
             initial_inputs={"user_base_image": base_image}, steps=steps
         )
@@ -181,7 +191,7 @@ class RouterService:
             ),
             questions=[],
             blueprint=blueprint,
-            extra={"retrieved_lenses": list(LENS_REGISTRY.keys())},
+            extra={"retrieved_lenses": retrieved_ids},
         )
 
     def answer(self, req: RouterAnswerRequest) -> RouterResponse:
@@ -235,6 +245,22 @@ class RouterService:
     # ------------------------------------------------------------------
     # 内部工具方法
     # ------------------------------------------------------------------
+    def _retrieve_lenses(self, user_prompt: str) -> List[LensCandidate]:
+        """
+        使用 RAG 客户端根据自然语言提示词召回候选透镜列表。
+
+        当前实现基于 InMemoryLensRAGClient，后续可以在不改变签名的前提下
+        替换为 PgVectorLensRAGClient 或其它实现。
+        """
+        if not user_prompt:
+            return []
+        try:
+            return self._rag_client.search_lenses(user_prompt, k=5)
+        except Exception:
+            # 为了 Router 的稳健性，RAG 失败时直接退回空结果，
+            # 由后续的固定管线与追问机制兜底。
+            return []
+
     @staticmethod
     def _extract_target_object(text: str) -> Optional[str]:
         """
