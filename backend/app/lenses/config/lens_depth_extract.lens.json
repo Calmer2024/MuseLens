@@ -1,0 +1,21 @@
+{
+  "lens_id": "lens_depth_extract",
+  "layer": "A1",
+  "description": "A1 视觉解析：Depth Anything V2 深度图提取，输出单通道深度图",
+  "workflow_file": "lens_depth_extract.json",
+  "inputs": [
+    {
+      "name": "base_image",
+      "type": "image",
+      "mapping": { "node_id": "1", "field_name": "image" }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "depth_map",
+      "type": "depth_map",
+      "mapping": { "node_id": "3", "field_name": "images" }
+    }
+  ],
+  "params": []
+}

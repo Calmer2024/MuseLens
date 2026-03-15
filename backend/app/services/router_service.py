@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import uuid
 from dataclasses import dataclass, field
@@ -29,7 +30,12 @@ from app.schemas.router import (
     RouterResponse,
     RouterStatus,
 )
-from app.services.rag_client import BaseLensRAGClient, InMemoryLensRAGClient, LensCandidate
+from app.services.rag_client import (
+    BaseLensRAGClient,
+    InMemoryLensRAGClient,
+    LensCandidate,
+    PgVectorLensRAGClient,
+)
 
 
 @dataclass
@@ -321,5 +327,31 @@ class RouterService:
             available.add(f"{step.step_id}.result_image")
 
 
-router_service = RouterService()
+def _create_rag_client_from_env() -> BaseLensRAGClient:
+    """
+    根据环境变量决定使用哪种 RAG 后端：
+    - MUSELENS_RAG_BACKEND=pgvector 时，使用 PostgreSQL + pgvector；
+    - 其它情况（默认）：使用内存版 InMemoryLensRAGClient。
+
+    相关环境变量：
+    - MUSELENS_PG_DSN：PostgreSQL 连接串，例如：
+      postgresql://user:password@localhost:5432/muselens
+    - MUSELENS_RAG_PGVECTOR_TABLE（可选）：向量表名称，默认为 lens_embeddings。
+    """
+    backend = os.getenv("MUSELENS_RAG_BACKEND", "").lower()
+    if backend != "pgvector":
+        return InMemoryLensRAGClient()
+
+    dsn = os.getenv("MUSELENS_PG_DSN")
+    if not dsn:
+        raise RuntimeError(
+            "已将 MUSELENS_RAG_BACKEND 设置为 'pgvector'，"
+            "但未提供 MUSELENS_PG_DSN 环境变量。"
+        )
+
+    table_name = os.getenv("MUSELENS_RAG_PGVECTOR_TABLE", "lens_embeddings")
+    return PgVectorLensRAGClient(dsn=dsn, table_name=table_name)
+
+
+router_service = RouterService(rag_client=_create_rag_client_from_env())
 

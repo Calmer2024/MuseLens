@@ -19,6 +19,45 @@ from app.lenses.registry import LENS_REGISTRY
 from app.schemas.lens import LensTemplate
 
 
+# 默认的文本嵌入维度（用于 pgvector）
+EMBEDDING_DIM: int = 256
+
+
+def default_encode_text_to_vector(text: str, dim: int = EMBEDDING_DIM) -> List[float]:
+    """
+    一个无需依赖外部服务的简易文本 embedding 实现。
+
+    思路：
+    - 先用非常粗糙的分词（与 InMemoryLensRAGClient 的 _tokenize 保持一致风格）；
+    - 将每个 token 的 hash 投影到固定维度的桶上，做计数累加；
+    - 最后做一次 L2 归一化，得到长度为 dim 的向量。
+
+    这不是“高质量语义向量”，但在 pgvector 上已经是一个
+    真实可运行、可扩展的向量检索通路，方便后续无缝替换为
+    真正的 embedding 服务。
+    """
+    if not text:
+        return [0.0] * dim
+
+    # 复用与 InMemoryLensRAGClient 相似的切分规则
+    for ch in [",", "，", "。", ".", "！", "?", "？", "、", ";", "；", "：", ":"]:
+        text = text.replace(ch, " ")
+    tokens = [t.strip().lower() for t in text.split() if t.strip()]
+
+    vec = [0.0] * dim
+    for tok in tokens:
+        h = hash(tok)
+        idx = h % dim
+        vec[idx] += 1.0
+
+    # L2 归一化，避免长度随 token 数暴涨
+    norm_sq = sum(v * v for v in vec)
+    if norm_sq <= 0:
+        return vec
+    norm = norm_sq**0.5
+    return [v / norm for v in vec]
+
+
 @dataclass
 class LensCandidate:
     """
@@ -130,7 +169,7 @@ class PgVectorLensRAGClient:
         dsn: str,
         table_name: str = "lens_embeddings",
         top_k: int = 5,
-        encode_text_to_vector=None,
+        encode_text_to_vector=default_encode_text_to_vector,
     ) -> None:
         self._dsn = dsn
         self._table_name = table_name
@@ -143,8 +182,8 @@ class PgVectorLensRAGClient:
                 "PgVectorLensRAGClient 需要提供 encode_text_to_vector 实现，"
                 "以便将自然语言查询转换为向量。"
             )
-
-        query_vec = self._encode_text_to_vector(query_text)
+        raw_vec = self._encode_text_to_vector(query_text)
+        query_vec = self._to_vector_literal(raw_vec)
 
         # 延迟导入 psycopg，避免在未安装依赖时阻塞整个模块导入。
         try:
@@ -178,4 +217,12 @@ class PgVectorLensRAGClient:
             )
 
         return results
+
+    @staticmethod
+    def _to_vector_literal(vec: Iterable[float]) -> str:
+        """
+        将 Python 序列转换为 pgvector 文本字面量形式：
+        [0.1,0.2,0.3]
+        """
+        return "[" + ",".join(str(float(v)) for v in vec) + "]"
 
