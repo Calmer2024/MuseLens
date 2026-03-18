@@ -39,7 +39,7 @@ class QuestionBind(BaseModel):
     name: str = Field(..., description="目标名称，例如参数名 prompt / positive_prompt")
 
 
-class ClarifyQuestionSchema(BaseModel):
+class ClarifyUiSchema(BaseModel):
     """
     问题的取值范围/约束信息，帮助前端渲染合适控件。
     """
@@ -68,8 +68,8 @@ class ClarifyQuestion(BaseModel):
     binds: List[QuestionBind] = Field(
         default_factory=list, description="该问题答案绑定到哪些编排槽位"
     )
-    schema: ClarifyQuestionSchema = Field(
-        default_factory=ClarifyQuestionSchema, description="取值约束信息"
+    ui_schema: ClarifyUiSchema = Field(
+        default_factory=ClarifyUiSchema, description="取值约束信息（用于前端渲染控件）"
     )
 
 
@@ -130,5 +130,40 @@ class RouterAnswerRequest(BaseModel):
     session_id: str = Field(..., description="要继续的会话 ID")
     answers: Dict[str, Any] = Field(
         default_factory=dict, description="问题 ID -> 用户答案 的映射"
+    )
+
+
+# ============================================================
+# Router v2：统一入口（兼容迁移）
+# ============================================================
+
+
+class RouterRouteRequest(BaseModel):
+    """
+    统一路由入口请求体：
+    - 若提供 answers：视为回答追问（等价于 /answer）
+    - 否则视为编译/追问（等价于 /compile_or_ask），使用 user_message/base_image
+
+    说明：
+    - 后续引入 Planner/Retrieval/会话持久化后，该结构会扩展为更完整的 session/context 输入。
+    """
+
+    user_id: str = Field(default="", description="当前用户 ID（兼容旧端点转发时可为空）")
+    session_id: Optional[str] = Field(default=None, description="复用的会话 ID（可选）")
+
+    user_message: Optional[str] = Field(
+        default=None, description="用户本轮自然语言输入（新会话时通常必填）"
+    )
+    base_image: Optional[str] = Field(
+        default=None,
+        description="源图像资产名，通常为 ComfyUI input 目录中的文件名，如 'upload_raw.png'",
+    )
+    base_image_meta: Dict[str, Any] = Field(
+        default_factory=dict, description="可选：base_image 的元信息（尺寸、来源等）"
+    )
+
+    answers: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="若本轮是回答追问，则填入：问题ID->答案。非空时将走 answer 流程。",
     )
 

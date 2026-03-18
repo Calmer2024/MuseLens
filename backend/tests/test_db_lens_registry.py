@@ -18,6 +18,7 @@ import tempfile
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base
 from app.lenses import registry
@@ -31,7 +32,11 @@ from app.models.lens_model import LensRecord
 @pytest.fixture(scope="function")
 def temp_db():
     """为每个测试创建独立的临时 SQLite 数据库。"""
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(bind=engine)
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     db = SessionLocal()

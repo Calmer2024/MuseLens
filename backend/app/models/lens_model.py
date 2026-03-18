@@ -18,7 +18,7 @@ Lens 数据库模型（ORM）
 
 from datetime import datetime, timezone
 from sqlalchemy import Column, String, Text, DateTime
-from app.core.database import Base
+from app.core.db_base import Base
 
 
 def _utcnow() -> datetime:

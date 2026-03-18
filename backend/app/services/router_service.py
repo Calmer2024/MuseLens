@@ -19,6 +19,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from sqlalchemy.orm import Session
+
 from app.schemas.lens import DAGBlueprint, DAGStep
 from app.schemas.router import (
     ClarifyQuestion,
@@ -28,14 +30,21 @@ from app.schemas.router import (
     RouterAnswerRequest,
     RouterCompileRequest,
     RouterResponse,
+    RouterRouteRequest,
     RouterStatus,
 )
+from app.schemas.planner import PlannerInput, PlannerOutput, PlannerQuestion
+from app.schemas.retrieval import LensKnowledge
+from app.services.blueprint_validator import blueprint_validator
+from app.services.planner_service import PlannerService
 from app.services.rag_client import (
     BaseLensRAGClient,
     InMemoryLensRAGClient,
     LensCandidate,
     PgVectorLensRAGClient,
 )
+from app.services.retrieval_service import RetrievalService, build_task_desc
+from app.services.router_session_store import router_session_store
 
 
 @dataclass
@@ -58,11 +67,19 @@ class RouterService:
     你可以在此基础上逐步引入 LLM 与真实 RAG 逻辑。
     """
 
-    def __init__(self, rag_client: Optional[BaseLensRAGClient] = None) -> None:
+    def __init__(
+        self,
+        rag_client: Optional[BaseLensRAGClient] = None,
+        *,
+        retrieval: Optional[RetrievalService] = None,
+        planner: Optional[PlannerService] = None,
+    ) -> None:
         # 简单的内存会话存储，后续可替换为 Redis / 数据库
         self._sessions: Dict[str, _RouterSession] = {}
         # RAG 客户端：默认使用内存版，实现最小可用的“RAG”
         self._rag_client: BaseLensRAGClient = rag_client or InMemoryLensRAGClient()
+        self._retrieval = retrieval or RetrievalService(self._rag_client)
+        self._planner = planner or PlannerService()
 
     # ------------------------------------------------------------------
     # 对外主入口
@@ -200,6 +217,199 @@ class RouterService:
             extra={"retrieved_lenses": retrieved_ids},
         )
 
+    def route(self, req: RouterRouteRequest) -> RouterResponse:
+        """
+        Router v2 的统一入口。
+
+        当前阶段作为薄适配层：
+        - 若 answers 非空：转调 answer
+        - 否则：将 user_message 映射到现有 compile_or_ask 的 user_prompt
+        """
+        # 兼容旧签名：若未注入 DB（例如旧调用路径），退回规则版
+        return self.route_with_db(req, db=None)
+
+    def route_with_db(self, req: RouterRouteRequest, db: Optional[Session]) -> RouterResponse:
+        """
+        真正的 Router v2 状态机入口（支持 DB 会话持久化）。
+
+        - db=None 时：退回规则版 compile_or_ask/answer
+        - db!=None 时：走 Retrieval + Planner + Validator + SessionStore
+        """
+        if db is None:
+            if req.answers:
+                return self.answer(
+                    RouterAnswerRequest(session_id=req.session_id or "", answers=req.answers)
+                )
+            return self.compile_or_ask(
+                RouterCompileRequest(
+                    user_id=req.user_id,
+                    user_prompt=req.user_message,
+                    base_image=req.base_image,
+                    session_id=req.session_id,
+                )
+            )
+        # Planner 未配置时，退回旧规则版，避免 API 直接变为 FAILED
+        if not self._planner.is_configured():
+            if req.answers:
+                return self.answer(
+                    RouterAnswerRequest(session_id=req.session_id or "", answers=req.answers)
+                )
+            return self.compile_or_ask(
+                RouterCompileRequest(
+                    user_id=req.user_id,
+                    user_prompt=req.user_message,
+                    base_image=req.base_image,
+                    session_id=req.session_id,
+                )
+            )
+
+        # --- v2：持久化会话 ---
+        try:
+            sess = None
+            if req.session_id:
+                sess = router_session_store.get(db, req.session_id)
+            if not sess:
+                if not req.user_message:
+                    raise ValueError("新会话必须提供 user_message")
+                if not req.base_image:
+                    raise ValueError("新会话必须提供 base_image")
+                sess = router_session_store.create(
+                    db,
+                    user_id=req.user_id,
+                    original_prompt=req.user_message,
+                    base_image=req.base_image,
+                    base_image_meta=req.base_image_meta,
+                )
+
+            # 1) 若本轮有 answers，则写入 collected_params
+            collected_params = dict(sess.collected_params or {})
+            if req.answers:
+                for k, v in req.answers.items():
+                    # 约定：问题ID= lens_id.param_name
+                    if isinstance(k, str) and "." in k:
+                        collected_params[k] = v
+                    else:
+                        # 兜底：仍保留
+                        collected_params[str(k)] = v
+
+            # 2) 构造 task_desc（优先本轮 user_message；无则退回 original_prompt）
+            user_message = req.user_message or sess.original_prompt or ""
+            task_desc = build_task_desc(
+                user_message=user_message, history_summary=sess.history_summary or ""
+            )
+
+            # 3) Retrieval：只找 Lens 知识
+            lenses: List[LensKnowledge] = self._retrieval.retrieve(
+                db, task_desc=task_desc, top_k=5
+            )
+            candidates_payload = [l.model_dump() for l in lenses]
+
+            # 4) Planner：生成 blueprint + missing + questions
+            planner_input = PlannerInput(
+                task_desc=task_desc,
+                base_image_meta=req.base_image_meta or (sess.base_image_meta or {}),
+                candidates=candidates_payload,
+                session_context={
+                    "collected_params": collected_params,
+                    "pending_questions": sess.pending_questions or [],
+                    "lens_history": sess.lens_history or [],
+                    "previous_blueprint": sess.pending_blueprint,
+                },
+            )
+
+            planner_out: PlannerOutput = self._planner.plan(planner_input)
+
+            # 5) 若没有 blueprint，直接失败
+            if not planner_out.blueprint:
+                router_session_store.upsert_json_fields(
+                    db,
+                    sess.session_id,
+                    collected_params=collected_params,
+                )
+                return RouterResponse(
+                    session_id=sess.session_id,
+                    status=RouterStatus.FAILED,
+                    thought_process=planner_out.thought or "Planner 未返回 blueprint。",
+                    questions=[],
+                    blueprint=None,
+                    extra={"planner": planner_out.model_dump()},
+                )
+
+            # 6) 静态校验
+            verrors = blueprint_validator.validate(
+                db, planner_out.blueprint, collected_params=collected_params
+            )
+            if verrors:
+                router_session_store.upsert_json_fields(
+                    db,
+                    sess.session_id,
+                    collected_params=collected_params,
+                )
+                return RouterResponse(
+                    session_id=sess.session_id,
+                    status=RouterStatus.FAILED,
+                    thought_process="Blueprint 静态校验失败。",
+                    questions=[],
+                    blueprint=None,
+                    extra={"validation_errors": [e.__dict__ for e in verrors]},
+                )
+
+            # 7) 追问 vs READY
+            questions: List[ClarifyQuestion] = self._to_clarify_questions(
+                planner_out.clarification_questions
+            )
+
+            if planner_out.missing_params or questions:
+                router_session_store.upsert_json_fields(
+                    db,
+                    sess.session_id,
+                    collected_params=collected_params,
+                    pending_blueprint=planner_out.blueprint.model_dump(),
+                    pending_questions=[q.model_dump() for q in questions],
+                )
+                return RouterResponse(
+                    session_id=sess.session_id,
+                    status=RouterStatus.NEED_CLARIFICATION,
+                    thought_process=planner_out.thought
+                    or "参数信息不足，需要向用户追问补齐。",
+                    questions=questions,
+                    blueprint=None,
+                    extra={"retrieved_lenses": [l.lens_id for l in lenses]},
+                )
+
+            # READY：清理 pending，记录历史
+            lens_history = list(sess.lens_history or [])
+            lens_history.append(
+                {
+                    "blueprint": planner_out.blueprint.model_dump(),
+                }
+            )
+            router_session_store.upsert_json_fields(
+                db,
+                sess.session_id,
+                collected_params=collected_params,
+                pending_blueprint=None,
+                pending_questions=[],
+                lens_history=lens_history,
+            )
+            return RouterResponse(
+                session_id=sess.session_id,
+                status=RouterStatus.READY,
+                thought_process=planner_out.thought or "已生成可执行 Blueprint。",
+                questions=[],
+                blueprint=planner_out.blueprint,
+                extra={"retrieved_lenses": [l.lens_id for l in lenses]},
+            )
+        except Exception as exc:
+            return RouterResponse(
+                session_id=req.session_id or "",
+                status=RouterStatus.FAILED,
+                thought_process=f"Router v2 处理失败：{exc}",
+                questions=[],
+                blueprint=None,
+                extra={},
+            )
+
     def answer(self, req: RouterAnswerRequest) -> RouterResponse:
         """
         根据前端提交的追问答案，继续完成 DAG 编译。
@@ -325,6 +535,34 @@ class RouterService:
             # 仅作为示例。真实实现应当结合 LensTemplate.outputs 来动态生成。
             available.add(f"{step.step_id}.mask_result")
             available.add(f"{step.step_id}.result_image")
+
+    @staticmethod
+    def _to_clarify_questions(items: List[PlannerQuestion]) -> List[ClarifyQuestion]:
+        """
+        将 PlannerQuestion 转换为 Router 对外的 ClarifyQuestion。
+        约定：问题 ID = lens_id.param_name，便于 answer 回填到 collected_params。
+        """
+        result: List[ClarifyQuestion] = []
+        for it in items or []:
+            qid = f"{it.param_ref.lens_id}.{it.param_ref.param_name}"
+            result.append(
+                ClarifyQuestion(
+                    id=qid,
+                    prompt=it.question_text,
+                    type=QuestionType.TEXT,
+                    options=list(it.options or []),
+                    required=bool(it.required),
+                    binds=[
+                        QuestionBind(
+                            step_id=None,
+                            lens_id=it.param_ref.lens_id,
+                            target=QuestionBindTarget.PARAM,
+                            name=it.param_ref.param_name,
+                        )
+                    ],
+                )
+            )
+        return result
 
 
 def _create_rag_client_from_env() -> BaseLensRAGClient:

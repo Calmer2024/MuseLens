@@ -28,6 +28,8 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         registry.reload_registry(db)
+        # 即使数据库为空，也保持内置透镜可用（用于默认能力与测试环境）。
+        registry.load_builtin_lenses_into_memory()
     finally:
         db.close()
 
