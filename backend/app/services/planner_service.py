@@ -5,8 +5,34 @@ import os
 from typing import Any, Dict, Optional
 
 import httpx
+from pathlib import Path
+from dotenv import dotenv_values  # type: ignore[import-not-found]
 
-from app.schemas.planner import PlannerInput, PlannerOutput
+from app.schemas.planner import (
+    PlannerInput,
+    PlannerOutput,
+    MissingParam,
+    PlannerParamRef,
+    PlannerQuestion,
+)
+
+
+# 让 `.env` 内的 LLM 配置在当前进程里生效，避免 os.getenv 读不到。
+# 注意：这里**只注入** MUSELENS_LLM_*，不注入数据库/pgvector，避免环境缺少 psycopg 时导致导入阶段崩溃。
+_ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+_LLM_ENV_KEYS = {
+    "MUSELENS_LLM_BASE_URL",
+    "MUSELENS_LLM_API_KEY",
+    "MUSELENS_LLM_MODEL",
+    "MUSELENS_LLM_TIMEOUT_S",
+}
+if _ENV_PATH.is_file():
+    _vals = dotenv_values(str(_ENV_PATH))
+    for _k in _LLM_ENV_KEYS:
+        if not os.getenv(_k) and _k in _vals:
+            _v = _vals.get(_k)
+            if _v is not None:
+                os.environ[_k] = str(_v).strip()
 
 
 class PlannerService:
@@ -102,12 +128,18 @@ class PlannerService:
             if tool_calls:
                 args = tool_calls[0]["function"]["arguments"]
                 obj = json.loads(args) if isinstance(args, str) else args
-                return PlannerOutput.model_validate(obj)
+                out = PlannerOutput.model_validate(obj)
+                if out.blueprint is None and not out.missing_params and not out.clarification_questions:
+                    out = _fallback_missing_questions(out, planner_input)
+                return out
 
             # 回退：直接从 content 取 JSON
             content = msg.get("content") or ""
             obj = json.loads(content)
-            return PlannerOutput.model_validate(obj)
+            out = PlannerOutput.model_validate(obj)
+            if out.blueprint is None and not out.missing_params and not out.clarification_questions:
+                out = _fallback_missing_questions(out, planner_input)
+            return out
         except Exception as exc:
             raise RuntimeError(f"PlannerService 输出解析失败：{exc}; raw={data}") from exc
 
@@ -125,4 +157,56 @@ class MockPlannerService:
 
     def is_configured(self) -> bool:
         return True
+
+
+def _fallback_missing_questions(out: PlannerOutput, planner_input: PlannerInput) -> PlannerOutput:
+    """
+    LLM 可能在 blueprint=None 时“没有补 missing_params/clarification_questions”。
+    单测要求在无法就绪时至少返回一种追问/缺失参数，故在解析后做兜底补全。
+    """
+    # 从 candidates 中找一个 required 参数；若没有 required，则退化为第一个 params 的 name
+    chosen_lens_id: str | None = None
+    chosen_param_name: str | None = None
+
+    for cand in planner_input.candidates or []:
+        lens_id = cand.get("lens_id")
+        for p in cand.get("params") or []:
+            name = p.get("name") or ""
+            required = p.get("required", False)
+            if required:
+                chosen_lens_id = str(lens_id) if lens_id is not None else None
+                chosen_param_name = str(name) if name else "param"
+                break
+        if chosen_lens_id and chosen_param_name:
+            break
+
+    if not chosen_lens_id:
+        # 退化：取第一个 candidate/param
+        cand0 = (planner_input.candidates or [None])[0]
+        if cand0:
+            chosen_lens_id = cand0.get("lens_id")
+            params0 = cand0.get("params") or []
+            if params0:
+                chosen_param_name = params0[0].get("name") or "param"
+
+    if chosen_lens_id and chosen_param_name:
+        out.missing_params = [
+            MissingParam(
+                lens_id=str(chosen_lens_id),
+                param_name=str(chosen_param_name),
+                reason="LLM 输出不完整：未提供 missing_params/clarification_questions，已自动兜底补全。",
+            )
+        ]
+        out.clarification_questions = [
+            PlannerQuestion(
+                param_ref=PlannerParamRef(
+                    lens_id=str(chosen_lens_id),
+                    param_name=str(chosen_param_name),
+                ),
+                question_text=f"请输入{chosen_param_name}",
+                required=True,
+            )
+        ]
+
+    return out
 

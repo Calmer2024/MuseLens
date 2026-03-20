@@ -9,6 +9,7 @@ from app.models.lens_example_model import LensExampleRecord
 from app.models.lens_model import LensRecord
 from app.schemas.retrieval import LensExample, LensKnowledge, LensParamSchema
 from app.services.rag_client import BaseLensRAGClient
+from app.services.lens_docs_service import load_lens_doc
 
 
 class RetrievalService:
@@ -67,6 +68,15 @@ class RetrievalService:
                 # 向量库里可能存在，但 Catalog 里缺失；跳过避免 Planner 误用
                 continue
 
+            # 说明文档（md + YAML frontmatter）作为“决策/追问规则”的叠加层：
+            # - 主要补充：lenses.description / params[].description / required / default / examples
+            # - 不强依赖 md 文件，缺失时保持兼容：回退到数据库字段
+            doc = None
+            try:
+                doc = load_lens_doc(lens_id)
+            except Exception:
+                doc = None
+
             raw_params = []
             try:
                 raw_params = json.loads(rec.params_json or "[]")
@@ -76,9 +86,10 @@ class RetrievalService:
             params: List[LensParamSchema] = []
             for p in raw_params:
                 # 兼容当前 register 接口写入的结构：{name,type,description,mapping:{...}}
+                name = str(p.get("name", ""))
                 params.append(
                     LensParamSchema(
-                        name=str(p.get("name", "")),
+                        name=name,
                         type=str(p.get("type", "")),
                         description=str(p.get("description", "")),
                         required=bool(p.get("required", False)),
@@ -86,14 +97,53 @@ class RetrievalService:
                     )
                 )
 
+            # docs overlay: required/default/description/examples
+            if doc:
+                if doc.description:
+                    rec_description = str(doc.description)
+                else:
+                    rec_description = rec.description or ""
+
+                doc_params = doc.params or {}
+                if doc_params:
+                    merged_params: List[LensParamSchema] = []
+                    for ps in params:
+                        dp = doc_params.get(ps.name)
+                        if dp:
+                            merged_params.append(
+                                LensParamSchema(
+                                    name=ps.name,
+                                    type=ps.type,
+                                    description=dp.merged_description(
+                                        base_description=ps.description or ""
+                                    ),
+                                    required=bool(dp.required)
+                                    if dp.required is not None
+                                    else ps.required,
+                                    default=dp.default
+                                    if dp.default is not None
+                                    else ps.default,
+                                )
+                            )
+                        else:
+                            merged_params.append(ps)
+                    params = merged_params
+                # 若 doc.params 不提供某些字段，仍保留数据库 schema 的字段
+                description = rec_description
+            else:
+                description = rec.description or ""
+
             result.append(
                 LensKnowledge(
                     lens_id=lens_id,
                     score=score_by_id.get(lens_id, 0.0),
-                    layer=rec.layer or "",
-                    description=rec.description or "",
+                    layer=doc.layer if doc and doc.layer else (rec.layer or ""),
+                    description=description,
                     params=params,
-                    examples=examples_by_id.get(lens_id, []),
+                    examples=(
+                        (doc.examples if doc and doc.examples else [])
+                        + examples_by_id.get(lens_id, [])
+                    ),
                 )
             )
 
