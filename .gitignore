@@ -17,3 +17,5 @@ frontend/ios/Pods/
 
 # vscode/
 .vscode/
+
+*.db

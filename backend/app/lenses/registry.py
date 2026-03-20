@@ -193,6 +193,45 @@ def load_builtin_lenses_into_memory(config_dir: str | None = None) -> Dict[str, 
     return deepcopy(loaded)
 
 
+def seed_builtin_lenses_into_db(db: Session, config_dir: str | None = None) -> Dict[str, LensTemplate]:
+    """
+    当数据库为空时，把内置透镜配置写入数据库（lenses 表）。
+
+    说明：
+    - 这里只写入 lenses 元数据（workflow_file_path、inputs/outputs/params 等）。
+    - lens_examples（few-shot）由用户在注册时通过 `/api/v1/lenses/register` 写入；
+      内置配置文件当前不强制提供 examples。
+    """
+    cfg_dir = config_dir or _DEFAULT_LENS_CONFIG_DIR
+    seeded: Dict[str, LensTemplate] = {}
+
+    for cfg_path in _iter_builtin_config_files(cfg_dir):
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+
+            workflow_file_path = cfg.get("workflow_file_path") or cfg.get("workflow_file")
+            if not workflow_file_path:
+                raise ValueError(f"配置缺少 workflow_file / workflow_file_path：{cfg_path}")
+
+            data = {
+                "lens_id": str(cfg["lens_id"]),
+                "layer": str(cfg["layer"]),
+                "description": str(cfg.get("description", "")),
+                "workflow_file_path": str(workflow_file_path),
+                "inputs": cfg.get("inputs", []),
+                "outputs": cfg.get("outputs", []),
+                "params": cfg.get("params", []),
+            }
+
+            tmpl = register_lens(db, data)
+            seeded[tmpl.lens_id] = tmpl
+        except Exception as exc:
+            print(f"[Registry] 警告：seed 内置透镜失败，file={cfg_path} reason={exc}")
+
+    return deepcopy(seeded)
+
+
 # ============================================================
 # 全局内存注册表
 # ============================================================

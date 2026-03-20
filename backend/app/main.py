@@ -12,6 +12,7 @@ from app.api.v1.endpoints import lenses as lenses_endpoint
 # 数据库与注册表
 from app.core.database import init_db, SessionLocal
 from app.lenses import registry
+from app.models.lens_model import LensRecord
 
 
 # ============================================================
@@ -27,6 +28,12 @@ async def lifespan(app: FastAPI):
     # 2. 从数据库加载 Lens 注册表到内存
     db = SessionLocal()
     try:
+        # 如果数据库为空，则先把内置透镜种子写入 DB，确保 Router v2 的 Retrieval
+        # （依赖 lenses 表补全 candidates）可以正常工作。
+        has_any = db.query(LensRecord).first() is not None
+        if not has_any:
+            registry.seed_builtin_lenses_into_db(db)
+
         registry.reload_registry(db)
         # 即使数据库为空，也保持内置透镜可用（用于默认能力与测试环境）。
         registry.load_builtin_lenses_into_memory()

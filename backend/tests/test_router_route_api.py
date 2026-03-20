@@ -150,7 +150,7 @@ def test_route_endpoint_need_clarification_then_ready(client, test_db, workflow_
     monkeypatch.setattr(
         router_endpoint,
         "router_service",
-        RouterService(rag_client=rag, retrieval=retrieval, planner=planner1),
+        RouterService(rag_client=rag, retrieval=retrieval, planner=planner1),  # type: ignore[arg-type]
     )
 
     r1 = client.post(
@@ -166,7 +166,7 @@ def test_route_endpoint_need_clarification_then_ready(client, test_db, workflow_
     monkeypatch.setattr(
         router_endpoint,
         "router_service",
-        RouterService(rag_client=rag, retrieval=retrieval, planner=planner2),
+        RouterService(rag_client=rag, retrieval=retrieval, planner=planner2),  # type: ignore[arg-type]
     )
     r2 = client.post(
         "/api/v1/router/route",
@@ -180,4 +180,164 @@ def test_route_endpoint_need_clarification_then_ready(client, test_db, workflow_
     body2 = r2.json()
     assert body2["status"] == "ready"
     assert body2["blueprint"] is not None
+
+
+def test_route_endpoint_reads_lens_examples_from_register_api(
+    client, test_db, workflow_file, monkeypatch
+):
+    """
+    验证：
+    1) /api/v1/lenses/register 写入的 lens_examples 会被 RetrievalService 读取；
+    2) /api/v1/router/route 的 response 会包含 extra.retrieved_lenses；
+    3) 追问/READY 流程仍可跑通。
+    """
+    lens_id = "lens_api_need_example"
+
+    # 先用 Lens 管理 API 注册透镜 + examples
+    r_register = client.post(
+        "/api/v1/lenses/register",
+        json={
+            "lens_id": lens_id,
+            "layer": "A2",
+            "description": "需要 prompt",
+            "workflow_file_path": workflow_file,
+            "inputs": [
+                {
+                    "name": "base_image",
+                    "type": "image",
+                    "mapping": {"node_id": "1", "field_name": "image"},
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "result_image",
+                    "type": "image",
+                    "mapping": {"node_id": "1", "field_name": "images"},
+                }
+            ],
+            "params": [
+                {
+                    "name": "prompt",
+                    "type": "text",
+                    "description": "",
+                    "mapping": {"node_id": "1", "field_name": "text"},
+                }
+            ],
+            "examples": [
+                {
+                    "nl_desc": "把杯子换成多肉",
+                    "params_example": {"prompt": "一盆多肉"},
+                }
+            ],
+        },
+    )
+    assert r_register.status_code == 200
+
+    class _AssertExamplesPlanner:
+        def __init__(self, out: PlannerOutput) -> None:
+            self._out = out
+
+        def is_configured(self) -> bool:
+            return True
+
+        def plan(self, planner_input):
+            # planner_input.candidates 在 RouterService 中是由 RetrievalService 结果 model_dump 组成的 dict list
+            cands = planner_input.candidates
+            cand = next(c for c in cands if c.get("lens_id") == lens_id)
+            examples = cand.get("examples") or []
+            assert examples, "expected lens_examples to be present in candidates"
+            assert examples[0].get("nl_desc") == "把杯子换成多肉"
+            return self._out
+
+    # 第 1 轮：返回追问
+    planner1 = _AssertExamplesPlanner(
+        PlannerOutput(
+            blueprint=DAGBlueprint(
+                initial_inputs={"user_base_image": "upload.png"},
+                steps=[
+                    DAGStep(
+                        step_id="s1",
+                        lens_id=lens_id,
+                        input_links={"base_image": "$user_base_image"},
+                        params={},
+                    )
+                ],
+            ),
+            missing_params=[
+                MissingParam(lens_id=lens_id, param_name="prompt", reason="缺少")
+            ],
+            clarification_questions=[
+                PlannerQuestion(
+                    param_ref=PlannerParamRef(
+                        lens_id=lens_id, param_name="prompt"
+                    ),
+                    question_text="请输入prompt",
+                    required=True,
+                )
+            ],
+            thought="need prompt",
+        )
+    )
+
+    # 第 2 轮：返回 READY（不再追问）
+    planner2 = _AssertExamplesPlanner(
+        PlannerOutput(
+            blueprint=DAGBlueprint(
+                initial_inputs={"user_base_image": "upload.png"},
+                steps=[
+                    DAGStep(
+                        step_id="s1",
+                        lens_id=lens_id,
+                        input_links={"base_image": "$user_base_image"},
+                        params={"prompt": "一盆多肉"},
+                    )
+                ],
+            ),
+            missing_params=[],
+            clarification_questions=[],
+            thought="OK",
+        )
+    )
+
+    rag = _FakeRAGClient(lens_id)
+    retrieval = RetrievalService(rag)
+
+    import app.api.v1.endpoints.router as router_endpoint
+
+    monkeypatch.setattr(
+        router_endpoint,
+        "router_service",
+        RouterService(rag_client=rag, retrieval=retrieval, planner=planner1),  # type: ignore[arg-type]
+    )
+
+    r1 = client.post(
+        "/api/v1/router/route",
+        json={"user_id": "u1", "user_message": "帮我改图", "base_image": "upload.png"},
+    )
+    assert r1.status_code == 200
+    body1 = r1.json()
+    assert body1["status"] == "need_clarification"
+    assert body1["questions"][0]["id"] == f"{lens_id}.prompt"
+    assert lens_id in (body1["extra"].get("retrieved_lenses") or [])
+    session_id = body1["session_id"]
+
+    monkeypatch.setattr(
+        router_endpoint,
+        "router_service",
+        RouterService(rag_client=rag, retrieval=retrieval, planner=planner2),  # type: ignore[arg-type]
+    )
+
+    r2 = client.post(
+        "/api/v1/router/route",
+        json={
+            "user_id": "u1",
+            "session_id": session_id,
+            "answers": {f"{lens_id}.prompt": "一盆多肉"},
+        },
+    )
+    assert r2.status_code == 200
+    body2 = r2.json()
+    assert body2["status"] == "ready"
+    assert body2["blueprint"] is not None
+    assert lens_id in (body2["extra"].get("retrieved_lenses") or [])
 

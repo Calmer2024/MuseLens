@@ -11,6 +11,7 @@ Lens 管理 API
   POST   /api/v1/lenses/reload             从数据库全量重载内存注册表
 """
 
+import os
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -46,6 +47,15 @@ class LensParamIn(BaseModel):
     mapping: NodeMappingIn
 
 
+class LensExampleIn(BaseModel):
+    """LLM few-shot 示例：nl_desc + 参数落地示例。"""
+
+    nl_desc: str = Field(default="", description="自然语言示例描述")
+    params_example: Dict[str, Any] = Field(
+        default_factory=dict, description="对应的参数示例（JSON）"
+    )
+
+
 class LensRegisterRequest(BaseModel):
     """注册透镜时的请求体。"""
     lens_id: str = Field(..., description="透镜唯一 ID，如 'lens_inpaint_bg'")
@@ -58,6 +68,9 @@ class LensRegisterRequest(BaseModel):
     inputs: List[LensAssetIn] = Field(default_factory=list)
     outputs: List[LensAssetIn] = Field(default_factory=list)
     params: List[LensParamIn] = Field(default_factory=list)
+    examples: List[LensExampleIn] = Field(
+        default_factory=list, description="LLM few-shot 示例，用于 `lens_examples`"
+    )
 
 
 class LensSummary(BaseModel):
@@ -98,6 +111,41 @@ def register_lens(req: LensRegisterRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"注册失败：{exc}")
 
     record = db.query(LensRecord).filter(LensRecord.lens_id == template.lens_id).first()
+
+    # 写入/覆盖 LLM few-shot examples
+    from app.models.lens_example_model import LensExampleRecord
+
+    db.query(LensExampleRecord).filter(LensExampleRecord.lens_id == template.lens_id).delete()
+    if req.examples:
+        for ex in req.examples:
+            db.add(
+                LensExampleRecord(
+                    lens_id=template.lens_id,
+                    nl_desc=ex.nl_desc,
+                    params_example=ex.params_example,
+                )
+            )
+    db.commit()
+
+    # 如果启用了 pgvector RAG，就在注册成功后同步向量库，让检索立即可用。
+    if os.getenv("MUSELENS_RAG_BACKEND", "").lower() == "pgvector":
+        try:
+            from app.services.lens_embedding_sync import sync_lens_embeddings
+
+            pg_dsn = os.getenv("MUSELENS_PG_DSN")
+            if not pg_dsn:
+                print("[Lenses] 警告：MUSELENS_RAG_BACKEND=pgvector 但未设置 MUSELENS_PG_DSN，跳过同步。")
+            else:
+                table_name = os.getenv("MUSELENS_RAG_PGVECTOR_TABLE", "lens_embeddings")
+                sync_lens_embeddings(
+                    dsn=pg_dsn,
+                    table_name=table_name,
+                    registry={template.lens_id: template},
+                    include_examples=True,
+                )
+        except Exception as exc:
+            # 注册本身应尽量成功；向量同步失败不应让 API 直接失败。
+            print(f"[Lenses] 警告：向量同步失败：{exc}")
     return LensSummary(
         lens_id=record.lens_id,
         layer=record.layer,

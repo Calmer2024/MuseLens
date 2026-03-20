@@ -10,14 +10,59 @@ from __future__ import annotations
 - 确保在透镜数量增多时，只需“新增透镜配置 + 重新跑一次同步”即可扩展。
 """
 
-from typing import Callable, Dict, Iterable, List
+import json
+from typing import Callable, Dict, Iterable, List, Any
+
 
 from app.lenses.registry import LENS_REGISTRY
 from app.schemas.lens import LensTemplate
 from app.services.rag_client import EMBEDDING_DIM, default_encode_text_to_vector
 
 
-def _build_lens_corpus(tmpl: LensTemplate) -> str:
+def _load_lens_examples_from_db(lens_ids: Iterable[str]) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    从后端数据库读取 lens_examples，为 pgvector embedding corpus 提供 few-shot 语料。
+
+    说明：
+    - 该查询对测试/离线场景应保持“失败可忽略”（当表不存在/DB不可用时返回空）。
+    """
+    try:
+        from app.core.database import SessionLocal
+        from app.models.lens_example_model import LensExampleRecord
+    except Exception:
+        return {}
+
+    lens_id_list = list(lens_ids)
+    if not lens_id_list:
+        return {}
+
+    try:
+        db = SessionLocal()
+        try:
+            rows = (
+                db.query(LensExampleRecord)
+                .filter(LensExampleRecord.lens_id.in_(lens_id_list))
+                .all()
+            )
+        finally:
+            db.close()
+    except Exception:
+        # 避免影响 pgvector 同步主流程
+        return {}
+
+    examples_by_id: Dict[str, List[Dict[str, Any]]] = {}
+    for r in rows:
+        examples_by_id.setdefault(str(r.lens_id), []).append(
+            {"nl_desc": r.nl_desc or "", "params_example": r.params_example or {}}
+        )
+    return examples_by_id
+
+
+def _build_lens_corpus(
+    tmpl: LensTemplate,
+    *,
+    examples: List[Dict[str, Any]] | None = None,
+) -> str:
     """
     为单个 Lens 构造用于编码的文本语料。
     默认包含：
@@ -35,6 +80,16 @@ def _build_lens_corpus(tmpl: LensTemplate) -> str:
         parts.append(p.name)
         if p.description:
             parts.append(p.description)
+    # 将 few-shot examples 纳入语料，让向量更贴近自然语言意图
+    for ex in examples or []:
+        nl_desc = str(ex.get("nl_desc") or "")
+        if nl_desc:
+            parts.append(nl_desc)
+
+        params_example = ex.get("params_example") or {}
+        if params_example:
+            parts.append(json.dumps(params_example, ensure_ascii=False))
+
     return " ".join(parts)
 
 
@@ -79,7 +134,7 @@ def ensure_lens_embeddings_schema(dsn: str, table_name: str = "lens_embeddings")
 
     with psycopg.connect(dsn) as conn:  # type: ignore[attr-defined]
         with conn.cursor() as cur:
-            cur.execute(create_sql)
+            cur.execute(create_sql)  # type: ignore[arg-type]
         conn.commit()
 
 
@@ -88,6 +143,7 @@ def sync_lens_embeddings(
     table_name: str = "lens_embeddings",
     encode_text_to_vector: Callable[[str], Iterable[float]] = default_encode_text_to_vector,
     registry: Dict[str, LensTemplate] | None = None,
+    include_examples: bool = True,
 ) -> int:
     """
     将给定 registry（默认使用全局 LENS_REGISTRY）中的所有透镜
@@ -106,6 +162,10 @@ def sync_lens_embeddings(
     if not reg:
         return 0
 
+    examples_by_id: Dict[str, List[Dict[str, Any]]] = {}
+    if include_examples:
+        examples_by_id = _load_lens_examples_from_db(reg.keys())
+
     ensure_lens_embeddings_schema(dsn, table_name=table_name)
 
     upsert_sql = f"""
@@ -121,7 +181,7 @@ def sync_lens_embeddings(
     with psycopg.connect(dsn) as conn:  # type: ignore[attr-defined]
         with conn.cursor() as cur:
             for lens_id, tmpl in reg.items():
-                corpus = _build_lens_corpus(tmpl)
+                corpus = _build_lens_corpus(tmpl, examples=examples_by_id.get(lens_id, []))
                 vec = encode_text_to_vector(corpus)
                 vec_literal = _to_vector_literal(vec)
                 params = {
@@ -130,7 +190,7 @@ def sync_lens_embeddings(
                     "description": tmpl.description,
                     "layer": tmpl.layer.value,
                 }
-                cur.execute(upsert_sql, params)
+                cur.execute(upsert_sql, params)  # type: ignore[arg-type]
                 count += 1
         conn.commit()
 
