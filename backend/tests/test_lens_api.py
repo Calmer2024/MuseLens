@@ -17,7 +17,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_db
 from app.lenses import registry
@@ -31,13 +30,7 @@ from app.main import app
 @pytest.fixture(scope="function")
 def test_db():
     """为每个测试创建独立的内存数据库。"""
-    # 关键：SQLite 的 ":memory:" 是“每个连接一份”，测试请求会产生多个连接；
-    # 用 StaticPool 让整个测试函数复用同一连接，避免出现 “no such table”。
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
     Base.metadata.create_all(bind=engine)
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -58,7 +51,6 @@ def test_db():
     # 清理：恢复原依赖并清空内存注册表
     app.dependency_overrides.clear()
     registry.LENS_REGISTRY.clear()
-    registry.load_builtin_lenses_into_memory()
 
 
 @pytest.fixture(scope="function")
