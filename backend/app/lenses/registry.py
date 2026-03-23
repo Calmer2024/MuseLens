@@ -22,7 +22,7 @@ from __future__ import annotations
 import json
 import os
 from copy import deepcopy
-from typing import Dict, Any, List, Iterable
+from typing import Dict, Any, List
 
 from sqlalchemy.orm import Session
 
@@ -40,11 +40,6 @@ from app.models.lens_model import LensRecord
 # 默认工作流目录：backend/lens/（相对本文件向上三级）
 _DEFAULT_LENS_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "lens")
-)
-
-# 默认配置目录：app/lenses/config/
-_DEFAULT_LENS_CONFIG_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "config")
 )
 
 
@@ -131,77 +126,12 @@ def _record_to_template(record: LensRecord) -> LensTemplate:
         params=params,
     )
 
-def _iter_builtin_config_files(config_dir: str) -> Iterable[str]:
-    if not os.path.isdir(config_dir):
-        return []
-    for name in os.listdir(config_dir):
-        if not name.endswith(".lens.json"):
-            continue
-        yield os.path.join(config_dir, name)
-
-
-def _config_to_template(config_path: str) -> LensTemplate:
-    """
-    将 app/lenses/config/*.lens.json 转换为 LensTemplate（不依赖数据库）。
-    """
-    with open(config_path, "r", encoding="utf-8") as f:
-        cfg = json.load(f)
-
-    # 兼容历史字段名：workflow_file（配置）→ workflow_file_path（内部）
-    workflow_file_path = cfg.get("workflow_file_path") or cfg.get("workflow_file")
-    if not workflow_file_path:
-        raise ValueError(f"配置缺少 workflow_file / workflow_file_path：{config_path}")
-
-    raw_workflow = _load_workflow(str(workflow_file_path))
-    inputs = _build_assets(cfg.get("inputs", []))
-    outputs = _build_assets(cfg.get("outputs", []))
-    params = _build_params(cfg.get("params", []))
-
-    return LensTemplate(
-        lens_id=str(cfg["lens_id"]),
-        layer=LensLayer(str(cfg["layer"])),
-        description=str(cfg.get("description", "")),
-        raw_workflow=raw_workflow,
-        inputs=inputs,
-        outputs=outputs,
-        params=params,
-    )
-
-
-def load_builtin_lenses_into_memory(config_dir: str | None = None) -> Dict[str, LensTemplate]:
-    """
-    从本地配置目录加载内置透镜到内存注册表（不写 DB）。
-
-    设计目的：
-    - 单元测试（`test_lens_registry.py` / `test_rag_client.py`）期望导入时就有默认透镜；
-    - 即使未启动 FastAPI / 未初始化数据库，也能使用基础的 Registry 能力。
-    """
-    cfg_dir = config_dir or _DEFAULT_LENS_CONFIG_DIR
-    loaded: Dict[str, LensTemplate] = {}
-
-    for cfg_path in _iter_builtin_config_files(cfg_dir):
-        try:
-            tmpl = _config_to_template(cfg_path)
-            loaded[tmpl.lens_id] = tmpl
-        except Exception as exc:
-            print(f"[Registry] 警告：加载内置配置失败，已跳过。file={cfg_path} reason={exc}")
-
-    # 只做“补齐”，避免覆盖运行时/测试中动态注册的 Lens
-    for lens_id, tmpl in loaded.items():
-        LENS_REGISTRY.setdefault(lens_id, tmpl)
-
-    return deepcopy(loaded)
-
 
 # ============================================================
 # 全局内存注册表
 # ============================================================
 
 LENS_REGISTRY: Dict[str, LensTemplate] = {}
-
-# 模块导入时预加载内置透镜（不依赖数据库）。
-# 这样测试/REPL 直接 import Registry 也能有默认 Lens。
-load_builtin_lenses_into_memory()
 
 
 # ============================================================
@@ -229,6 +159,8 @@ def reload_registry(db: Session) -> Dict[str, LensTemplate]:
 
     返回新注册表的副本（便于调用方检查结果）。
     """
+    global LENS_REGISTRY
+
     records = db.query(LensRecord).all()
     new_registry: Dict[str, LensTemplate] = {}
 
@@ -240,11 +172,7 @@ def reload_registry(db: Session) -> Dict[str, LensTemplate]:
             # 单个 Lens 加载失败不应阻断整个注册表初始化
             print(f"[Registry] 警告：加载透镜 '{rec.lens_id}' 时出错，已跳过。原因：{exc}")
 
-    # 注意：不要用 `LENS_REGISTRY = new_registry` 重新绑定。
-    # 其他模块/测试可能通过 `from app.lenses.registry import LENS_REGISTRY`
-    # 持有对同一个 dict 的引用；重新绑定会导致它们看不到更新。
-    LENS_REGISTRY.clear()
-    LENS_REGISTRY.update(new_registry)
+    LENS_REGISTRY = new_registry
     print(f"[Registry] 注册表已从数据库加载，共 {len(LENS_REGISTRY)} 个透镜：{list(LENS_REGISTRY.keys())}")
     return deepcopy(LENS_REGISTRY)
 
