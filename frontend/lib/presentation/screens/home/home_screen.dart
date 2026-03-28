@@ -3,8 +3,10 @@ import '../../widgets/home/hero_create_card.dart';
 import '../../widgets/home/recipe_list_item.dart';
 import '../../../data/models/recipe_mock.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/navigation/slide_right_route.dart';
 import '../../../data/models/lens_template_mock.dart';
 import '../lens/lens_detail_screen.dart';
+import '../../../core/localization/app_localizations.dart';
 
 // --- 1. 临时 Mock 数据 ---
 class OfficialLensItem {
@@ -134,7 +136,7 @@ class HomeScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // --- 1. Top Header ---
-              _buildUserInfoHeader(),
+              _buildUserInfoHeader(context),
 
               const SizedBox(height: 30),
 
@@ -145,7 +147,7 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 30),
 
               // --- 3. My Recent Lens Section ---
-              _buildSectionHeader(title: "My Recent Lens", showViewAll: false),
+              _buildSectionHeader(context, title: context.tr('my_recent_lens'), showViewAll: false),
               const SizedBox(height: 16),
               SizedBox(
                 height: 180,
@@ -164,7 +166,8 @@ class HomeScreen extends StatelessWidget {
 
               // --- 4. Official Trending Templates ---
               _buildSectionHeader(
-                title: "Trending Templates",
+                context,
+                title: context.tr('trending_templates'),
                 onTapViewAll: () {},
               ),
               const SizedBox(height: 16),
@@ -187,7 +190,8 @@ class HomeScreen extends StatelessWidget {
 
               // --- 5. Official Topics & Challenges ---
               _buildSectionHeader(
-                title: "Topics & Challenges",
+                context,
+                title: context.tr('topics_and_challenges'),
                 onTapViewAll: () {},
               ),
               const SizedBox(height: 16),
@@ -213,16 +217,16 @@ class HomeScreen extends StatelessWidget {
   // --- 组件封装 ---
 
   // 1. 顶部用户信息栏 (已优化图片加载)
-  Widget _buildUserInfoHeader() {
+  Widget _buildUserInfoHeader(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Column(
+        Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Good morning, Creator",
-              style: TextStyle(
+              context.tr('good_morning'),
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
                 color: Colors.white,
@@ -248,7 +252,7 @@ class HomeScreen extends StatelessWidget {
   }
 
   // 2. 通用 Section 标题栏
-  Widget _buildSectionHeader({
+  Widget _buildSectionHeader(BuildContext context, {
     required String title,
     bool showViewAll = true,
     VoidCallback? onTapViewAll,
@@ -271,7 +275,7 @@ class HomeScreen extends StatelessWidget {
             child: Row(
               children: [
                 Text(
-                  "View All",
+                  context.tr('view_all'),
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.white.withOpacity(0.6),
@@ -297,8 +301,8 @@ class HomeScreen extends StatelessWidget {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => LensDetailScreen(template: item.templateData),
+          SlideRightRoute(
+            page: LensDetailScreen(template: item.templateData),
           ),
         );
       },

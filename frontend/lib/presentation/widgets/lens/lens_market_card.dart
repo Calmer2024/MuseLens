@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/navigation/slide_right_route.dart';
 import '../../../data/models/lens_template_mock.dart';
 import '../../screens/lens/lens_detail_screen.dart';
 
@@ -14,8 +15,8 @@ class LensMarketCard extends StatelessWidget {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => LensDetailScreen(template: template),
+          SlideRightRoute(
+            page: LensDetailScreen(template: template),
           ),
         );
       },

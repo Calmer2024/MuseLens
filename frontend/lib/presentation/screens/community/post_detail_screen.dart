@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:ui'; // 用于 ImageFilter
 import '../../../core/theme/app_theme.dart';
 import 'community_screen.dart'; // 引入 CommunityPostMock
 
@@ -32,7 +31,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     {
       "name": "Digital_Dreamer",
       "avatar": "https://api.dicebear.com/7.x/avataaars/png?seed=Dreamer",
-      "content": "Best cyberpunk shot I've seen all week. Great job! 🔥",
+      "content": "Best cyberpunk shot I've seen all week. Great job! \uD83D\uDD25",
       "likes": 28,
       "time": "5h ago",
     },
@@ -55,7 +54,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   @override
   void initState() {
     super.initState();
-    // 🔥 核心修改：如果数据模型中有画廊数据（本地资源），则使用；否则回退到旧逻辑（复制封面）
     if (widget.post.galleryImages.isNotEmpty) {
       _postImages = widget.post.galleryImages;
     } else {
@@ -253,6 +251,20 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
+  // 辅助方法：半透明圆形按钮
+  Widget _buildGlassCircle(Widget child, {double size = 40}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.5),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: child,
+    );
+  }
+
   Widget _buildTopBar(BuildContext context) {
     return Container(
       padding: EdgeInsets.only(
@@ -272,16 +284,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         children: [
           GestureDetector(
             onTap: () => Navigator.pop(context),
-            child: ClipOval(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  color: Colors.white.withOpacity(0.1),
-                  child: const Icon(Icons.arrow_back, color: Colors.white),
-                ),
-              ),
+            child: _buildGlassCircle(
+              const Icon(Icons.arrow_back, color: Colors.white),
             ),
           ),
           const SizedBox(width: 12),
@@ -297,6 +301,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       width: 32,
                       height: 32,
                       fit: BoxFit.cover,
+                      errorBuilder: (c, e, s) =>
+                          const Icon(Icons.person, color: Colors.white, size: 20),
                     ),
                   ),
                 ),
@@ -332,16 +338,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               ],
             ),
           ),
-          ClipOval(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                width: 40,
-                height: 40,
-                color: Colors.white.withOpacity(0.1),
-                child: const Icon(Icons.share, color: Colors.white, size: 20),
-              ),
-            ),
+          _buildGlassCircle(
+            const Icon(Icons.share, color: Colors.white, size: 20),
           ),
         ],
       ),
@@ -452,6 +450,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               width: 32,
               height: 32,
               fit: BoxFit.cover,
+              errorBuilder: (c, e, s) =>
+                  const Icon(Icons.person, color: Colors.white, size: 20),
             ),
           ),
         ),
@@ -522,58 +522,53 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   Widget _buildBottomBar() {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 12,
-            bottom: MediaQuery.of(context).padding.bottom + 12,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.85),
-            border: Border(
-              top: BorderSide(color: Colors.white.withOpacity(0.1)),
-            ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Container(
-                  height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2A2A2A),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "Add a comment...",
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
-                      fontSize: 14,
-                    ),
-                  ),
+    return Container(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 12,
+        bottom: MediaQuery.of(context).padding.bottom + 12,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFF121212).withOpacity(0.95),
+        border: Border(
+          top: BorderSide(color: Colors.white.withOpacity(0.1)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2A2A2A),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Add a comment...",
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.4),
+                  fontSize: 14,
                 ),
               ),
-              const SizedBox(width: 16),
-              _buildInteractionIcon(
-                Icons.favorite,
-                "${widget.post.likeCount}",
-                color: AppTheme.electricIndigo,
-              ),
-              const SizedBox(width: 16),
-              _buildInteractionIcon(Icons.star_border, "892"),
-              const SizedBox(width: 16),
-              _buildInteractionIcon(
-                Icons.chat_bubble_outline,
-                "${widget.post.commentCount}",
-              ),
-            ],
+            ),
           ),
-        ),
+          const SizedBox(width: 16),
+          _buildInteractionIcon(
+            Icons.favorite,
+            "${widget.post.likeCount}",
+            color: AppTheme.electricIndigo,
+          ),
+          const SizedBox(width: 16),
+          _buildInteractionIcon(Icons.star_border, "892"),
+          const SizedBox(width: 16),
+          _buildInteractionIcon(
+            Icons.chat_bubble_outline,
+            "${widget.post.commentCount}",
+          ),
+        ],
       ),
     );
   }

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/localization/app_localizations.dart';
 
 // 引入之前定义的数据模型和详情页
 import '../../../data/models/lens_template_mock.dart';
 import '../community/community_screen.dart'; // 包含 CommunityPostMock
 import '../lens/lens_detail_screen.dart'; // Lens 详情页
 import '../community/post_detail_screen.dart'; // 帖子详情页
+import '../settings/settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -77,29 +79,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const SizedBox(width: 40), // 占位
-                      const Text(
-                        "Profile",
+                      Text(
+                        context.tr('profile'),
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
                           letterSpacing: 0.5,
                         ),
                       ),
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.1),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const SettingsScreen(),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).brightness == Brightness.dark 
+                                ? Colors.white.withOpacity(0.05) 
+                                : Colors.black.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Theme.of(context).brightness == Brightness.dark 
+                                  ? Colors.white.withOpacity(0.1) 
+                                  : Colors.black.withOpacity(0.05),
+                            ),
                           ),
-                        ),
-                        child: const Icon(
-                          Icons.settings_outlined,
-                          color: AppTheme.electricIndigo,
-                          size: 20,
+                          child: Icon(
+                            Icons.settings_outlined,
+                            color: Theme.of(context).primaryColor,
+                            size: 20,
+                          ),
                         ),
                       ),
                     ],
@@ -185,10 +201,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ],
                     ),
-                    child: const Center(
+                    child: Center(
                       child: Text(
-                        "Edit Profile",
-                        style: TextStyle(
+                        context.tr('edit_profile'),
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
                           fontSize: 16,
@@ -203,9 +219,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildStatItem("12", "Lens"),
-                      _buildStatItem("85", "Posts"),
-                      _buildStatItem("4.5k", "Likes"),
+                      _buildStatItem("12", context.tr('lens')),
+                      _buildStatItem("85", context.tr('posts')),
+                      _buildStatItem("4.5k", context.tr('likes')),
                     ],
                   ),
 
@@ -215,9 +231,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildTabButton(0, "My Lens"),
-                      _buildTabButton(1, "My Post"),
-                      _buildTabButton(2, "Favorite"),
+                      _buildTabButton(0, context.tr('my_lens')),
+                      _buildTabButton(1, context.tr('my_post')),
+                      _buildTabButton(2, context.tr('favorite')),
                     ],
                   ),
 
@@ -378,9 +394,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    "${lens.usageCount} uses",
+                    "${lens.usageCount} ${context.tr('uses')}",
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.5),
+                      color: Theme.of(context).brightness == Brightness.dark 
+                          ? Colors.white.withOpacity(0.5) 
+                          : Colors.black54,
                       fontSize: 11,
                     ),
                   ),

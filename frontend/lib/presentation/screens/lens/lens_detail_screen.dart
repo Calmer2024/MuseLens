@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:ui'; // 用于 ImageFilter
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/lens_template_mock.dart';
 
@@ -245,83 +244,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                     onTap: () {
                       // TODO: 跳转到编辑页或应用效果
                     },
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(28),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                        child: Container(
-                          height: 56,
-                          decoration: BoxDecoration(
-                            // 极深色半透明背景，透出高级感
-                            color: const Color(0xFF1E1E1E).withOpacity(0.8),
-                            borderRadius: BorderRadius.circular(28),
-                            // 高光边框
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.15),
-                              width: 1,
-                            ),
-                            boxShadow: [
-                              // 底部柔和辉光
-                              BoxShadow(
-                                color: AppTheme.electricIndigo.withOpacity(0.3),
-                                blurRadius: 20,
-                                spreadRadius: -5,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
-                          ),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              // 内部微光装饰 (左上角光斑)
-                              Positioned(
-                                left: 10,
-                                top: -20,
-                                child: Container(
-                                  width: 60,
-                                  height: 60,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: AppTheme.electricIndigo.withOpacity(
-                                      0.2,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppTheme.electricIndigo,
-                                        blurRadius: 40,
-                                        spreadRadius: 5,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-
-                              // 按钮内容
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: const [
-                                  Icon(
-                                    Icons.auto_fix_high,
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
-                                  SizedBox(width: 10),
-                                  Text(
-                                    "Apply Lens",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
+                    child: _buildApplyButton(),
                   ),
                 ),
 
@@ -330,27 +253,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                 // 3.2 收藏按钮 (圆形玻璃质感)
                 GestureDetector(
                   onTap: () {},
-                  child: ClipOval(
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1), // 浅色半透明
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.15),
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.bookmark_border_rounded,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                      ),
-                    ),
-                  ),
+                  child: _buildBookmarkButton(),
                 ),
               ],
             ),
@@ -493,16 +396,15 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
 
   // --- 辅助组件 ---
   Widget _buildGlassIcon(IconData icon) {
-    return ClipOval(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          width: 44,
-          height: 44,
-          color: Colors.black.withOpacity(0.3),
-          child: Icon(icon, color: Colors.white, size: 20),
-        ),
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.5),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
       ),
+      child: Icon(icon, color: Colors.white, size: 20),
     );
   }
 
@@ -580,6 +482,92 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
       ),
     );
   }
+
+  // --- Apply 按钮 ---
+  Widget _buildApplyButton() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(28),
+      child: Container(
+        height: 56,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E1E).withOpacity(0.95),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.15),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.electricIndigo.withOpacity(0.3),
+              blurRadius: 20,
+              spreadRadius: -5,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Positioned(
+              left: 10,
+              top: -20,
+              child: Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.electricIndigo.withOpacity(0.2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.electricIndigo,
+                      blurRadius: 40,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(Icons.auto_fix_high, color: Colors.white, size: 20),
+                SizedBox(width: 10),
+                Text(
+                  "Apply Lens",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- 收藏按钮 ---
+  Widget _buildBookmarkButton() {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E).withOpacity(0.9),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withOpacity(0.15),
+        ),
+      ),
+      child: const Icon(
+        Icons.bookmark_border_rounded,
+        color: Colors.white,
+        size: 24,
+      ),
+    );
+  }
 }
 
 class _SliderClipper extends CustomClipper<Rect> {
@@ -589,5 +577,6 @@ class _SliderClipper extends CustomClipper<Rect> {
   Rect getClip(Size size) =>
       Rect.fromLTRB(0, 0, size.width * splitValue, size.height);
   @override
-  bool shouldReclip(CustomClipper<Rect> oldClipper) => true;
+  bool shouldReclip(_SliderClipper oldClipper) =>
+      oldClipper.splitValue != splitValue;
 }

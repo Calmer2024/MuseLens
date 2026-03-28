@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // 用于 ImageFilter
 import '../../../core/theme/app_theme.dart';
+import '../../../core/navigation/slide_right_route.dart';
 import 'post_detail_screen.dart'; // 引入帖子详情页
 import 'chat_detail_screen.dart'; // 引入对话详情页
 import 'search_screen.dart'; // 引入搜索页
+import '../../../core/localization/app_localizations.dart';
 
 // --- 1. 模拟数据模型 (已更新支持多图和本地资源) ---
 class CommunityPostMock {
@@ -198,7 +200,7 @@ class _CommunityScreenState extends State<CommunityScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildIconButton(Icons.tune, "Filter", onTap: () {}),
+                  _buildIconButton(Icons.tune, context.tr('filter'), onTap: () {}),
                   Container(
                     height: 40,
                     decoration: BoxDecoration(
@@ -209,14 +211,14 @@ class _CommunityScreenState extends State<CommunityScreen>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _buildTabItem(0, "Discover"),
-                        _buildTabItem(1, "Messages"),
+                        _buildTabItem(0, context.tr('discover')),
+                        _buildTabItem(1, context.tr('messages')),
                       ],
                     ),
                   ),
                   _buildIconButton(
                     Icons.search,
-                    "Search",
+                    context.tr('search'),
                     onTap: () {
                       Navigator.push(
                         context,
@@ -494,7 +496,7 @@ class CommunityPostCard extends StatelessWidget {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => PostDetailScreen(post: post)),
+          SlideRightRoute(page: PostDetailScreen(post: post)),
         );
       },
       child: Container(

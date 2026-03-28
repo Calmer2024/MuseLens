@@ -28,4 +28,21 @@ class AppTheme {
       ),
     );
   }
+
+  // 3. 定义浅色模式主题
+  static ThemeData get lightTheme {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+      scaffoldBackgroundColor: const Color(0xFFF2F2F7), // 类似 Telegram / iOS 浅色背景
+      primaryColor: primaryPurple,
+      textTheme: GoogleFonts.poppinsTextTheme(
+        ThemeData.light().textTheme,
+      ),
+      colorScheme: const ColorScheme.light(
+        primary: primaryPurple,
+        surface: Colors.white,
+      ),
+    );
+  }
 }
