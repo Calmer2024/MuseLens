@@ -25,14 +25,14 @@ class LensLibraryScreen extends StatelessWidget {
     }
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
             // --- 1. 固定头部区域 (Fixed Header Section) ---
             Container(
-              color: AppTheme.background, // 确保背景不透明，遮挡下方滚动内容
+              color: Theme.of(context).scaffoldBackgroundColor, // 确保背景不透明，遮挡下方滚动内容
               padding: const EdgeInsets.only(bottom: 10), // 底部留一点呼吸感
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -43,12 +43,12 @@ class LensLibraryScreen extends StatelessWidget {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
+                        Text(
                           "Lens Market",
                           style: TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: Colors.black87,
                             letterSpacing: -0.5,
                           ),
                         ),
@@ -73,7 +73,7 @@ class LensLibraryScreen extends StatelessWidget {
                                 ),
                                 decoration: BoxDecoration(
                                   border: Border.all(
-                                    color: Colors.white.withOpacity(0.2),
+                                    color: Colors.black.withOpacity(0.1),
                                   ),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
@@ -81,14 +81,14 @@ class LensLibraryScreen extends StatelessWidget {
                                   children: const [
                                     Icon(
                                       Icons.bookmarks_outlined,
-                                      color: Colors.white,
+                                      color: Colors.black87,
                                       size: 16,
                                     ),
                                     SizedBox(width: 6),
                                     Text(
                                       "My Library",
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        color: Colors.black87,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -131,7 +131,7 @@ class LensLibraryScreen extends StatelessWidget {
                     child: Container(
                       height: 50,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1E1E1E),
+                        color: Theme.of(context).colorScheme.surface,
                         borderRadius: BorderRadius.circular(25),
                         border: Border.all(
                           color: AppTheme.electricIndigo.withOpacity(0.3),
@@ -148,14 +148,14 @@ class LensLibraryScreen extends StatelessWidget {
                           const SizedBox(width: 16),
                           Icon(
                             Icons.search,
-                            color: Colors.white.withOpacity(0.3),
+                            color: Colors.black.withOpacity(0.3),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
                               "Find style, effect, or creator...",
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.3),
+                                color: Colors.black.withOpacity(0.3),
                                 fontSize: 14,
                               ),
                             ),
@@ -175,12 +175,12 @@ class LensLibraryScreen extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        _buildFilterChip("Recommended", isActive: true),
-                        _buildFilterChip("Portrait"),
-                        _buildFilterChip("Cyberpunk"),
-                        _buildFilterChip("Film"),
-                        _buildFilterChip("Anime"),
-                        _buildFilterChip("Scenery"),
+                        _buildFilterChip(context, "Recommended", isActive: true),
+                        _buildFilterChip(context, "Portrait"),
+                        _buildFilterChip(context, "Cyberpunk"),
+                        _buildFilterChip(context, "Film"),
+                        _buildFilterChip(context, "Anime"),
+                        _buildFilterChip(context, "Scenery"),
                       ],
                     ),
                   ),
@@ -224,7 +224,7 @@ class LensLibraryScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFilterChip(String label, {bool isActive = false}) {
+  Widget _buildFilterChip(BuildContext context, String label, {bool isActive = false}) {
     return Container(
       margin: const EdgeInsets.only(right: 12),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -232,13 +232,15 @@ class LensLibraryScreen extends StatelessWidget {
         color: isActive ? AppTheme.electricIndigo : Colors.transparent,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isActive ? Colors.transparent : Colors.white.withOpacity(0.2),
+          color: isActive ? Colors.transparent : Colors.black.withOpacity(0.05),
         ),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: isActive ? Colors.white : Colors.white.withOpacity(0.6),
+          color: isActive 
+              ? Colors.white 
+              : Colors.black.withOpacity(0.6),
           fontWeight: FontWeight.w600,
           fontSize: 13,
         ),

@@ -23,12 +23,12 @@ class LensMarketCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.08)),
+          border: Border.all(color: Colors.black.withOpacity(0.05)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withOpacity(0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -42,7 +42,7 @@ class LensMarketCard extends StatelessWidget {
               AspectRatio(
                 aspectRatio: 1 / template.aspectRatio,
                 child: Container(
-                  color: Colors.grey[800],
+                  color: Colors.grey[200],
                   child: _buildSmartImage(
                     template.beforeImage,
                     color: Colors.black.withOpacity(0.3),
@@ -135,8 +135,8 @@ class LensMarketCard extends StatelessWidget {
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        Colors.black.withOpacity(0.8),
-                        Colors.black,
+                        Colors.white.withOpacity(0.9),
+                        Colors.white,
                       ],
                       stops: const [0.0, 0.6, 1.0],
                     ),
@@ -147,7 +147,7 @@ class LensMarketCard extends StatelessWidget {
                       Text(
                         template.title,
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: Colors.black87,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -157,7 +157,7 @@ class LensMarketCard extends StatelessWidget {
                         children: [
                           CircleAvatar(
                             radius: 8,
-                            backgroundColor: Colors.grey[800],
+                            backgroundColor: Colors.grey[200],
                             child: ClipOval(
                               child: Image.network(
                                 template.authorAvatar,
@@ -167,7 +167,7 @@ class LensMarketCard extends StatelessWidget {
                                 errorBuilder: (c, e, s) => const Icon(
                                   Icons.person,
                                   size: 10,
-                                  color: Colors.white,
+                                  color: Colors.grey,
                                 ),
                               ),
                             ),
@@ -176,22 +176,22 @@ class LensMarketCard extends StatelessWidget {
                           Expanded(
                             child: Text(
                               template.author,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.7),
+                              style: const TextStyle(
+                                color: Colors.black54,
                                 fontSize: 11,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          Icon(
-                            Icons.play_arrow_rounded,
-                            size: 14,
-                            color: Colors.white.withOpacity(0.6),
-                          ),
+                            Icon(
+                              Icons.play_arrow_rounded,
+                              size: 14,
+                              color: Colors.black54,
+                            ),
                           Text(
                             template.usageCount,
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.6),
+                            style: const TextStyle(
+                              color: Colors.black54,
                               fontSize: 11,
                             ),
                           ),

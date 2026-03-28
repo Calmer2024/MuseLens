@@ -188,7 +188,7 @@ class _CommunityScreenState extends State<CommunityScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -196,7 +196,7 @@ class _CommunityScreenState extends State<CommunityScreen>
             // --- 1. Header ---
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              color: AppTheme.background,
+              color: Theme.of(context).scaffoldBackgroundColor,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -204,9 +204,11 @@ class _CommunityScreenState extends State<CommunityScreen>
                   Container(
                     height: 40,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E1E1E),
+                      color: Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                      border: Border.all(
+                        color: Colors.black.withOpacity(0.1),
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -332,11 +334,17 @@ class _CommunityScreenState extends State<CommunityScreen>
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
+          color: Theme.of(context).colorScheme.surface,
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withOpacity(0.1)),
+          border: Border.all(
+            color: Colors.black.withOpacity(0.1),
+          ),
         ),
-        child: Icon(icon, color: Colors.white, size: 20),
+        child: Icon(
+          icon, 
+          color: Colors.black87,
+          size: 20,
+        ),
       ),
     );
   }
@@ -357,7 +365,9 @@ class _CommunityScreenState extends State<CommunityScreen>
         child: Text(
           label,
           style: TextStyle(
-            color: isActive ? Colors.white : Colors.white.withOpacity(0.5),
+            color: isActive 
+                ? Colors.white 
+                : Colors.black.withOpacity(0.5),
             fontWeight: FontWeight.bold,
             fontSize: 14,
           ),
@@ -388,9 +398,11 @@ class _CommunityScreenState extends State<CommunityScreen>
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          border: Border.all(
+            color: Colors.black.withOpacity(0.05),
+          ),
         ),
         child: Row(
           children: [
@@ -398,7 +410,7 @@ class _CommunityScreenState extends State<CommunityScreen>
               children: [
                 CircleAvatar(
                   radius: 24,
-                  backgroundColor: Colors.grey[800],
+                  backgroundColor: Colors.grey[200],
                   child: ClipOval(
                     child: isLocalImage
                         ? Image.asset(
@@ -407,7 +419,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                             height: 48,
                             fit: BoxFit.cover,
                             errorBuilder: (c, e, s) =>
-                                const Icon(Icons.person, color: Colors.white),
+                                const Icon(Icons.person, color: Colors.grey),
                           )
                         : Image.network(
                             avatar,
@@ -416,7 +428,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                             fit: BoxFit.cover,
                             headers: const {'User-Agent': 'Mozilla/5.0'},
                             errorBuilder: (c, e, s) =>
-                                const Icon(Icons.person, color: Colors.white),
+                                const Icon(Icons.person, color: Colors.grey),
                           ),
                   ),
                 ),
@@ -449,8 +461,8 @@ class _CommunityScreenState extends State<CommunityScreen>
                     children: [
                       Text(
                         name,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: Colors.black87,
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
                         ),
@@ -458,7 +470,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                       Text(
                         time,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.4),
+                          color: Colors.black.withOpacity(0.4),
                           fontSize: 11,
                         ),
                       ),
@@ -468,7 +480,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                   Text(
                     message,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
+                      color: Colors.black.withOpacity(0.6),
                       fontSize: 13,
                     ),
                     maxLines: 1,
@@ -502,7 +514,7 @@ class CommunityPostCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -536,7 +548,7 @@ class CommunityPostCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.black.withOpacity(0.9),
                       fontSize: 13,
                       height: 1.4,
                     ),
@@ -550,7 +562,7 @@ class CommunityPostCard extends StatelessWidget {
                           children: [
                             CircleAvatar(
                               radius: 9,
-                              backgroundColor: Colors.grey[800],
+                              backgroundColor: Colors.grey[200],
                               child: ClipOval(
                                 child: _buildSmartImage(
                                   post.authorAvatar,
@@ -563,7 +575,7 @@ class CommunityPostCard extends StatelessWidget {
                               child: Text(
                                 post.authorName,
                                 style: TextStyle(
-                                  color: Colors.white.withOpacity(0.6),
+                                  color: Colors.black.withOpacity(0.6),
                                   fontSize: 11,
                                 ),
                                 overflow: TextOverflow.ellipsis,
@@ -652,9 +664,9 @@ class CommunityPostCard extends StatelessWidget {
         height: isAvatar ? 18 : null,
         headers: const {'User-Agent': 'Mozilla/5.0'},
         errorBuilder: (context, error, stackTrace) => Container(
-          color: Colors.grey[850],
+          color: Colors.grey[200],
           child: isAvatar
-              ? const Icon(Icons.person, size: 10, color: Colors.white)
+              ? const Icon(Icons.person, size: 10, color: Colors.grey)
               : null,
         ),
       );
@@ -665,11 +677,11 @@ class CommunityPostCard extends StatelessWidget {
         width: isAvatar ? 18 : null,
         height: isAvatar ? 18 : null,
         errorBuilder: (context, error, stackTrace) => Container(
-          color: Colors.grey[850],
+          color: Colors.grey[200],
           child: isAvatar
-              ? const Icon(Icons.person, size: 10, color: Colors.white)
+              ? const Icon(Icons.person, size: 10, color: Colors.grey)
               : const Center(
-                  child: Icon(Icons.broken_image, color: Colors.white24),
+                  child: Icon(Icons.broken_image, color: Colors.black12),
                 ),
         ),
       );

@@ -155,7 +155,7 @@ class EditorToolsPanel extends StatelessWidget {
 
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFF1E1E1E),
+        color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -198,7 +198,7 @@ class EditorToolsPanel extends StatelessWidget {
   // --- 子功能面板 ---
   Widget _buildSubToolContent(bool isLensDetailMode) {
     return Container(
-      color: const Color(0xFF252525),
+      color: Colors.grey[50],
       child: Column(
         children: [
           // 通用 Header (Close | Title | Check)
@@ -211,7 +211,7 @@ class EditorToolsPanel extends StatelessWidget {
                 children: [
                   GestureDetector(
                     onTap: onClosePanel,
-                    child: const Icon(Icons.close, color: Colors.white),
+                    child: const Icon(Icons.close, color: Colors.black87),
                   ),
                   Text(
                     activeTool == ToolType.crop
@@ -220,7 +220,7 @@ class EditorToolsPanel extends StatelessWidget {
                         ? "Adjust"
                         : "Lens Lab",
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: Colors.black87,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -274,12 +274,12 @@ class EditorToolsPanel extends StatelessWidget {
                                   // 高亮则紫色，否则(历史)为深灰色
                                   color: isActive
                                       ? AppTheme.electricIndigo
-                                      : const Color(0xFF333333),
+                                      : Colors.grey[200],
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
                                     color: isActive
                                         ? Colors.white
-                                        : Colors.white10,
+                                        : Colors.black12,
                                     width: isActive ? 2 : 1,
                                   ),
                                   boxShadow: isActive
@@ -297,7 +297,7 @@ class EditorToolsPanel extends StatelessWidget {
                                   tool.icon,
                                   color: isActive
                                       ? Colors.white
-                                      : Colors.white54,
+                                      : Colors.black54,
                                   size: 26,
                                 ),
                               )
@@ -314,14 +314,14 @@ class EditorToolsPanel extends StatelessWidget {
                               .animate(target: isActive ? 1 : 0)
                               .shimmer(
                                 duration: 1500.ms,
-                                color: Colors.white.withOpacity(0.5),
+                                color: AppTheme.electricIndigo.withOpacity(0.5),
                               ),
 
                           const SizedBox(height: 8),
                           Text(
                             tool.name,
                             style: TextStyle(
-                              color: isActive ? Colors.white : Colors.white54,
+                              color: isActive ? AppTheme.electricIndigo : Colors.black54,
                               fontSize: 11,
                               fontWeight: isActive
                                   ? FontWeight.bold
@@ -342,7 +342,7 @@ class EditorToolsPanel extends StatelessWidget {
                 width: 1,
                 height: 60,
                 margin: const EdgeInsets.symmetric(horizontal: 4),
-                color: Colors.white10,
+                color: Colors.black12,
               ),
             ],
 
@@ -366,9 +366,9 @@ class EditorToolsPanel extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF333333),
+                              color: Colors.grey[200],
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.white10),
+                              border: Border.all(color: Colors.black12),
                             ),
                             child: Icon(
                               tool.icon,
@@ -380,7 +380,7 @@ class EditorToolsPanel extends StatelessWidget {
                           Text(
                             tool.name,
                             style: const TextStyle(
-                              color: Colors.white70,
+                              color: Colors.black54,
                               fontSize: 11,
                             ),
                             textAlign: TextAlign.center,
@@ -412,8 +412,8 @@ class EditorToolsPanel extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: Colors.white10)),
-              color: Color(0xFF2A2A2A),
+              border: Border(top: BorderSide(color: Colors.black12)),
+              color: Colors.white,
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -422,9 +422,9 @@ class EditorToolsPanel extends StatelessWidget {
                   onTap: () => onLensSelected(null),
                   child: const Row(
                     children: [
-                      Icon(Icons.arrow_back, color: Colors.white70, size: 20),
+                      Icon(Icons.arrow_back, color: Colors.black54, size: 20),
                       SizedBox(width: 4),
-                      Text("Library", style: TextStyle(color: Colors.white70)),
+                      Text("Library", style: TextStyle(color: Colors.black54)),
                     ],
                   ),
                 ),
@@ -465,10 +465,10 @@ class EditorToolsPanel extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.white30),
+              border: Border.all(color: Colors.black12),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Text(ratios[i], style: const TextStyle(color: Colors.white)),
+            child: Text(ratios[i], style: const TextStyle(color: Colors.black87)),
           ),
         ),
       ),
@@ -480,7 +480,7 @@ class EditorToolsPanel extends StatelessWidget {
       children: [
         const Padding(
           padding: EdgeInsets.all(8),
-          child: Icon(Icons.tune, color: Colors.white54),
+          child: Icon(Icons.tune, color: Colors.black54),
         ),
         SizedBox(
           height: 70,
@@ -492,7 +492,7 @@ class EditorToolsPanel extends StatelessWidget {
                     padding: const EdgeInsets.all(8.0),
                     child: Text(
                       k,
-                      style: const TextStyle(color: Colors.white54),
+                      style: const TextStyle(color: Colors.black54),
                     ),
                   ),
                 )
@@ -507,7 +507,7 @@ class EditorToolsPanel extends StatelessWidget {
     return Center(
       child: Text(
         "Adjusting ${tool.name}",
-        style: const TextStyle(color: Colors.white54),
+        style: const TextStyle(color: Colors.black54),
       ),
     );
   }
@@ -518,11 +518,11 @@ class EditorToolsPanel extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: Colors.white70),
+          Icon(icon, color: Colors.black54),
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(color: Colors.white70, fontSize: 12),
+            style: const TextStyle(color: Colors.black54, fontSize: 12),
           ),
         ],
       ),
@@ -533,8 +533,8 @@ class EditorToolsPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Colors.white10)),
-        color: Color(0xFF1E1E1E),
+        border: Border(top: BorderSide(color: Colors.black12)),
+        color: Colors.white,
       ),
       child: Row(
         children: [
@@ -551,16 +551,16 @@ class EditorToolsPanel extends StatelessWidget {
             child: Container(
               height: 44,
               decoration: BoxDecoration(
-                color: Colors.black,
+                color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: Colors.white10),
+                border: Border.all(color: Colors.black12),
               ),
               child: TextField(
                 controller: promptController,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: Colors.black87),
                 decoration: const InputDecoration(
                   hintText: "Or type instructions...",
-                  hintStyle: TextStyle(color: Colors.grey),
+                  hintStyle: TextStyle(color: Colors.black38),
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(horizontal: 16),
                 ),

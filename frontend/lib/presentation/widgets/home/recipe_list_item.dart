@@ -38,7 +38,7 @@ class RecipeListItem extends StatelessWidget {
                 imageUrl: recipe.imageUrl,
                 fit: BoxFit.cover,
                 placeholder: (context, url) =>
-                    Container(color: AppTheme.cardSurface),
+                    Container(color: Colors.grey[200]),
               ),
             ),
           ),

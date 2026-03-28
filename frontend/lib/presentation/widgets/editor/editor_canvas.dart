@@ -31,9 +31,9 @@ class EditorCanvas extends StatelessWidget {
       child: Container(
         width: double.infinity,
         decoration: BoxDecoration(
-          color: Colors.black,
+          color: Colors.grey[100],
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white10),
+          border: Border.all(color: Colors.black12),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
@@ -60,7 +60,7 @@ class EditorCanvas extends StatelessWidget {
               // 3. Loading Layer (🔥 移除文字，纯转圈)
               if (isGenerating)
                 Container(
-                  color: Colors.black54,
+                  color: Colors.white70,
                   child: const Center(
                     child: CircularProgressIndicator(
                       color: AppTheme.electricIndigo,
@@ -102,11 +102,11 @@ class EditorCanvas extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.black54,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white24),
+          border: Border.all(color: Colors.black12),
         ),
-        child: Icon(icon, color: Colors.white, size: 20),
+        child: Icon(icon, color: Colors.black87, size: 20),
       ),
     );
   }

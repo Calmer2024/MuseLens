@@ -17,7 +17,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: Colors.white,
       body: Stack(
         children: [
           // 1. 内容滚动区
@@ -40,7 +40,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                           Text(
                             widget.template.title,
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: Colors.black87,
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 0.5,
@@ -75,7 +75,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                         children: [
                           CircleAvatar(
                             radius: 16,
-                            backgroundColor: Colors.grey[800],
+                            backgroundColor: Colors.grey[200],
                             child: ClipOval(
                               child: Image.network(
                                 widget.template.authorAvatar,
@@ -86,7 +86,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                                 errorBuilder: (context, error, stackTrace) {
                                   return const Icon(
                                     Icons.person,
-                                    color: Colors.white,
+                                    color: Colors.grey,
                                     size: 20,
                                   );
                                 },
@@ -100,7 +100,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                               Text(
                                 widget.template.author,
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: Colors.black87,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -108,7 +108,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                               Text(
                                 "Digital Artist",
                                 style: TextStyle(
-                                  color: Colors.white.withOpacity(0.5),
+                                  color: Colors.black54,
                                   fontSize: 10,
                                 ),
                               ),
@@ -149,10 +149,10 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1E1E1E),
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.05),
+                            color: Colors.black.withOpacity(0.05),
                           ),
                         ),
                         child: Row(
@@ -171,7 +171,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                       const Text(
                         "Workflow DNA",
                         style: TextStyle(
-                          color: Colors.white,
+                          color: Colors.black87,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -400,11 +400,11 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.5),
+        color: Colors.white.withOpacity(0.9),
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.black.withOpacity(0.05)),
       ),
-      child: Icon(icon, color: Colors.white, size: 20),
+      child: Icon(icon, color: Colors.black87, size: 20),
     );
   }
 
@@ -414,7 +414,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
         Text(
           value,
           style: const TextStyle(
-            color: Colors.white,
+            color: Colors.black87,
             fontSize: 16,
             fontWeight: FontWeight.bold,
           ),
@@ -422,14 +422,14 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
         const SizedBox(height: 4),
         Text(
           label,
-          style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11),
+          style: const TextStyle(color: Colors.black54, fontSize: 11),
         ),
       ],
     );
   }
 
   Widget _buildDivider() =>
-      Container(width: 1, height: 24, color: Colors.white.withOpacity(0.1));
+      Container(width: 1, height: 24, color: Colors.black.withOpacity(0.1));
 
   Widget _buildDnaCard(int index, IconData icon, String label) {
     return Container(
@@ -437,7 +437,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
       width: 100,
       height: 100,
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.electricIndigo.withOpacity(0.3)),
         boxShadow: [
@@ -455,7 +455,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
             child: Text(
               "$index",
               style: TextStyle(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.black.withOpacity(0.3),
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
@@ -470,7 +470,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                 Text(
                   label,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: Colors.black87,
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
                   ),
@@ -490,10 +490,10 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
       child: Container(
         height: 56,
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E).withOpacity(0.95),
+          color: Colors.white.withOpacity(0.95),
           borderRadius: BorderRadius.circular(28),
           border: Border.all(
-            color: Colors.white.withOpacity(0.15),
+            color: Colors.black.withOpacity(0.05),
             width: 1,
           ),
           boxShadow: [
@@ -530,12 +530,12 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: const [
-                Icon(Icons.auto_fix_high, color: Colors.white, size: 20),
+                Icon(Icons.auto_fix_high, color: Colors.black87, size: 20),
                 SizedBox(width: 10),
                 Text(
                   "Apply Lens",
                   style: TextStyle(
-                    color: Colors.white,
+                    color: Colors.black87,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.5,
@@ -555,15 +555,15 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
       width: 56,
       height: 56,
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E).withOpacity(0.9),
+        color: Colors.white,
         shape: BoxShape.circle,
         border: Border.all(
-          color: Colors.white.withOpacity(0.15),
+          color: Colors.black.withOpacity(0.05),
         ),
       ),
       child: const Icon(
         Icons.bookmark_border_rounded,
-        color: Colors.white,
+        color: Colors.black87,
         size: 24,
       ),
     );

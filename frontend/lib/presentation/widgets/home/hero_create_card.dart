@@ -14,15 +14,15 @@ class HeroCreateCard extends StatelessWidget {
       width: double.infinity,
       height: 220,
       decoration: BoxDecoration(
-        color: AppTheme.cardSurface,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(30),
         // 模拟原型图中右下角的抽象紫色图形背景
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppTheme.cardSurface,
-            AppTheme.cardSurface,
+            Colors.white,
+            Colors.white,
             AppTheme.primaryPurple.withOpacity(0.2),
             AppTheme.primaryPurple.withOpacity(0.5),
           ],
@@ -61,10 +61,10 @@ class HeroCreateCard extends StatelessWidget {
               children: [
                 const Text(
                   "Start Creating",
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: Colors.black87,
                     height: 1.1,
                   ),
                 ),
@@ -73,7 +73,7 @@ class HeroCreateCard extends StatelessWidget {
                   "AI-powered photo editing &\nstyle transfer.",
                   style: TextStyle(
                     fontSize: 16,
-                    color: Colors.white.withOpacity(0.6),
+                    color: Colors.black.withOpacity(0.6),
                     height: 1.4,
                   ),
                 ),

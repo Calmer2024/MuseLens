@@ -12,29 +12,14 @@ class AppTheme {
   // Profile 界面专用的电光靛蓝
   static const Color electricIndigo = Color(0xFF6C5CE7);
 
-  // 2. 定义全局主题
-  static ThemeData get darkTheme {
-    return ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.dark,
-      scaffoldBackgroundColor: background,
-      primaryColor: primaryPurple,
-      textTheme: GoogleFonts.poppinsTextTheme(
-        ThemeData.dark().textTheme,
-      ), // 使用 Poppins 字体
-      colorScheme: const ColorScheme.dark(
-        primary: primaryPurple,
-        surface: cardSurface,
-      ),
-    );
-  }
+  // 2. 移除 darkTheme，因为需求要求全应用白色主题
 
   // 3. 定义浅色模式主题
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      scaffoldBackgroundColor: const Color(0xFFF2F2F7), // 类似 Telegram / iOS 浅色背景
+      scaffoldBackgroundColor: Colors.white, // 设置为主配色白色
       primaryColor: primaryPurple,
       textTheme: GoogleFonts.poppinsTextTheme(
         ThemeData.light().textTheme,

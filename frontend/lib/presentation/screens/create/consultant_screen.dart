@@ -145,7 +145,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: Colors.white,
       resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: Column(
@@ -176,14 +176,14 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: const BoxDecoration(
-        color: Color(0xFF1E1E1E),
-        border: Border(bottom: BorderSide(color: Colors.white10)),
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Colors.black12)),
       ),
       child: Row(
         children: [
           GestureDetector(
             onTap: () => Navigator.pop(context),
-            child: const Icon(Icons.arrow_back, color: Colors.white),
+            child: const Icon(Icons.arrow_back, color: Colors.black87),
           ),
           const SizedBox(width: 16),
           const Expanded(
@@ -193,7 +193,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                 Text(
                   "Photo Consultant",
                   style: TextStyle(
-                    color: Colors.white,
+                    color: Colors.black87,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -208,7 +208,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
               ],
             ),
           ),
-          const Icon(Icons.more_horiz, color: Colors.white),
+          const Icon(Icons.more_horiz, color: Colors.black87),
         ],
       ),
     );
@@ -219,13 +219,13 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: Colors.grey[50],
         border: Border(
-          bottom: BorderSide(color: Colors.white.withOpacity(0.05)),
+          bottom: BorderSide(color: Colors.black.withOpacity(0.05)),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -239,7 +239,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
             height: 100,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withOpacity(0.1)),
+              border: Border.all(color: Colors.black12),
               color: Colors.black,
             ),
             child: ClipRRect(
@@ -284,7 +284,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                 const Text(
                   "Current Project",
                   style: TextStyle(
-                    color: Colors.white,
+                    color: Colors.black87,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
@@ -303,7 +303,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                 Text(
                   "AI is establishing a conversation context...",
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
+                    color: Colors.black54,
                     fontSize: 12,
                   ),
                 ),
@@ -347,8 +347,8 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
             Container(
               margin: const EdgeInsets.only(right: 12),
               padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(
-                color: Color(0xFF2A2A2A),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -363,7 +363,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: msg.isAi
-                        ? const Color(0xFF2A2A2A)
+                        ? Colors.grey[100]
                         : AppTheme.electricIndigo,
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(20),
@@ -376,8 +376,8 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                       ? const TypingIndicator()
                       : Text(
                           msg.content,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: msg.isAi ? Colors.black87 : Colors.white,
                             fontSize: 15,
                             height: 1.5,
                           ),
@@ -397,11 +397,11 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.4),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 20,
             offset: const Offset(0, -5),
           ),
@@ -468,9 +468,9 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                   height: 48,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF000000),
+                    color: Colors.grey[100],
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    border: Border.all(color: Colors.black12),
                   ),
                   child: Row(
                     children: [
@@ -483,11 +483,11 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                       Expanded(
                         child: TextField(
                           controller: _textController,
-                          style: const TextStyle(color: Colors.white),
+                          style: const TextStyle(color: Colors.black87),
                           decoration: InputDecoration(
                             hintText: "Type your request...",
                             hintStyle: TextStyle(
-                              color: Colors.white.withOpacity(0.3),
+                              color: Colors.black38,
                             ),
                             border: InputBorder.none,
                             isDense: true,
@@ -504,7 +504,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: AppTheme.electricIndigo,
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(
@@ -539,7 +539,7 @@ class TypingIndicator extends StatelessWidget {
                 width: 6,
                 height: 6,
                 decoration: const BoxDecoration(
-                  color: Colors.white70,
+                  color: AppTheme.electricIndigo,
                   shape: BoxShape.circle,
                 ),
               )

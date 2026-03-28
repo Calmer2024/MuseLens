@@ -99,7 +99,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black, // 纯黑背景
+      backgroundColor: Colors.white, // 纯白背景
       body: SafeArea(
         top: false, // 让 Header 延伸到顶部
         child: Column(
@@ -141,19 +141,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         right: 16,
       ),
       decoration: const BoxDecoration(
-        color: Color(0xFF121212), // Matte Black
-        border: Border(bottom: BorderSide(color: Color(0xFF2A2A2A))),
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Colors.black12)),
       ),
       child: Row(
         children: [
           GestureDetector(
             onTap: () => Navigator.pop(context),
-            child: const Icon(Icons.arrow_back, color: Colors.white),
+            child: const Icon(Icons.arrow_back, color: Colors.black87),
           ),
           const SizedBox(width: 16),
           CircleAvatar(
             radius: 18,
-            backgroundColor: Colors.grey[800],
+            backgroundColor: Colors.grey[200],
             backgroundImage: _getImageProvider(widget.avatarUrl),
           ),
           const SizedBox(width: 12),
@@ -164,7 +164,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 Text(
                   widget.userName,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: Colors.black87,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -183,7 +183,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ],
             ),
           ),
-          const Icon(Icons.more_horiz, color: Colors.white),
+          const Icon(Icons.more_horiz, color: Colors.black87),
         ],
       ),
     );
@@ -224,7 +224,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 child: Text(
                   msg.time,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.3),
+                    color: Colors.black45,
                     fontSize: 10,
                   ),
                 ),
@@ -244,7 +244,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: msg.isMe ? AppTheme.electricIndigo : const Color(0xFF1E1E1E),
+        color: msg.isMe ? AppTheme.electricIndigo : Colors.grey[100],
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(20),
           topRight: const Radius.circular(20),
@@ -254,7 +254,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       ),
       child: Text(
         msg.content,
-        style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.4),
+        style: TextStyle(
+          color: msg.isMe ? Colors.white : Colors.black87,
+          fontSize: 15,
+          height: 1.4,
+        ),
       ),
     );
   }
@@ -276,7 +280,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         width: 240,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppTheme.electricIndigo.withOpacity(0.5)),
           boxShadow: [
@@ -305,14 +309,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   width: 24,
                   height: 24,
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.6),
+                    color: Colors.white.withOpacity(0.9),
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 1.5),
+                    border: Border.all(color: Colors.black12, width: 1.5),
                   ),
                   child: const Icon(
                     Icons.compare_arrows,
                     size: 14,
-                    color: Colors.white,
+                    color: Colors.black87,
                   ),
                 ),
               ),
@@ -326,7 +330,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   Text(
                     msg.content,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: Colors.black87,
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                     ),
@@ -379,11 +383,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       child: Container(
         width: 240,
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withOpacity(0.05),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -415,7 +419,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   Text(
                     post.description,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.black87,
                       fontSize: 13,
                       height: 1.4,
                     ),
@@ -428,7 +432,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     children: [
                       CircleAvatar(
                         radius: 10,
-                        backgroundColor: Colors.grey[800],
+                        backgroundColor: Colors.grey[200],
                         backgroundImage: _getImageProvider(post.authorAvatar),
                       ),
                       const SizedBox(width: 8),
@@ -436,7 +440,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         child: Text(
                           post.authorName,
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.6),
+                            color: Colors.black54,
                             fontSize: 11,
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -462,23 +466,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         top: 12,
         bottom: MediaQuery.of(context).padding.bottom + 12,
       ),
-      color: const Color(0xFF121212),
+      color: Colors.white,
       child: Row(
         children: [
-          const Icon(Icons.mic_none, color: Colors.white, size: 28),
+          const Icon(Icons.mic_none, color: Colors.black87, size: 28),
           const SizedBox(width: 12),
           Expanded(
             child: Container(
               height: 44,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A2A),
+                color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(22),
               ),
               child: Center(
                 child: TextField(
                   controller: _textController,
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: Colors.black87),
                   cursorColor: AppTheme.electricIndigo,
                   decoration: const InputDecoration(
                     hintText: "发消息...",
@@ -493,7 +497,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           const SizedBox(width: 12),
           const Icon(
             Icons.emoji_emotions_outlined,
-            color: Colors.white,
+            color: Colors.black87,
             size: 28,
           ),
           const SizedBox(width: 12),

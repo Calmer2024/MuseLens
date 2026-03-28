@@ -8,7 +8,6 @@ import '../../../data/models/lens_template_mock.dart';
 import '../community/community_screen.dart'; // 包含 CommunityPostMock
 import '../lens/lens_detail_screen.dart'; // Lens 详情页
 import '../community/post_detail_screen.dart'; // 帖子详情页
-import '../settings/settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -42,7 +41,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0A), // 哑光黑背景
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           // 背景微光
@@ -84,40 +83,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                          color: Colors.black87,
                           letterSpacing: 0.5,
                         ),
                       ),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SettingsScreen(),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).brightness == Brightness.dark 
-                                ? Colors.white.withOpacity(0.05) 
-                                : Colors.black.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Theme.of(context).brightness == Brightness.dark 
-                                  ? Colors.white.withOpacity(0.1) 
-                                  : Colors.black.withOpacity(0.05),
-                            ),
-                          ),
-                          child: Icon(
-                            Icons.settings_outlined,
-                            color: Theme.of(context).primaryColor,
-                            size: 20,
-                          ),
-                        ),
-                      ),
+                      const SizedBox(width: 40), // 占位
                     ],
                   ),
 
@@ -157,12 +127,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   const SizedBox(height: 16),
 
-                  const Text(
+                  Text(
                     "Calmer",
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: Colors.black87,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -170,7 +140,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     "@Calmer_makes_art",
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.white.withOpacity(0.5),
+                      color: Colors.black.withOpacity(0.5),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -178,7 +148,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     "AI art enthusiast & style explorer.",
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.white.withOpacity(0.8),
+                      color: Colors.black.withOpacity(0.8),
                     ),
                   ),
 
@@ -269,7 +239,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Text(
             label,
             style: TextStyle(
-              color: isActive ? Colors.white : Colors.white.withOpacity(0.5),
+              color: isActive 
+                  ? Colors.black87 
+                  : Colors.black.withOpacity(0.5),
               fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
               fontSize: 16,
             ),
@@ -364,7 +336,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          color: const Color(0xFF1E1E1E),
+          color: Colors.white,
+          border: Border.all(color: Colors.black.withOpacity(0.05)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -384,8 +364,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   Text(
                     lens.title,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: Colors.black87,
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
                     ),
@@ -396,9 +376,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text(
                     "${lens.usageCount} ${context.tr('uses')}",
                     style: TextStyle(
-                      color: Theme.of(context).brightness == Brightness.dark 
-                          ? Colors.white.withOpacity(0.5) 
-                          : Colors.black54,
+                      color: Colors.black54,
                       fontSize: 11,
                     ),
                   ),
@@ -423,7 +401,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          color: const Color(0xFF1E1E1E),
+          color: Colors.white,
+          border: Border.all(color: Colors.black.withOpacity(0.05)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -440,8 +426,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               padding: const EdgeInsets.all(10.0),
               child: Text(
                 post.description,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: Colors.black87,
                   fontWeight: FontWeight.w500,
                   fontSize: 12,
                 ),
@@ -461,16 +447,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       width: 100,
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E), // Dark Charcoal
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.black.withOpacity(0.05)),
       ),
       child: Column(
         children: [
           Text(
             count,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: Colors.black87,
               fontWeight: FontWeight.bold,
               fontSize: 16,
             ),
@@ -479,7 +465,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Text(
             label,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
+              color: Colors.black.withOpacity(0.5),
               fontSize: 12,
             ),
           ),
@@ -496,9 +482,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         fit: BoxFit.cover,
         width: double.infinity,
         placeholder: (context, url) =>
-            Container(color: const Color(0xFF2C2C2C)),
+            Container(color: Colors.grey[200]),
         errorWidget: (context, url, error) =>
-            Container(color: Colors.grey[850]),
+            Container(color: Colors.grey[200]),
       );
     } else {
       return Image.asset(
@@ -506,7 +492,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         fit: BoxFit.cover,
         width: double.infinity,
         errorBuilder: (context, error, stackTrace) =>
-            Container(color: Colors.grey[850]),
+            Container(color: Colors.grey[200]),
       );
     }
   }

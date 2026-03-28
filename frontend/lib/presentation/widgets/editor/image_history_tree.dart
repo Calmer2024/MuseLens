@@ -140,10 +140,10 @@ class _ImageHistoryTreeState extends State<ImageHistoryTree> {
               borderRadius: BorderRadius.circular(16),
               // 选中时的发光边框
               border: Border.all(
-                color: isActive ? AppTheme.electricIndigo : Colors.white24,
+                color: isActive ? AppTheme.electricIndigo : Colors.black12,
                 width: isActive ? 3 : 1,
               ),
-              color: Colors.black,
+              color: Colors.grey[200],
               boxShadow: isActive
                   ? [
                       BoxShadow(
@@ -154,7 +154,7 @@ class _ImageHistoryTreeState extends State<ImageHistoryTree> {
                     ]
                   : [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
+                        color: Colors.black.withOpacity(0.1),
                         blurRadius: 10,
                       ),
                     ],
@@ -171,17 +171,17 @@ class _ImageHistoryTreeState extends State<ImageHistoryTree> {
             decoration: BoxDecoration(
               color: isActive
                   ? AppTheme.electricIndigo
-                  : const Color(0xFF2A2A2A),
+                  : Colors.white,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isActive ? Colors.white : Colors.white10,
+                color: isActive ? Colors.white : Colors.black12,
                 width: 0.5,
               ),
             ),
             child: Text(
               node.label,
               style: TextStyle(
-                color: Colors.white,
+                color: isActive ? Colors.white : Colors.black87,
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
                 letterSpacing: 0.5,
@@ -215,7 +215,7 @@ class DynamicTreePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white24
+      ..color = Colors.black12
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 

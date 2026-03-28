@@ -266,7 +266,7 @@ class _EditorScreenState extends State<EditorScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: Colors.white,
       resizeToAvoidBottomInset: false,
       drawer: const ChatHistoryDrawer(),
       body: SafeArea(
@@ -353,7 +353,7 @@ class _EditorScreenState extends State<EditorScreen>
 
   Widget _buildBackSide() {
     return Container(
-      color: const Color(0xFF1E1E1E),
+      color: Colors.white,
       child: Column(
         children: [
           Padding(
@@ -365,20 +365,20 @@ class _EditorScreenState extends State<EditorScreen>
                   "Version History",
                   style: GoogleFonts.orbitron(
                     textStyle: const TextStyle(
-                      color: Colors.white,
+                      color: Colors.black87,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white),
+                  icon: const Icon(Icons.close, color: Colors.black87),
                   onPressed: _toggleFlip,
                 ),
               ],
             ),
           ),
-          const Divider(color: Colors.white10),
+          const Divider(color: Colors.black12),
           Expanded(
             child: ImageHistoryTree(
               nodes: _historyNodes, // 🔥 传入动态数据

@@ -37,7 +37,7 @@ class ChatHistoryDrawer extends StatelessWidget {
     ];
 
     return Drawer(
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: Colors.white,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -49,14 +49,14 @@ class ChatHistoryDrawer extends StatelessWidget {
                 "History", // UI 保持英文
                 style: GoogleFonts.orbitron(
                   textStyle: const TextStyle(
-                    color: Colors.white,
+                    color: Colors.black87,
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
             ),
-            const Divider(color: Colors.white10),
+            const Divider(color: Colors.black12),
 
             // --- List: Sessions ---
             Expanded(
@@ -79,7 +79,7 @@ class ChatHistoryDrawer extends StatelessWidget {
                       title: Text(
                         "Project Session #$sessionNumber", // UI 保持英文
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: Colors.black87,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),
@@ -87,18 +87,18 @@ class ChatHistoryDrawer extends StatelessWidget {
                       subtitle: Text(
                         item["summary"]!, // 数据显示中文
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.5),
+                          color: Colors.black54,
                           fontSize: 12,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       iconColor: AppTheme.electricIndigo,
-                      collapsedIconColor: Colors.white54,
+                      collapsedIconColor: Colors.black54,
                       children: [
                         // 展开后的具体对话内容
                         Container(
-                          color: Colors.black26,
+                          color: Colors.grey[100],
                           padding: const EdgeInsets.all(16),
                           alignment: Alignment.centerLeft,
                           child: Column(
@@ -150,14 +150,14 @@ class ChatHistoryDrawer extends StatelessWidget {
           TextSpan(
             text: "$role: ",
             style: const TextStyle(
-              color: Colors.white70,
+              color: Colors.black87,
               fontWeight: FontWeight.bold,
               fontSize: 12,
             ),
           ),
           TextSpan(
             text: msg,
-            style: const TextStyle(color: Colors.white54, fontSize: 12),
+            style: const TextStyle(color: Colors.black54, fontSize: 12),
           ),
         ],
       ),

@@ -68,7 +68,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: Colors.white,
       body: Stack(
         children: [
           // 1. 可滚动的主体内容
@@ -93,7 +93,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       Text(
                         widget.post.description,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.black87,
                           fontSize: 15,
                           height: 1.6,
                         ),
@@ -113,7 +113,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       Text(
                         "10-24 · Edited with MuseLens",
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.4),
+                          color: Colors.black54,
                           fontSize: 12,
                         ),
                       ),
@@ -121,7 +121,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   ),
                 ),
 
-                const Divider(color: Color(0xFF2A2A2A), height: 1),
+                const Divider(color: Colors.black12, height: 1),
 
                 // 1.3 评论区
                 Padding(
@@ -132,7 +132,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       Text(
                         "Comments (${widget.post.commentCount})",
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: Colors.black87,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -194,7 +194,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;
                     return Container(
-                      color: const Color(0xFF1E1E1E),
+                      color: Colors.grey[100],
                       child: Center(
                         child: CircularProgressIndicator(
                           value: loadingProgress.expectedTotalBytes != null
@@ -206,7 +206,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       ),
                     );
                   },
-                  errorBuilder: (c, e, s) => Container(color: Colors.grey[900]),
+                  errorBuilder: (c, e, s) => Container(color: Colors.grey[200]),
                 );
               } else {
                 // 本地资源
@@ -215,9 +215,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
-                      color: Colors.grey[900],
+                      color: Colors.grey[200],
                       child: const Center(
-                        child: Icon(Icons.broken_image, color: Colors.white24),
+                        child: Icon(Icons.broken_image, color: Colors.black12),
                       ),
                     );
                   },
@@ -240,7 +240,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 decoration: BoxDecoration(
                   color: _currentImageIndex == index
                       ? AppTheme.electricIndigo
-                      : Colors.white.withOpacity(0.5),
+                      : Colors.black.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(3),
                 ),
               );
@@ -350,7 +350,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.electricIndigo.withOpacity(0.3)),
         boxShadow: [
@@ -401,7 +401,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 const Text(
                   "Pinned Lens Template",
                   style: TextStyle(
-                    color: Colors.white,
+                    color: Colors.black87,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -410,7 +410,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 Text(
                   "Neon Tokyo V2",
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.6),
+                    color: Colors.black54,
                     fontSize: 12,
                   ),
                 ),
@@ -443,7 +443,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       children: [
         CircleAvatar(
           radius: 16,
-          backgroundColor: Colors.grey[800],
+          backgroundColor: Colors.grey[200],
           child: ClipOval(
             child: Image.network(
               comment['avatar'],
@@ -451,7 +451,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               height: 32,
               fit: BoxFit.cover,
               errorBuilder: (c, e, s) =>
-                  const Icon(Icons.person, color: Colors.white, size: 20),
+                  const Icon(Icons.person, color: Colors.grey, size: 20),
             ),
           ),
         ),
@@ -462,8 +462,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             children: [
               Text(
                 comment['name'],
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.6),
+                style: const TextStyle(
+                  color: Colors.black54,
                   fontSize: 12,
                 ),
               ),
@@ -471,7 +471,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               Text(
                 comment['content'],
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: Colors.black87,
                   fontSize: 14,
                   height: 1.4,
                 ),
@@ -481,16 +481,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 children: [
                   Text(
                     comment['time'],
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
+                    style: const TextStyle(
+                      color: Colors.black45,
                       fontSize: 11,
                     ),
                   ),
                   const SizedBox(width: 16),
                   Text(
                     "Reply",
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
+                    style: const TextStyle(
+                      color: Colors.black45,
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
                     ),
@@ -505,13 +505,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             Icon(
               Icons.favorite_border,
               size: 16,
-              color: Colors.white.withOpacity(0.5),
+              color: Colors.black26,
             ),
             const SizedBox(height: 4),
             Text(
               "${comment['likes']}",
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
+              style: const TextStyle(
+                color: Colors.black45,
                 fontSize: 10,
               ),
             ),
@@ -530,9 +530,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         bottom: MediaQuery.of(context).padding.bottom + 12,
       ),
       decoration: BoxDecoration(
-        color: const Color(0xFF121212).withOpacity(0.95),
+        color: Colors.white.withOpacity(0.95),
         border: Border(
-          top: BorderSide(color: Colors.white.withOpacity(0.1)),
+          top: BorderSide(color: Colors.black.withOpacity(0.1)),
         ),
       ),
       child: Row(
@@ -542,14 +542,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               height: 40,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A2A),
+                color: Colors.grey[200],
                 borderRadius: BorderRadius.circular(20),
               ),
               alignment: Alignment.centerLeft,
               child: Text(
                 "Add a comment...",
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.4),
+                style: const TextStyle(
+                  color: Colors.black54,
                   fontSize: 14,
                 ),
               ),
@@ -576,7 +576,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Widget _buildInteractionIcon(
     IconData icon,
     String count, {
-    Color color = Colors.white,
+    Color color = Colors.black87,
   }) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -586,8 +586,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         Text(
           count,
           style: TextStyle(
-            color: color == Colors.white
-                ? Colors.white.withOpacity(0.6)
+            color: color == Colors.black87
+                ? Colors.black54
                 : color,
             fontSize: 10,
             fontWeight: FontWeight.bold,
@@ -601,12 +601,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF2A2A2A),
+        color: Colors.grey[200],
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
         text,
-        style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12),
+        style: const TextStyle(color: Colors.black87, fontSize: 12),
       ),
     );
   }

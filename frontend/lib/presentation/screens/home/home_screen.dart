@@ -126,20 +126,15 @@ class HomeScreen extends StatelessWidget {
     ];
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-          physics: const BouncingScrollPhysics(),
+          physics: const ClampingScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // --- 1. Top Header ---
-              _buildUserInfoHeader(context),
-
-              const SizedBox(height: 30),
-
               // --- 2. Hero Section (Updated) ---
               // 现在 HeroCreateCard 内部已经支持本地图片逻辑
               const HeroCreateCard(),
@@ -147,7 +142,11 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 30),
 
               // --- 3. My Recent Lens Section ---
-              _buildSectionHeader(context, title: context.tr('my_recent_lens'), showViewAll: false),
+              _buildSectionHeader(
+                context,
+                title: context.tr('my_recent_lens'),
+                showViewAll: false,
+              ),
               const SizedBox(height: 16),
               SizedBox(
                 height: 180,
@@ -216,43 +215,9 @@ class HomeScreen extends StatelessWidget {
 
   // --- 组件封装 ---
 
-  // 1. 顶部用户信息栏 (已优化图片加载)
-  Widget _buildUserInfoHeader(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              context.tr('good_morning'),
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-        Container(
-          width: 45,
-          height: 45,
-          decoration: BoxDecoration(
-            color: Colors.grey[800],
-            borderRadius: BorderRadius.circular(12),
-            image: DecorationImage(
-              // 使用辅助方法加载本地或网络头像
-              image: _getImageProvider("assets/images/profile.jpg"),
-              fit: BoxFit.cover,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   // 2. 通用 Section 标题栏
-  Widget _buildSectionHeader(BuildContext context, {
+  Widget _buildSectionHeader(
+    BuildContext context, {
     required String title,
     bool showViewAll = true,
     VoidCallback? onTapViewAll,
@@ -266,7 +231,7 @@ class HomeScreen extends StatelessWidget {
           style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: Colors.black87,
           ),
         ),
         if (showViewAll)
@@ -278,7 +243,7 @@ class HomeScreen extends StatelessWidget {
                   context.tr('view_all'),
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.white.withOpacity(0.6),
+                    color: Colors.black.withOpacity(0.6),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -286,7 +251,7 @@ class HomeScreen extends StatelessWidget {
                 Icon(
                   Icons.arrow_forward_ios,
                   size: 10,
-                  color: Colors.white.withOpacity(0.6),
+                  color: Colors.black.withOpacity(0.6),
                 ),
               ],
             ),
@@ -301,19 +266,17 @@ class HomeScreen extends StatelessWidget {
       onTap: () {
         Navigator.push(
           context,
-          SlideRightRoute(
-            page: LensDetailScreen(template: item.templateData),
-          ),
+          SlideRightRoute(page: LensDetailScreen(template: item.templateData)),
         );
       },
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 6,
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
               offset: const Offset(0, 4),
             ),
           ],
@@ -372,7 +335,7 @@ class HomeScreen extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: Colors.black87,
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
                     ),
@@ -389,7 +352,7 @@ class HomeScreen extends StatelessWidget {
                       Text(
                         item.usageCount,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.5),
+                          color: Colors.black.withOpacity(0.5),
                           fontSize: 10,
                         ),
                       ),

@@ -25,7 +25,7 @@ class _MainWrapperState extends State<MainWrapper> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       // 使用 Stack 让导航栏浮动在页面上方 (类似参考图的半透明效果)
       body: Stack(
         children: [
@@ -40,7 +40,7 @@ class _MainWrapperState extends State<MainWrapper> {
             child: Container(
               height: 70,
               decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E).withOpacity(0.9), // 半透明深炭色
+                color: Colors.white.withOpacity(0.9),
                 borderRadius: BorderRadius.circular(35), // 胶囊圆角
                 boxShadow: [
                   BoxShadow(
@@ -51,22 +51,47 @@ class _MainWrapperState extends State<MainWrapper> {
                 ],
                 // 增加一个极细的边框提升质感
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.black.withOpacity(0.1),
                   width: 0.5,
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildNavItem(0, Icons.home_rounded, "Home"),
-                  _buildNavItem(
-                    1,
-                    Icons.camera_enhance_rounded,
-                    "Lens",
-                  ), // 使用更像光圈的图标
-                  _buildNavItem(2, Icons.people_rounded, "Community"),
-                  _buildNavItem(3, Icons.person_rounded, "Profile"),
-                ],
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final itemWidth = constraints.maxWidth / 4;
+                  return Stack(
+                    children: [
+                      // 发光点移动动画
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 400),
+                        curve: Curves.fastOutSlowIn,
+                        left: _currentIndex * itemWidth,
+                        width: itemWidth,
+                        bottom: 12, // 图标下方
+                        child: Center(
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).primaryColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // 导航项
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildNavItem(0, Icons.home_rounded),
+                          _buildNavItem(1, Icons.camera_enhance_rounded),
+                          _buildNavItem(2, Icons.people_rounded),
+                          _buildNavItem(3, Icons.person_rounded),
+                        ],
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -75,59 +100,42 @@ class _MainWrapperState extends State<MainWrapper> {
     );
   }
 
-  // --- 核心：胶囊式导航项 ---
-  Widget _buildNavItem(int index, IconData icon, String label) {
+  // --- 核心：光点移动式导航项 ---
+  Widget _buildNavItem(int index, IconData icon) {
     final bool isSelected = _currentIndex == index;
 
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _currentIndex = index;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        padding: isSelected
-            ? const EdgeInsets.symmetric(horizontal: 20, vertical: 12)
-            : const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          // 选中时显示紫色发光胶囊，未选中透明
-          color: isSelected ? AppTheme.electricIndigo : Colors.transparent,
-          borderRadius: BorderRadius.circular(30),
-          // 选中时的光晕效果
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: AppTheme.electricIndigo.withOpacity(0.4),
-                    blurRadius: 12,
-                    spreadRadius: 2,
-                  ),
-                ]
-              : [],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // 图标
-            Icon(
-              icon,
-              color: isSelected ? Colors.white : Colors.white.withOpacity(0.5),
-              size: 24,
-            ),
-
-            // 选中时显示的文字 (水平对齐)
-            if (isSelected) ...[
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.fastOutSlowIn,
+              transform: Matrix4.identity()
+                ..translate(
+                  0.0,
+                  isSelected ? -4.0 : 0.0, // 选中时图标稍微向上浮动
                 ),
+              child: TweenAnimationBuilder<double>(
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.fastOutSlowIn,
+                tween: Tween<double>(end: isSelected ? 1.0 : 0.5),
+                builder: (context, opacity, child) {
+                  return Icon(
+                    icon,
+                    color: Colors.black.withOpacity(opacity),
+                    size: 26,
+                  );
+                },
               ),
-            ],
+            ),
           ],
         ),
       ),
