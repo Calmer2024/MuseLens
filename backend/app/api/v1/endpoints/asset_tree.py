@@ -292,7 +292,7 @@ def create_child_node(
             height=body.height,
             file_size=body.file_size,
             fmt=body.format,
-            node_type=body.status and "generated" or "generated",
+            node_type="generated",
             lens_id=body.lens_id,
             lens_name=body.lens_name,
             user_prompt=body.user_prompt,
@@ -364,7 +364,7 @@ def update_node_status(
     summary="获取祖先路径",
     description=(
         "返回从根节点到目标节点的完整路径（含目标节点本身），以及路径上的操作边。\n\n"
-        "利用节点的 path_json 字段实现 O(1) 查询，无需递归遍历。\n\n"
+        "利用节点的 path 字段（PostgreSQL UUID[] 数组）实现 O(1) 查询，无需递归遍历。\n\n"
         "**用途**：面包屑导航、重新生成时还原操作序列。"
     ),
 )

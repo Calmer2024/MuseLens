@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set
 
@@ -125,10 +124,7 @@ class BlueprintValidator:
         rec = db.query(LensRecord).filter(LensRecord.lens_id == lens_id).first()
         if not rec:
             return set()
-        try:
-            raw_params = json.loads(rec.params_json or "[]")
-        except Exception:
-            return set()
+        raw_params = rec.params or []  # PostgreSQL JSONB 自动反序列化
         required = set()
         for p in raw_params:
             if p.get("required") is True:

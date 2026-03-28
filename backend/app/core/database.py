@@ -1,33 +1,74 @@
 """
-数据库连接配置（SQLAlchemy + SQLite）
+Database configuration for the backend.
 
-- 开发阶段使用 SQLite，数据库文件默认生成在 backend/ 目录下（muselens.db）。
-- 如需迁移至 PostgreSQL，只需修改 SQLALCHEMY_DATABASE_URL 即可，其余代码无感。
+PostgreSQL is the primary target database. SQLite remains available as a
+lightweight fallback for unit tests and local smoke checks.
 """
 
+from __future__ import annotations
+
 import os
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from pathlib import Path
 
-# 数据库文件存放在 backend/ 目录（即本文件向上两级）
-_BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{os.path.join(_BACKEND_DIR, 'muselens.db')}"
+from sqlalchemy import create_engine, pool
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import sessionmaker
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    # SQLite 多线程访问需要显式允许（FastAPI 默认多线程）
-    connect_args={"check_same_thread": False},
+from app.core.db_base import Base
+
+
+def _default_sqlite_url() -> str:
+    backend_dir = Path(__file__).resolve().parents[2]
+    return f"sqlite:///{backend_dir / 'muselens.db'}"
+
+
+def normalize_database_url(url: str | None) -> str:
+    raw = (url or "").strip()
+    if not raw or raw.lower() == "sqlite":
+        return _default_sqlite_url()
+    if raw.startswith("postgres://"):
+        raw = raw.replace("postgres://", "postgresql+psycopg://", 1)
+    elif raw.startswith("postgresql://"):
+        raw = raw.replace("postgresql://", "postgresql+psycopg://", 1)
+    return raw
+
+
+def get_database_url() -> str:
+    return normalize_database_url(
+        os.getenv("MUSELENS_DB_URL")
+        or os.getenv("DATABASE_URL")
+    )
+
+
+def create_db_engine(database_url: str | None = None) -> Engine:
+    url = normalize_database_url(database_url or get_database_url())
+    if url.startswith("sqlite"):
+        return create_engine(
+            url,
+            connect_args={"check_same_thread": False},
+        )
+
+    return create_engine(
+        url,
+        poolclass=pool.QueuePool,
+        pool_size=10,
+        max_overflow=20,
+        pool_pre_ping=True,
+    )
+
+
+DATABASE_URL = get_database_url()
+engine = create_db_engine(DATABASE_URL)
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False,
+    bind=engine,
 )
-
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
-class Base(DeclarativeBase):
-    pass
 
 
 def get_db():
-    """FastAPI Depends 注入用的数据库 Session 生成器。"""
+    """FastAPI dependency for a database session."""
     db = SessionLocal()
     try:
         yield db
@@ -36,8 +77,10 @@ def get_db():
 
 
 def init_db() -> None:
-    """创建所有表（幂等，已存在则跳过）。在 main.py 的 lifespan 中调用。"""
-    # 必须在 create_all 之前导入所有 Model，让 Base 能感知到表定义
-    from app.models import lens_model          # noqa: F401
-    from app.models import asset_tree_models   # noqa: F401
+    """Create all ORM tables if they do not already exist."""
+    from app.models import asset_tree_models  # noqa: F401
+    from app.models import lens_example_model  # noqa: F401
+    from app.models import lens_model  # noqa: F401
+    from app.models import router_session_model  # noqa: F401
+
     Base.metadata.create_all(bind=engine)

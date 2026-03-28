@@ -183,9 +183,9 @@ def test_reload_registry_loads_all_lenses_from_db(temp_db, temp_workflow_dir):
             layer="A1",
             description=f"测试透镜 {i}",
             workflow_file_path=workflow_path,
-            inputs_json="[]",
-            outputs_json="[]",
-            params_json="[]",
+            inputs=[],
+            outputs=[],
+            params=[],
         )
         temp_db.add(record)
     temp_db.commit()
@@ -309,9 +309,9 @@ def test_reload_registry_skips_broken_lenses(temp_db, temp_workflow_dir):
         layer="A1",
         description="正常透镜",
         workflow_file_path=valid_workflow_path,
-        inputs_json="[]",
-        outputs_json="[]",
-        params_json="[]",
+        inputs=[],
+        outputs=[],
+        params=[],
     )
     temp_db.add(good_record)
 
@@ -321,9 +321,9 @@ def test_reload_registry_skips_broken_lenses(temp_db, temp_workflow_dir):
         layer="A1",
         description="坏透镜",
         workflow_file_path="/path/to/nonexistent.json",
-        inputs_json="[]",
-        outputs_json="[]",
-        params_json="[]",
+        inputs=[],
+        outputs=[],
+        params=[],
     )
     temp_db.add(bad_record)
     temp_db.commit()

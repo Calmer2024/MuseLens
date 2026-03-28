@@ -1,5 +1,3 @@
-import json
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -16,8 +14,8 @@ class _FakeRAGClient:
         self._score = score
 
     def search_lenses(self, query_text: str, k: int = 5):
-        from app.services.rag_client import LensCandidate
         from app.schemas.lens import LensLayer, LensTemplate
+        from app.services.rag_client import LensCandidate
 
         tmpl = LensTemplate(
             lens_id=self._lens_id,
@@ -38,8 +36,8 @@ def _make_test_db():
         poolclass=StaticPool,
     )
     Base.metadata.create_all(bind=engine)
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    return engine, TestingSessionLocal
+    session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    return engine, session_local
 
 
 def test_load_lens_doc_parses_frontmatter():
@@ -47,50 +45,34 @@ def test_load_lens_doc_parses_frontmatter():
     assert doc is not None
     assert doc.lens_id == "lens_inpaint_bg"
     assert doc.layer == "A2"
-
     assert "positive_prompt" in doc.params
-    pp = doc.params["positive_prompt"]
-    assert pp.required is True
-    assert pp.default == ""
-
-    # examples 里应包含 nl_desc + params_example
+    assert doc.params["positive_prompt"].required is True
+    assert doc.params["positive_prompt"].default == ""
     assert doc.examples
     assert any(ex.get("nl_desc") for ex in doc.examples)
 
 
 def test_retrieval_service_overlays_doc_params_and_layer():
-    """
-    验证 RetrievalService 会用 docs 覆盖数据库里的：
-    - layer
-    - params[].required/default/description（decision_rules/format_rules 等）
-    - examples（doc.examples）
-    """
-
-    engine, TestingSessionLocal = _make_test_db()
-    db = TestingSessionLocal()
+    engine, session_local = _make_test_db()
+    db = session_local()
     try:
         lens_id = "lens_depth_extract"
-        # 数据库里的 layer 故意设为与 docs 不同，用来验证叠加生效
         db.add(
             LensRecord(
                 lens_id=lens_id,
                 layer="A1",
                 description="db description",
                 workflow_file_path="dummy.json",
-                inputs_json="[]",
-                outputs_json="[]",
-                params_json=json.dumps(
-                    [
-                        {
-                            "name": "prompt",
-                            "type": "text",
-                            "description": "db base prompt description",
-                            # 注意：不填 required/default，让 docs 来覆盖
-                            "mapping": {"node_id": "1", "field_name": "text"},
-                        }
-                    ],
-                    ensure_ascii=False,
-                ),
+                inputs=[],
+                outputs=[],
+                params=[
+                    {
+                        "name": "prompt",
+                        "type": "text",
+                        "description": "db base prompt description",
+                        "mapping": {"node_id": "1", "field_name": "text"},
+                    }
+                ],
             )
         )
         db.commit()
@@ -98,25 +80,16 @@ def test_retrieval_service_overlays_doc_params_and_layer():
         service = RetrievalService(_FakeRAGClient(lens_id=lens_id))
         items = service.retrieve(db, task_desc="提取深度图", top_k=3)
         assert len(items) == 1
+
         item = items[0]
-
-        # docs 指定 layer=A3；覆盖生效
         assert item.layer == "A3"
-
-        # docs 指定 prompt.required=false, default=""
         assert item.params and item.params[0].name == "prompt"
         prompt_schema = item.params[0]
         assert prompt_schema.required is False
         assert prompt_schema.default == ""
-
-        # merged_description 应包含 docs 的 decision/description 片段
         assert "可选的辅助描述" in prompt_schema.description
-
-        # doc.examples 也应被带上
         assert item.examples
-        # lens_depth_extract.md 里 params_example.prompt 应存在
         assert any(ex.params_example.get("prompt") for ex in item.examples)
     finally:
         db.close()
         engine.dispose()
-

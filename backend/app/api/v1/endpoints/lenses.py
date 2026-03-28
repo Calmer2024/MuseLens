@@ -176,8 +176,6 @@ def list_lenses(db: Session = Depends(get_db)):
 @router.get("/{lens_id}", response_model=LensDetail, summary="查看单个透镜详情")
 def get_lens_detail(lens_id: str, db: Session = Depends(get_db)):
     """返回单个透镜的完整信息，包括 inputs / outputs / params 插槽定义。"""
-    import json as _json
-
     record = db.query(LensRecord).filter(LensRecord.lens_id == lens_id).first()
     if not record:
         raise HTTPException(status_code=404, detail=f"透镜 '{lens_id}' 不存在。")
@@ -189,9 +187,9 @@ def get_lens_detail(lens_id: str, db: Session = Depends(get_db)):
         workflow_file_path=record.workflow_file_path,
         created_at=record.created_at,
         updated_at=record.updated_at,
-        inputs=_json.loads(record.inputs_json or "[]"),
-        outputs=_json.loads(record.outputs_json or "[]"),
-        params=_json.loads(record.params_json or "[]"),
+        inputs=record.inputs or [],  # PostgreSQL JSONB 自动反序列化
+        outputs=record.outputs or [],
+        params=record.params or [],
     )
 
 

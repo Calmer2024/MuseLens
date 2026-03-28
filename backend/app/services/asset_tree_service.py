@@ -1,21 +1,19 @@
 """
-树状资产管理服务层
+树状资产管理服务层 — PostgreSQL 优化版
 
 职责：
   - 封装所有与资产树相关的数据库写入/查询操作
-  - 保证树结构一致性（path_json、depth、node_count 等同步更新）
+  - 保证树结构一致性（path、depth、node_count 等同步更新）
   - 所有操作均接受 SQLAlchemy Session，由调用方控制事务边界
 
-核心设计：
-  - 节点的 path_json 字段存储从根到自身的完整 ID 路径，
-    祖先查询 O(1)，无需递归 CTE
-  - 后代查询通过 SQLite 递归 CTE 实现（SQLite 3.35+ 支持）
-  - branch_count 在每次新增子节点时按需更新（判断父节点出度是否从 1 变为 2+）
+PostgreSQL 优化：
+  - path 字段使用原生 UUID[] 数组，祖先查询 O(1)，无需手动序列化
+  - muse_dna / parameters / metadata 使用 JSONB，SQLAlchemy 自动处理序列化
+  - 递归 CTE 与 PostgreSQL 完美兼容，性能更优
 """
 
 from __future__ import annotations
 
-import json
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -31,37 +29,6 @@ from app.models.asset_tree_models import AssetEdge, AssetNode, NodeTag, Project
 
 def _new_uuid() -> str:
     return str(uuid.uuid4())
-
-
-def _load_json(raw: Optional[str]) -> Any:
-    """安全地将 TEXT 字段解析为 Python 对象，None/空字符串返回 None。"""
-    if not raw:
-        return None
-    try:
-        return json.loads(raw)
-    except (json.JSONDecodeError, TypeError):
-        return None
-
-
-def _dump_json(obj: Any) -> str:
-    """将 Python 对象序列化为 JSON 字符串，None 返回空 JSON。"""
-    if obj is None:
-        return "{}"
-    return json.dumps(obj, ensure_ascii=False)
-
-
-def _dump_list(lst: List[str]) -> str:
-    return json.dumps(lst, ensure_ascii=False)
-
-
-def _load_list(raw: Optional[str]) -> List[str]:
-    if not raw:
-        return []
-    try:
-        result = json.loads(raw)
-        return result if isinstance(result, list) else []
-    except (json.JSONDecodeError, TypeError):
-        return []
 
 
 # ============================================================
@@ -80,13 +47,13 @@ def node_to_dict(node: AssetNode, tags: Optional[List[NodeTag]] = None) -> Dict[
         "height": node.height,
         "file_size": node.file_size,
         "format": node.format,
-        "muse_dna": _load_json(node.muse_dna_json),
-        "generation_params": _load_json(node.generation_params_json),
+        "muse_dna": node.muse_dna,  # JSONB 自动反序列化
+        "generation_params": node.generation_params,
         "depth": node.depth,
-        "path": _load_list(node.path_json),
+        "path": node.path or [],  # UUID[] 数组，直接使用
         "status": node.status,
         "label": node.label,
-        "metadata": _load_json(node.metadata_json),
+        "metadata": node.extra_metadata,
         "tags": tags or [],
         "created_at": node.created_at,
     }
@@ -102,8 +69,8 @@ def edge_to_dict(edge: AssetEdge) -> Dict[str, Any]:
         "lens_id": edge.lens_id,
         "lens_name": edge.lens_name,
         "user_prompt": edge.user_prompt,
-        "parameters": _load_json(edge.parameters_json),
-        "muse_dna": _load_json(edge.muse_dna_json),
+        "parameters": edge.parameters,  # JSONB 自动反序列化
+        "muse_dna": edge.muse_dna,
         "execution_time_ms": edge.execution_time_ms,
         "task_id": edge.task_id,
         "created_at": edge.created_at,
@@ -121,7 +88,6 @@ def create_project(
 ) -> Project:
     """创建一个空项目（无根节点），返回已提交的 Project 对象。"""
     project = Project(
-        project_id=_new_uuid(),
         name=name,
         description=description,
     )
@@ -236,9 +202,7 @@ def add_root_node(
     if project.root_node_id:
         raise ValueError(f"项目 {project_id} 已存在根节点 {project.root_node_id}，不可重复添加")
 
-    node_id = _new_uuid()
     node = AssetNode(
-        node_id=node_id,
         project_id=project_id,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
@@ -248,15 +212,18 @@ def add_root_node(
         file_size=file_size,
         format=fmt,
         depth=0,
-        path_json=_dump_list([node_id]),  # path = [self]
         status="completed",
-        metadata_json=json.dumps(metadata) if metadata else None,
+        extra_metadata=metadata,
     )
     db.add(node)
+    db.flush()  # 生成 node_id
+    
+    # 更新 path = [self]
+    node.path = [node.node_id]
 
     # 同步更新项目引用
-    project.root_node_id = node_id
-    project.current_node_id = node_id
+    project.root_node_id = node.node_id
+    project.current_node_id = node.node_id
     project.cover_url = image_url
     project.node_count = 1
     project.branch_count = 0
@@ -317,12 +284,9 @@ def create_child_node(
     )
 
     # 创建新节点
-    node_id = _new_uuid()
-    parent_path = _load_list(parent.path_json)
-    child_path = parent_path + [node_id]
-
+    parent_path = parent.path or []
+    
     child_node = AssetNode(
-        node_id=node_id,
         project_id=project_id,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
@@ -331,34 +295,35 @@ def create_child_node(
         height=height,
         file_size=file_size,
         format=fmt,
-        muse_dna_json=json.dumps(muse_dna) if muse_dna else None,
-        generation_params_json=json.dumps(generation_params) if generation_params else None,
+        muse_dna=muse_dna,  # JSONB 自动序列化
+        generation_params=generation_params,
         depth=parent.depth + 1,
-        path_json=_dump_list(child_path),
         status=status,
-        metadata_json=json.dumps(metadata) if metadata else None,
+        extra_metadata=metadata,
     )
     db.add(child_node)
+    db.flush()  # 生成 node_id
+    
+    # 更新 path = parent.path + [self]
+    child_node.path = parent_path + [child_node.node_id]
 
     # 创建操作边
-    edge_id = _new_uuid()
     edge = AssetEdge(
-        edge_id=edge_id,
         project_id=project_id,
         source_node_id=parent_node_id,
-        target_node_id=node_id,
+        target_node_id=child_node.node_id,
         lens_id=lens_id,
         lens_name=lens_name,
         user_prompt=user_prompt,
-        parameters_json=json.dumps(parameters) if parameters else "{}",
-        muse_dna_json=json.dumps(muse_dna) if muse_dna else None,
+        parameters=parameters or {},  # JSONB 自动序列化
+        muse_dna=muse_dna,
         execution_time_ms=execution_time_ms,
         task_id=task_id,
     )
     db.add(edge)
 
     # 更新项目统计
-    project.current_node_id = node_id
+    project.current_node_id = child_node.node_id
     project.node_count = (project.node_count or 0) + 1
     # 父节点首次产生分支（从 1 个子节点变为 2+），才计入 branch_count
     if existing_children_count == 1:
@@ -592,7 +557,7 @@ def get_node_ancestors(
     """
     获取从根节点到目标节点的完整路径（含目标节点本身）。
 
-    利用 path_json 字段 O(1) 取到路径 ID 列表，然后批量查询节点和边。
+    利用 path 字段 O(1) 取到路径 ID 列表，然后批量查询节点和边。
 
     返回：
       {
@@ -606,10 +571,7 @@ def get_node_ancestors(
     if not node:
         return None
 
-    path_ids = _load_list(node.path_json)  # e.g. ["root", "mid", "leaf"]
-
-    if not path_ids:
-        path_ids = [node_id]
+    path_ids = node.path or [node_id]  # PostgreSQL UUID[] 数组
 
     # 按 path 顺序查询所有祖先节点（含自身）
     nodes_map: Dict[str, AssetNode] = {}
@@ -762,7 +724,6 @@ def add_node_tag(
     if not node:
         return None
     tag = NodeTag(
-        tag_id=_new_uuid(),
         node_id=node_id,
         label=label,
         color=color,

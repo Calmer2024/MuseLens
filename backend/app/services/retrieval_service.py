@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from typing import List
 
 from sqlalchemy.orm import Session
@@ -77,11 +76,7 @@ class RetrievalService:
             except Exception:
                 doc = None
 
-            raw_params = []
-            try:
-                raw_params = json.loads(rec.params_json or "[]")
-            except Exception:
-                raw_params = []
+            raw_params = rec.params or []
 
             params: List[LensParamSchema] = []
             for p in raw_params:

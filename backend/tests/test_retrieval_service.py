@@ -1,5 +1,3 @@
-import json
-
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -17,10 +15,9 @@ class _FakeRAGClient:
         self._score = score
 
     def search_lenses(self, query_text: str, k: int = 5):
+        from app.schemas.lens import LensLayer, LensTemplate
         from app.services.rag_client import LensCandidate
-        from app.schemas.lens import LensTemplate, LensLayer
 
-        # RetrievalService 只用 lens_id/score；template 这里随便塞一个占位
         tmpl = LensTemplate(
             lens_id=self._lens_id,
             layer=LensLayer.A1,
@@ -41,8 +38,8 @@ def db():
         poolclass=StaticPool,
     )
     Base.metadata.create_all(bind=engine)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    s = SessionLocal()
+    session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    s = session_local()
     yield s
     s.close()
     engine.dispose()
@@ -50,28 +47,24 @@ def db():
 
 def test_retrieval_enriches_catalog_and_examples(db):
     lens_id = "lens_retrieval_test"
-
     db.add(
         LensRecord(
             lens_id=lens_id,
             layer="A2",
             description="测试透镜描述",
             workflow_file_path="dummy.json",
-            inputs_json="[]",
-            outputs_json="[]",
-            params_json=json.dumps(
-                [
-                    {
-                        "name": "prompt",
-                        "type": "text",
-                        "description": "提示词",
-                        "required": True,
-                        "default": None,
-                        "mapping": {"node_id": "1", "field_name": "text"},
-                    }
-                ],
-                ensure_ascii=False,
-            ),
+            inputs=[],
+            outputs=[],
+            params=[
+                {
+                    "name": "prompt",
+                    "type": "text",
+                    "description": "提示词",
+                    "required": True,
+                    "default": None,
+                    "mapping": {"node_id": "1", "field_name": "text"},
+                }
+            ],
         )
     )
     db.add(
@@ -93,4 +86,3 @@ def test_retrieval_enriches_catalog_and_examples(db):
     assert one.description == "测试透镜描述"
     assert one.params and one.params[0].name == "prompt"
     assert one.examples and one.examples[0].nl_desc == "把杯子换成多肉"
-
