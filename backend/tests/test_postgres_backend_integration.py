@@ -219,3 +219,97 @@ def test_postgres_asset_tree_api_roundtrip(client, postgres_test_db):
     ancestors = ancestors_resp.json()
     assert len(ancestors["ancestors"]) == 2
     assert len(ancestors["path_edges"]) == 1
+
+
+@pytest.mark.integration
+def test_postgres_user_community_market_roundtrip(client, postgres_test_db):
+    user_resp = client.post(
+        "/api/v1/users/register",
+        json={
+            "username": "pg_user",
+            "password": "pass123456",
+            "nickname": "数据库用户",
+            "email": "pg_user@example.com",
+            "bio": "用于 PostgreSQL 集成测试",
+        },
+    )
+    assert user_resp.status_code == 200
+    user = user_resp.json()
+
+    author_resp = client.post(
+        "/api/v1/users/register",
+        json={
+            "username": "pg_author",
+            "password": "pass123456",
+            "nickname": "数据库作者",
+            "email": "pg_author@example.com",
+            "bio": "",
+        },
+    )
+    assert author_resp.status_code == 200
+    author = author_resp.json()
+
+    post_resp = client.post(
+        "/api/v1/community/posts",
+        json={
+            "user_id": user["user_id"],
+            "title": "PostgreSQL 社区帖子",
+            "content": "测试社区链路",
+            "images": [],
+            "tag_names": ["postgres", "integration"],
+        },
+    )
+    assert post_resp.status_code == 201
+    post = post_resp.json()
+
+    comment_resp = client.post(
+        f"/api/v1/community/posts/{post['post_id']}/comments",
+        json={"user_id": author["user_id"], "content": "评论一下"},
+    )
+    assert comment_resp.status_code == 201
+
+    lens_resp = client.post(
+        "/api/v1/market/lenses",
+        json={
+            "lens_key": "lens_pg_market_v1",
+            "name": "数据库市场透镜",
+            "description": "测试市场链路",
+            "author_id": author["user_id"],
+            "category": "integration",
+            "price": "1.99",
+            "is_official": False,
+            "status": "active",
+        },
+    )
+    assert lens_resp.status_code == 201
+    lens = lens_resp.json()
+
+    version_resp = client.post(
+        f"/api/v1/market/lenses/{lens['lens_id']}/versions",
+        json={
+            "version": "1.0.0",
+            "base_workflow": {"nodes": []},
+            "parameters": {"strength": {"type": "float"}},
+            "ui_schema": {"layout": "slider"},
+            "changelog": "首次发布",
+            "is_latest": True,
+        },
+    )
+    assert version_resp.status_code == 201
+    version = version_resp.json()
+
+    install_resp = client.post(
+        f"/api/v1/market/lenses/{lens['lens_id']}/install",
+        json={"user_id": user["user_id"], "version_id": version["version_id"]},
+    )
+    assert install_resp.status_code == 200
+
+    review_resp = client.post(
+        f"/api/v1/market/lenses/{lens['lens_id']}/reviews",
+        json={"user_id": user["user_id"], "rating": 4, "content": "可以正常安装使用"},
+    )
+    assert review_resp.status_code == 200
+
+    installed_resp = client.get(f"/api/v1/market/users/{user['user_id']}/installed")
+    assert installed_resp.status_code == 200
+    assert installed_resp.json()[0]["lens_key"] == "lens_pg_market_v1"

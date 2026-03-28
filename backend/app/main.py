@@ -9,6 +9,9 @@ from app.api.v1.endpoints import router as router_endpoint
 from app.api.v1.endpoints import test_run
 from app.api.v1.endpoints import lenses as lenses_endpoint
 from app.api.v1.endpoints import asset_tree as asset_tree_endpoint
+from app.api.v1.endpoints import users as users_endpoint
+from app.api.v1.endpoints import community as community_endpoint
+from app.api.v1.endpoints import market as market_endpoint
 
 # 数据库与注册表
 from app.core.database import init_db, SessionLocal
@@ -76,6 +79,9 @@ app.include_router(router_endpoint.router,  prefix="/api/v1/router",  tags=["rou
 app.include_router(test_run.router,         prefix="/api/v1/test",    tags=["test"])
 app.include_router(lenses_endpoint.router,     prefix="/api/v1/lenses",     tags=["lenses"])
 app.include_router(asset_tree_endpoint.router, prefix="/api/v1/asset-tree", tags=["Asset Tree"])
+app.include_router(users_endpoint.router,      prefix="/api/v1/users",      tags=["users"])
+app.include_router(community_endpoint.router,  prefix="/api/v1/community",  tags=["community"])
+app.include_router(market_endpoint.router,     prefix="/api/v1/market",     tags=["market"])
 
 # --- 3. 根路由（健康检查）---
 @app.get("/")

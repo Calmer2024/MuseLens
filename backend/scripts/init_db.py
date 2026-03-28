@@ -22,9 +22,12 @@ def init_database() -> None:
     print(f"[init_db] database url: {url}")
 
     from app.models import asset_tree_models  # noqa: F401
+    from app.models import community_models  # noqa: F401
     from app.models import lens_example_model  # noqa: F401
     from app.models import lens_model  # noqa: F401
+    from app.models import market_models  # noqa: F401
     from app.models import router_session_model  # noqa: F401
+    from app.models import user_models  # noqa: F401
 
     engine = create_engine(
         url,
