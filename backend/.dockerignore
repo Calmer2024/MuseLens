@@ -1,0 +1,10 @@
+__pycache__/
+.pytest_cache/
+tests/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+muselens.db
+postgres_data/

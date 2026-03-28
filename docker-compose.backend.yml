@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: muselens-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123cfx
+      POSTGRES_DB: muselens
+    ports:
+      - "5433:5432"
+    volumes:
+      - muselens_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d muselens"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: muselens-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MUSELENS_DB_URL: postgresql+psycopg://postgres:123cfx@postgres:5432/muselens
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/').read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  muselens_postgres_data:
