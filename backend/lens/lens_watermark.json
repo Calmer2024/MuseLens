@@ -1,0 +1,49 @@
+{
+  "1": {
+    "inputs": {
+      "image": "Flux2-Klein-4b-base_00002_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "94": {
+    "inputs": {
+      "text": "",
+      "font_name": "Caveat-VariableFont_wght.ttf",
+      "font_size": 50,
+      "font_color": "white",
+      "align": "bottom",
+      "justify": "right",
+      "margins": 30,
+      "line_spacing": 5,
+      "position_x": 0,
+      "position_y": 0,
+      "rotation_angle": 0,
+      "rotation_options": "text center",
+      "font_color_hex": "#FFFFFF",
+      "image": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "CR Overlay Text",
+    "_meta": {
+      "title": "🔤 CR Overlay Text"
+    }
+  },
+  "95": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "94",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  }
+}
