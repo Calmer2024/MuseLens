@@ -23,22 +23,22 @@ class _SearchScreenState extends State<SearchScreen> {
 
   // 2. 猜你想搜 (英文)
   final List<String> _guessTags = [
-    "Retro Film",
-    "Foodie",
-    "Cats",
-    "Minimalist",
-    "Travel",
-    "Handmade",
-    "Illustration",
+    "复古胶片",
+    "美食",
+    "喵星人",
+    "极简",
+    "旅行",
+    "手工",
+    "插画",
   ];
 
   // 3. 热搜榜 (英文)
   final List<Map<String, dynamic>> _trendingList = [
-    {"rank": 1, "title": "Neon Tokyo V2", "isHot": true},
-    {"rank": 2, "title": "Ghibli Style", "isHot": true},
-    {"rank": 3, "title": "Cold Tones", "isHot": false},
-    {"rank": 4, "title": "Film Simulation", "isHot": false},
-    {"rank": 5, "title": "Portrait Retouch", "isHot": false},
+    {"rank": 1, "title": "霓虹东京V2", "isHot": true},
+    {"rank": 2, "title": "吉卜力风格", "isHot": true},
+    {"rank": 3, "title": "冷色调", "isHot": false},
+    {"rank": 4, "title": "胶片模拟", "isHot": false},
+    {"rank": 5, "title": "人像精修", "isHot": false},
   ];
 
   @override
@@ -60,7 +60,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // 2.1 搜索记录
-                    _buildSectionHeader("History", showDelete: true),
+                    _buildSectionHeader("搜索历史", showDelete: true),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 10,
@@ -73,7 +73,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     const SizedBox(height: 32),
 
                     // 2.2 猜你想搜
-                    _buildSectionHeader("Guess You Like"),
+                    _buildSectionHeader("猜你想搜"),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 10,
@@ -86,7 +86,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     const SizedBox(height: 32),
 
                     // 2.3 热搜榜
-                    _buildSectionHeader("MuseLens Trending"),
+                    _buildSectionHeader("MuseLens 热搜榜"),
                     const SizedBox(height: 12),
                     Container(
                       decoration: BoxDecoration(
@@ -136,7 +136,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 style: const TextStyle(color: Colors.black87, fontSize: 14),
                 cursorColor: AppTheme.electricIndigo,
                 decoration: InputDecoration(
-                  hintText: "Search inspiration...",
+                  hintText: "搜索灵感...",
                   hintStyle: TextStyle(
                     color: Colors.black38,
                     fontSize: 14,
@@ -158,7 +158,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
           // 搜索按钮
           Text(
-            "Search",
+            "搜索",
             style: const TextStyle(
               color: AppTheme.electricIndigo,
               fontWeight: FontWeight.bold,

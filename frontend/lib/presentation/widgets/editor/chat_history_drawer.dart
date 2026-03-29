@@ -46,7 +46,7 @@ class ChatHistoryDrawer extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(20.0),
               child: Text(
-                "History", // UI 保持英文
+                "历史记录", // UI 保持英文
                 style: GoogleFonts.orbitron(
                   textStyle: const TextStyle(
                     color: Colors.black87,
@@ -77,7 +77,7 @@ class ChatHistoryDrawer extends StatelessWidget {
                         color: AppTheme.electricIndigo,
                       ),
                       title: Text(
-                        "Project Session #$sessionNumber", // UI 保持英文
+                        "项目会话 #$sessionNumber", // UI 保持英文
                         style: const TextStyle(
                           color: Colors.black87,
                           fontWeight: FontWeight.bold,
@@ -121,7 +121,7 @@ class ChatHistoryDrawer extends StatelessWidget {
                                 child: TextButton(
                                   onPressed: () => Navigator.pop(context),
                                   child: const Text(
-                                    "Restore Session", // UI 保持英文
+                                    "恢复会话", // UI 保持英文
                                     style: TextStyle(
                                       color: AppTheme.electricIndigo,
                                     ),

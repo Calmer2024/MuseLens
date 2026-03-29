@@ -191,7 +191,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "Photo Consultant",
+                  "修图顾问",
                   style: TextStyle(
                     color: Colors.black87,
                     fontSize: 18,
@@ -199,7 +199,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                   ),
                 ),
                 Text(
-                  "AI Analysis in progress...",
+                  "AI分析进行中...",
                   style: TextStyle(
                     color: AppTheme.electricIndigo,
                     fontSize: 12,
@@ -262,7 +262,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                       color: Colors.black.withOpacity(0.6),
                       child: const Center(
                         child: Text(
-                          "Original",
+                          "原图",
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 10,
@@ -282,7 +282,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  "Current Project",
+                  "当前项目",
                   style: TextStyle(
                     color: Colors.black87,
                     fontWeight: FontWeight.bold,
@@ -294,14 +294,14 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    _buildTag("Portrait"),
-                    _buildTag("Nature"),
-                    _buildTag("Soft Light"),
+                    _buildTag("人像"),
+                    _buildTag("自然"),
+                    _buildTag("柔光"),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  "AI is establishing a conversation context...",
+                  "AI正在建立对话上下文...",
                   style: TextStyle(
                     color: Colors.black54,
                     fontSize: 12,
@@ -449,7 +449,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                   ),
                   SizedBox(width: 8),
                   Text(
-                    "Confirm Requirement",
+                    "确认需求",
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -485,7 +485,7 @@ class _ConsultantScreenState extends State<ConsultantScreen> {
                           controller: _textController,
                           style: const TextStyle(color: Colors.black87),
                           decoration: InputDecoration(
-                            hintText: "Type your request...",
+                            hintText: "输入您的需求...",
                             hintStyle: TextStyle(
                               color: Colors.black38,
                             ),

@@ -74,7 +74,7 @@ class _EditorScreenState extends State<EditorScreen>
     _historyNodes["root"] = HistoryNode(
       id: "root",
       parentId: null,
-      label: "Original",
+      label: "原图",
       imageSource: widget.selectedImage,
     );
 
@@ -122,7 +122,7 @@ class _EditorScreenState extends State<EditorScreen>
       _activeHighlightId = "lens_face_beauty";
     });
     // 🔥 自动添加节点
-    _addHistoryNode("Beauty", "assets/images/simulation/beauty.png");
+    _addHistoryNode("美颜", "assets/images/simulation/beauty.png");
 
     // 2. 造景
     setState(() => _isGenerating = true);
@@ -135,7 +135,7 @@ class _EditorScreenState extends State<EditorScreen>
       _activeHighlightId = "lens_background";
     });
     // 🔥 自动添加节点
-    _addHistoryNode("Scenery", "assets/images/simulation/scenery.png");
+    _addHistoryNode("背景替换", "assets/images/simulation/scenery.png");
 
     // 3. 光影 (最终结果)
     setState(() => _isGenerating = true);
@@ -148,11 +148,11 @@ class _EditorScreenState extends State<EditorScreen>
       _activeHighlightId = "lens_relight";
     });
     // 🔥 自动添加节点
-    _addHistoryNode("Lighting", "assets/images/simulation/lighting.png");
+    _addHistoryNode("光影重塑", "assets/images/simulation/lighting.png");
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text("AI Enhancement Complete ✨"),
+        content: Text("AI 处理完成 ✨"),
         backgroundColor: AppTheme.electricIndigo,
       ),
     );
@@ -171,13 +171,13 @@ class _EditorScreenState extends State<EditorScreen>
       await _simulateFineTuning(
         targetLensId: "lens_relight",
         resultAsset: "assets/images/simulation/branch1.png",
-        nodeLabel: "Light Fix",
+        nodeLabel: "光影微调",
       );
     } else if (text.contains("背景") || text.contains("埃菲尔")) {
       await _simulateFineTuning(
         targetLensId: "lens_background",
         resultAsset: "assets/images/simulation/branch2.png",
-        nodeLabel: "Eiffel BG",
+        nodeLabel: "埃菲尔背景",
       );
     }
   }
@@ -213,9 +213,9 @@ class _EditorScreenState extends State<EditorScreen>
     // 实际项目中应该是将当前 Canvas 渲染成图片
     // 这里我们直接用当前的 simulationPath
     if (_simulationAssetPath != null) {
-      _addHistoryNode("Manual Save", _simulationAssetPath!);
+      _addHistoryNode("手动存档", _simulationAssetPath!);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Snapshot Saved to History")),
+        const SnackBar(content: Text("已保存到历史记录")),
       );
     }
   }
@@ -362,7 +362,7 @@ class _EditorScreenState extends State<EditorScreen>
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  "Version History",
+                  "历史版本",
                   style: GoogleFonts.orbitron(
                     textStyle: const TextStyle(
                       color: Colors.black87,

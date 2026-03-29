@@ -110,7 +110,7 @@ class LensMarketCard extends StatelessWidget {
                         Icon(Icons.verified, color: Colors.white, size: 12),
                         SizedBox(width: 4),
                         Text(
-                          "Official",
+                          "官方",
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 10,
@@ -230,7 +230,7 @@ class LensMarketCard extends StatelessWidget {
           color: const Color(0xFF2A2A2A),
           child: const Center(
             child: Text(
-              "Asset Not Found",
+              "无法加载图片",
               style: TextStyle(color: Colors.white, fontSize: 10),
             ),
           ),

@@ -200,7 +200,7 @@ class _CommunityScreenState extends State<CommunityScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildIconButton(Icons.tune, context.tr('filter'), onTap: () {}),
+                  _buildIconButton(Icons.tune, "筛选", onTap: () {}),
                   Container(
                     height: 40,
                     decoration: BoxDecoration(
@@ -213,14 +213,14 @@ class _CommunityScreenState extends State<CommunityScreen>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _buildTabItem(0, context.tr('discover')),
-                        _buildTabItem(1, context.tr('messages')),
+                        _buildTabItem(0, "发现"),
+                        _buildTabItem(1, "消息"),
                       ],
                     ),
                   ),
                   _buildIconButton(
                     Icons.search,
-                    context.tr('search'),
+                    "搜索",
                     onTap: () {
                       Navigator.push(
                         context,

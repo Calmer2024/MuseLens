@@ -106,7 +106,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                                 ),
                               ),
                               Text(
-                                "Digital Artist",
+                                "数字艺术家",
                                 style: TextStyle(
                                   color: Colors.black54,
                                   fontSize: 10,
@@ -134,7 +134,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                               ],
                             ),
                             child: const Text(
-                              "Follow",
+                              "关注",
                               style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
@@ -158,18 +158,18 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
-                            _buildStatItem("4.5★", "Rating"),
+                            _buildStatItem("4.5★", "评分"),
                             _buildDivider(),
-                            _buildStatItem(widget.template.usageCount, "Uses"),
+                            _buildStatItem(widget.template.usageCount, "次使用"),
                             _buildDivider(),
-                            _buildStatItem("35MB", "Model"),
+                            _buildStatItem("35MB", "模型"),
                           ],
                         ),
                       ),
                       const SizedBox(height: 30),
                       // Workflow DNA
                       const Text(
-                        "Workflow DNA",
+                        "工作流详情",
                         style: TextStyle(
                           color: Colors.black87,
                           fontSize: 18,
@@ -185,11 +185,11 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                             _buildDnaCard(
                               1,
                               Icons.face_retouching_natural,
-                              "FaceID",
+                              "面部识别",
                             ),
-                            _buildDnaCard(2, Icons.light_mode, "Relight"),
-                            _buildDnaCard(3, Icons.brush, "Style Transfer"),
-                            _buildDnaCard(4, Icons.auto_fix_high, "Upscale"),
+                            _buildDnaCard(2, Icons.light_mode, "光影重塑"),
+                            _buildDnaCard(3, Icons.brush, "滤镜迁移"),
+                            _buildDnaCard(4, Icons.auto_fix_high, "画质增强"),
                           ],
                         ),
                       ),
@@ -340,7 +340,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: const [
                     Text(
-                      "Before",
+                      "原图",
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
@@ -349,7 +349,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                     ),
                     VerticalDivider(width: 8, color: Colors.grey),
                     Text(
-                      "After",
+                      "效果图",
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
@@ -533,7 +533,7 @@ class _LensDetailScreenState extends State<LensDetailScreen> {
                 Icon(Icons.auto_fix_high, color: Colors.black87, size: 20),
                 SizedBox(width: 10),
                 Text(
-                  "Apply Lens",
+                  "应用滤镜",
                   style: TextStyle(
                     color: Colors.black87,
                     fontSize: 16,

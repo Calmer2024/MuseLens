@@ -24,30 +24,30 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       "name": "Neon_Walker",
       "avatar": "https://api.dicebear.com/7.x/avataaars/png?seed=Walker",
       "content":
-          "This looks incredible! The colors are popping so much. Need to try this lens.",
+          "这看起来太不可思议了！色彩无比鲜艳。一定要试试这个滤镜。",
       "likes": 45,
-      "time": "2h ago",
+      "time": "2小时前",
     },
     {
       "name": "Digital_Dreamer",
       "avatar": "https://api.dicebear.com/7.x/avataaars/png?seed=Dreamer",
-      "content": "Best cyberpunk shot I've seen all week. Great job! \uD83D\uDD25",
+      "content": "这是我本周见过的最棒的赛博朋克照片。干得漂亮！🔥",
       "likes": 28,
-      "time": "5h ago",
+      "time": "5小时前",
     },
     {
       "name": "Tech_Nomad",
       "avatar": "https://api.dicebear.com/7.x/avataaars/png?seed=Nomad",
-      "content": "So atmospheric. Love the composition.",
+      "content": "氛围感太强了。绝佳的构图。",
       "likes": 12,
-      "time": "1d ago",
+      "time": "1天前",
     },
     {
       "name": "Lens_Master",
       "avatar": "https://api.dicebear.com/7.x/avataaars/png?seed=Master",
-      "content": "Is this the V2 version? The glow is softer.",
+      "content": "这是V2版本吗？光晕更柔和了。",
       "likes": 8,
-      "time": "1d ago",
+      "time": "1天前",
     },
   ];
 
@@ -111,7 +111,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        "10-24 · Edited with MuseLens",
+                        "10-24 · 使用 MuseLens 编辑",
                         style: TextStyle(
                           color: Colors.black54,
                           fontSize: 12,
@@ -130,7 +130,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "Comments (${widget.post.commentCount})",
+                        "评论 (${widget.post.commentCount})",
                         style: const TextStyle(
                           color: Colors.black87,
                           fontSize: 16,
@@ -399,7 +399,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  "Pinned Lens Template",
+                  "滤镜模板同款",
                   style: TextStyle(
                     color: Colors.black87,
                     fontWeight: FontWeight.bold,
@@ -424,7 +424,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Text(
-              "Try Lens",
+              "试用滤镜",
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -488,7 +488,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   ),
                   const SizedBox(width: 16),
                   Text(
-                    "Reply",
+                    "回复",
                     style: const TextStyle(
                       color: Colors.black45,
                       fontSize: 11,
@@ -547,7 +547,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               ),
               alignment: Alignment.centerLeft,
               child: Text(
-                "Add a comment...",
+                "添加评论...",
                 style: const TextStyle(
                   color: Colors.black54,
                   fontSize: 14,

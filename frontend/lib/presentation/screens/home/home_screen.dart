@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+// 引入刚刚写的炫彩流体卡片
 import '../../widgets/home/hero_create_card.dart';
 import '../../widgets/home/recipe_list_item.dart';
 import '../../../data/models/recipe_mock.dart';
@@ -6,7 +7,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/navigation/slide_right_route.dart';
 import '../../../data/models/lens_template_mock.dart';
 import '../lens/lens_detail_screen.dart';
-import '../../../core/localization/app_localizations.dart';
 
 // --- 1. 临时 Mock 数据 ---
 class OfficialLensItem {
@@ -42,15 +42,14 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 获取之前的 Recent 数据
     final recipes = RecipeMock.getRecentRecipes();
 
-    // --- 准备官方 Lens 数据 ---
+    // 官方 Lens 数据
     final List<OfficialLensItem> officialLenses = [
       OfficialLensItem(
         title: "老照片修复",
         imageUrl: "assets/images/home/OldPhotoRestore.jpg",
-        usageCount: "1.2M Uses",
+        usageCount: "120万次使用",
         templateData: LensTemplateMock(
           title: "老照片修复",
           author: "MuseLens Official",
@@ -65,7 +64,7 @@ class HomeScreen extends StatelessWidget {
       OfficialLensItem(
         title: "一键生成你的旅游日记~",
         imageUrl: "assets/images/home/TravelVlog.JPG",
-        usageCount: "850k Uses",
+        usageCount: "85万次使用",
         templateData: LensTemplateMock(
           title: "旅游日记 Vlog",
           author: "MuseLens Official",
@@ -80,7 +79,7 @@ class HomeScreen extends StatelessWidget {
       OfficialLensItem(
         title: "快来和动漫人物合影吧！",
         imageUrl: "assets/images/home/AnimeGroupPhoto.JPG",
-        usageCount: "2.3M Uses",
+        usageCount: "230万次使用",
         templateData: LensTemplateMock(
           title: "打破次元壁",
           author: "MuseLens Official",
@@ -95,7 +94,7 @@ class HomeScreen extends StatelessWidget {
       OfficialLensItem(
         title: "你也可以变成摄影大师~",
         imageUrl: "https://picsum.photos/seed/anime/300/400",
-        usageCount: "500k Uses",
+        usageCount: "50万次使用",
         templateData: LensTemplateMock(
           title: "大师名作",
           author: "MuseLens Official",
@@ -109,19 +108,19 @@ class HomeScreen extends StatelessWidget {
       ),
     ];
 
-    // --- 准备话题挑战数据 ---
+    // 话题挑战数据
     final List<OfficialChallengeItem> challenges = [
       OfficialChallengeItem(
         title: "#赛博朋克夜景挑战",
         description: "寻找身边的霓虹灯光",
         imageUrl: "assets/images/home/CyberpunkNightChallenge.jpg",
-        participants: "24k joined",
+        participants: "2.4万人参与",
       ),
       OfficialChallengeItem(
         title: "#春日胶片大赏",
         description: "记录春天的第一抹绿色",
         imageUrl: "assets/images/home/SpringFilmFestival.png",
-        participants: "18k joined",
+        participants: "1.8万人参与",
       ),
     ];
 
@@ -135,40 +134,30 @@ class HomeScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // --- 2. Hero Section (Updated) ---
-              // 现在 HeroCreateCard 内部已经支持本地图片逻辑
+              // --- 1. 顶部炫彩玻璃流体卡片 ---
               const HeroCreateCard(),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 32),
 
-              // --- 3. My Recent Lens Section ---
-              _buildSectionHeader(
-                context,
-                title: context.tr('my_recent_lens'),
-                showViewAll: false,
-              ),
+              // --- 2. 最近使用 ---
+              _buildSectionHeader(context, title: "最近使用", showViewAll: false),
               const SizedBox(height: 16),
               SizedBox(
-                height: 180,
+                height: 160,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   itemCount: recipes.length,
                   physics: const BouncingScrollPhysics(),
                   itemBuilder: (context, index) {
-                    // RecipeListItem 内部如果需要修改，原理同下
                     return RecipeListItem(recipe: recipes[index]);
                   },
                 ),
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 32),
 
-              // --- 4. Official Trending Templates ---
-              _buildSectionHeader(
-                context,
-                title: context.tr('trending_templates'),
-                onTapViewAll: () {},
-              ),
+              // --- 3. 热门创作 ---
+              _buildSectionHeader(context, title: "热门创作", onTapViewAll: () {}),
               const SizedBox(height: 16),
               GridView.builder(
                 shrinkWrap: true,
@@ -185,14 +174,10 @@ class HomeScreen extends StatelessWidget {
                 },
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 32),
 
-              // --- 5. Official Topics & Challenges ---
-              _buildSectionHeader(
-                context,
-                title: context.tr('topics_and_challenges'),
-                onTapViewAll: () {},
-              ),
+              // --- 4. 话题与挑战 ---
+              _buildSectionHeader(context, title: "话题与挑战", onTapViewAll: () {}),
               const SizedBox(height: 16),
               ListView.separated(
                 shrinkWrap: true,
@@ -204,7 +189,6 @@ class HomeScreen extends StatelessWidget {
                 },
               ),
 
-              // 底部留白
               const SizedBox(height: 120),
             ],
           ),
@@ -214,8 +198,6 @@ class HomeScreen extends StatelessWidget {
   }
 
   // --- 组件封装 ---
-
-  // 2. 通用 Section 标题栏
   Widget _buildSectionHeader(
     BuildContext context, {
     required String title,
@@ -229,9 +211,9 @@ class HomeScreen extends StatelessWidget {
         Text(
           title,
           style: const TextStyle(
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            color: Color(0xFF1E1E1E),
           ),
         ),
         if (showViewAll)
@@ -240,10 +222,10 @@ class HomeScreen extends StatelessWidget {
             child: Row(
               children: [
                 Text(
-                  context.tr('view_all'),
+                  "查看全部",
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.black.withOpacity(0.6),
+                    color: Colors.black.withOpacity(0.5),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -251,7 +233,7 @@ class HomeScreen extends StatelessWidget {
                 Icon(
                   Icons.arrow_forward_ios,
                   size: 10,
-                  color: Colors.black.withOpacity(0.6),
+                  color: Colors.black.withOpacity(0.5),
                 ),
               ],
             ),
@@ -260,7 +242,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // 3. 官方 Lens 模板卡片 (已优化图片加载)
   Widget _buildOfficialLensCard(BuildContext context, OfficialLensItem item) {
     return GestureDetector(
       onTap: () {
@@ -275,7 +256,7 @@ class HomeScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withOpacity(0.04),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -292,11 +273,11 @@ class HomeScreen extends StatelessWidget {
                       top: Radius.circular(16),
                     ),
                     child: Image(
-                      image: _getImageProvider(item.imageUrl), // <--- 核心修改
+                      image: _getImageProvider(item.imageUrl),
                       width: double.infinity,
                       fit: BoxFit.cover,
                       errorBuilder: (c, e, s) =>
-                          Container(color: Colors.grey[800]),
+                          Container(color: Colors.grey[200]),
                     ),
                   ),
                   if (item.title == "老照片修复")
@@ -313,7 +294,7 @@ class HomeScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: const Text(
-                          "HOT",
+                          "热门",
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 10,
@@ -326,7 +307,7 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -335,7 +316,7 @@ class HomeScreen extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Colors.black87,
+                      color: Color(0xFF1E1E1E),
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
                     ),
@@ -346,13 +327,13 @@ class HomeScreen extends StatelessWidget {
                       Icon(
                         Icons.play_circle_outline,
                         size: 12,
-                        color: AppTheme.electricIndigo,
+                        color: AppTheme.primaryPurple,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         item.usageCount,
                         style: TextStyle(
-                          color: Colors.black.withOpacity(0.5),
+                          color: Colors.black.withOpacity(0.4),
                           fontSize: 10,
                         ),
                       ),
@@ -367,14 +348,13 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // 4. 话题挑战卡片 (已优化图片加载)
   Widget _buildChallengeCard(OfficialChallengeItem item) {
     return Container(
-      height: 120,
+      height: 110,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         image: DecorationImage(
-          image: _getImageProvider(item.imageUrl), // <--- 核心修改
+          image: _getImageProvider(item.imageUrl),
           fit: BoxFit.cover,
         ),
       ),
@@ -386,7 +366,7 @@ class HomeScreen extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
-                colors: [Colors.black.withOpacity(0.8), Colors.transparent],
+                colors: [Colors.black.withOpacity(0.7), Colors.transparent],
               ),
             ),
           ),
@@ -402,11 +382,11 @@ class HomeScreen extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: AppTheme.electricIndigo.withOpacity(0.8),
+                    color: AppTheme.primaryPurple.withOpacity(0.8),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: const Text(
-                    "Challenge",
+                    "挑战",
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 10,
@@ -422,7 +402,6 @@ class HomeScreen extends StatelessWidget {
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
-                  // 修改 3: 限制行数，防止标题过长导致溢出
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -433,7 +412,6 @@ class HomeScreen extends StatelessWidget {
                     color: Colors.white.withOpacity(0.7),
                     fontSize: 12,
                   ),
-                  // 修改 4: 限制描述行数
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -457,7 +435,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // --- 核心辅助方法：智能图片提供者 ---
   ImageProvider _getImageProvider(String path) {
     if (path.startsWith('http')) {
       return NetworkImage(path);

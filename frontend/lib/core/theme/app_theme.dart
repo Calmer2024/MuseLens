@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // 1. 提取原型图颜色
-  static const Color background = Color(0xFF121212); // 深色背景
+  static const Color background = Color(0xFF121212); // 深色背景 (虽为浅色模式，保留变量以备用)
   static const Color cardSurface = Color(0xFF1E1E1E); // 卡片背景
   static const Color primaryPurple = Color(0xFF584CF4); // 原型图中的亮紫色
   static const Color textWhite = Color(0xFFFFFFFF);
@@ -21,9 +21,7 @@ class AppTheme {
       brightness: Brightness.light,
       scaffoldBackgroundColor: Colors.white, // 设置为主配色白色
       primaryColor: primaryPurple,
-      textTheme: GoogleFonts.poppinsTextTheme(
-        ThemeData.light().textTheme,
-      ),
+      textTheme: GoogleFonts.poppinsTextTheme(ThemeData.light().textTheme),
       colorScheme: const ColorScheme.light(
         primary: primaryPurple,
         surface: Colors.white,

@@ -22,7 +22,7 @@ class RecipeMock {
   static List<RecipeMock> getRecentRecipes() {
     return [
       RecipeMock(
-        title: "Cyberpunk City",
+        title: "赛博朋克城市",
         imageUrl: "https://picsum.photos/id/122/200/200", // 模拟赛博朋克图
         iconName: "city",
         // --- 补充缺失的参数 ---
@@ -30,7 +30,7 @@ class RecipeMock {
         authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Felix",
       ),
       RecipeMock(
-        title: "Retro Film",
+        title: "复古胶片",
         imageUrl: "https://picsum.photos/id/123/200/200", // 模拟复古图
         iconName: "film",
         // --- 补充缺失的参数 ---
@@ -38,7 +38,7 @@ class RecipeMock {
         authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Jack",
       ),
       RecipeMock(
-        title: "Oil Canvas Style",
+        title: "油画风格",
         imageUrl: "https://picsum.photos/id/124/200/200", // 模拟油画
         iconName: "brush",
         // --- 补充缺失的参数 ---
@@ -46,7 +46,7 @@ class RecipeMock {
         authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Bella",
       ),
       RecipeMock(
-        title: "Digital Glitch",
+        title: "数字故障风",
         imageUrl: "https://picsum.photos/id/125/200/200", // 模拟故障风
         iconName: "glitch",
         // --- 补充缺失的参数 ---

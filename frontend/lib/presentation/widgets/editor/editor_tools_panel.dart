@@ -81,67 +81,67 @@ class EditorToolsPanel extends StatelessWidget {
   final List<LensTool> _allLenses = [
     LensTool(
       id: "lens_matting",
-      name: "Matting",
+      name: "智能抠图",
       icon: Icons.layers_clear,
       category: "L1",
     ),
     LensTool(
       id: "lens_crop",
-      name: "Smart Crop",
+      name: "智能裁剪",
       icon: Icons.crop_free,
       category: "L1",
     ),
     LensTool(
       id: "lens_upscale",
-      name: "Upscale",
+      name: "画质增强",
       icon: Icons.high_quality,
       category: "L1",
     ),
     LensTool(
       id: "lens_face_beauty",
-      name: "Beauty",
+      name: "美颜",
       icon: Icons.face_retouching_natural,
       category: "L2",
     ),
     LensTool(
       id: "lens_replace",
-      name: "Inpaint",
+      name: "涂抹消除",
       icon: Icons.brush,
       category: "L2",
     ),
     LensTool(
       id: "lens_structure",
-      name: "Pose",
+      name: "姿态重构",
       icon: Icons.accessibility_new,
       category: "L2",
     ),
     LensTool(
       id: "lens_background",
-      name: "BG Swap",
+      name: "背景替换",
       icon: Icons.wallpaper,
       category: "L3",
     ),
     LensTool(
       id: "lens_relight",
-      name: "Relight",
+      name: "光影重塑",
       icon: Icons.light_mode,
       category: "L3",
     ),
     LensTool(
       id: "lens_effect",
-      name: "Effects",
+      name: "特效玩法",
       icon: Icons.auto_fix_high,
       category: "L3",
     ),
     LensTool(
       id: "lens_dimension",
-      name: "Dimension",
+      name: "多维转换",
       icon: Icons.animation,
       category: "L4",
     ),
     LensTool(
       id: "lens_color_grade",
-      name: "Color",
+      name: "色彩增强",
       icon: Icons.palette,
       category: "L4",
     ),
@@ -187,9 +187,9 @@ class EditorToolsPanel extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildToolItem(Icons.crop, "Crop", ToolType.crop),
-          _buildToolItem(Icons.tune, "Adjust", ToolType.adjust),
-          _buildToolItem(Icons.auto_awesome, "Lens AI", ToolType.lens),
+          _buildToolItem(Icons.crop, "裁剪", ToolType.crop),
+          _buildToolItem(Icons.tune, "调节", ToolType.adjust),
+          _buildToolItem(Icons.auto_awesome, "AI滤镜", ToolType.lens),
         ],
       ),
     );
@@ -215,10 +215,10 @@ class EditorToolsPanel extends StatelessWidget {
                   ),
                   Text(
                     activeTool == ToolType.crop
-                        ? "Crop"
+                        ? "裁剪"
                         : activeTool == ToolType.adjust
-                        ? "Adjust"
-                        : "Lens Lab",
+                        ? "调节"
+                        : "滤镜实验室",
                     style: const TextStyle(
                       color: Colors.black87,
                       fontWeight: FontWeight.bold,
@@ -424,7 +424,7 @@ class EditorToolsPanel extends StatelessWidget {
                     children: [
                       Icon(Icons.arrow_back, color: Colors.black54, size: 20),
                       SizedBox(width: 4),
-                      Text("Library", style: TextStyle(color: Colors.black54)),
+                      Text("图库", style: TextStyle(color: Colors.black54)),
                     ],
                   ),
                 ),
@@ -453,7 +453,7 @@ class EditorToolsPanel extends StatelessWidget {
 
   // --- 辅助方法 (保持不变) ---
   Widget _buildCropBody() {
-    final ratios = ["Free", "Original", "1:1", "3:4", "9:16", "16:9"];
+    final ratios = ["自由", "原图", "1:1", "3:4", "9:16", "16:9"];
     return SizedBox(
       height: 60,
       child: ListView.separated(
@@ -506,7 +506,7 @@ class EditorToolsPanel extends StatelessWidget {
   Widget _buildSpecificLensUI(LensTool tool) {
     return Center(
       child: Text(
-        "Adjusting ${tool.name}",
+        "正在调节 ${tool.name}",
         style: const TextStyle(color: Colors.black54),
       ),
     );
@@ -559,7 +559,7 @@ class EditorToolsPanel extends StatelessWidget {
                 controller: promptController,
                 style: const TextStyle(color: Colors.black87),
                 decoration: const InputDecoration(
-                  hintText: "Or type instructions...",
+                  hintText: "或者输入指令...",
                   hintStyle: TextStyle(color: Colors.black38),
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(horizontal: 16),

@@ -79,7 +79,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       const SizedBox(width: 40), // 占位
                       Text(
-                        context.tr('profile'),
+                        "个人主页",
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -145,7 +145,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    "AI art enthusiast & style explorer.",
+                    "AI艺术爱好者与风格探索者。",
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.black.withOpacity(0.8),
@@ -173,7 +173,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     child: Center(
                       child: Text(
-                        context.tr('edit_profile'),
+                        "编辑资料",
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
@@ -189,9 +189,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildStatItem("12", context.tr('lens')),
-                      _buildStatItem("85", context.tr('posts')),
-                      _buildStatItem("4.5k", context.tr('likes')),
+                      _buildStatItem("12", "滤镜"),
+                      _buildStatItem("85", "帖子"),
+                      _buildStatItem("4.5k", "获赞"),
                     ],
                   ),
 
@@ -201,9 +201,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildTabButton(0, context.tr('my_lens')),
-                      _buildTabButton(1, context.tr('my_post')),
-                      _buildTabButton(2, context.tr('favorite')),
+                      _buildTabButton(0, "我的滤镜"),
+                      _buildTabButton(1, "我的帖子"),
+                      _buildTabButton(2, "我的收藏"),
                     ],
                   ),
 
@@ -374,7 +374,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    "${lens.usageCount} ${context.tr('uses')}",
+                    "${lens.usageCount} 次使用",
                     style: TextStyle(
                       color: Colors.black54,
                       fontSize: 11,

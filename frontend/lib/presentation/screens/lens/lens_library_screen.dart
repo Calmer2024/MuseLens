@@ -44,7 +44,7 @@ class LensLibraryScreen extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          "Lens Market",
+                          "滤镜市场",
                           style: TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
@@ -86,7 +86,7 @@ class LensLibraryScreen extends StatelessWidget {
                                     ),
                                     SizedBox(width: 6),
                                     Text(
-                                      "My Library",
+                                      "我的收藏",
                                       style: TextStyle(
                                         color: Colors.black87,
                                         fontSize: 12,
@@ -153,7 +153,7 @@ class LensLibraryScreen extends StatelessWidget {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              "Find style, effect, or creator...",
+                              "搜索风格、特效或创作者...",
                               style: TextStyle(
                                 color: Colors.black.withOpacity(0.3),
                                 fontSize: 14,
@@ -175,12 +175,12 @@ class LensLibraryScreen extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        _buildFilterChip(context, "Recommended", isActive: true),
-                        _buildFilterChip(context, "Portrait"),
-                        _buildFilterChip(context, "Cyberpunk"),
-                        _buildFilterChip(context, "Film"),
-                        _buildFilterChip(context, "Anime"),
-                        _buildFilterChip(context, "Scenery"),
+                        _buildFilterChip(context, "推荐", isActive: true),
+                        _buildFilterChip(context, "人像"),
+                        _buildFilterChip(context, "赛博朋克"),
+                        _buildFilterChip(context, "胶片"),
+                        _buildFilterChip(context, "二次元"),
+                        _buildFilterChip(context, "风景"),
                       ],
                     ),
                   ),
