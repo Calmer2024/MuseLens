@@ -1,4 +1,64 @@
-项目初始化
+# MuseLens
+
+本仓库为 MuseLens 前后端代码。后端为 FastAPI（Router、Lens 目录、可选 ComfyUI 执行链等），前端为 Flutter。
+
+## 合作者如何复现（推荐：Docker）
+
+按下面顺序可在本机得到与团队一致的 **PostgreSQL（pgvector）+ 后端 API**，无需先装本机 Python 数据库服务。
+
+### 1. 克隆与前置
+
+- 安装 **Git**、**Docker Desktop**（或兼容的 Docker Engine + Compose V2），并确保 Docker 已启动。
+- 克隆仓库后，**所有 compose 与 `.env` 相关命令均在仓库根目录**（包含 `docker-compose.backend.yml` 的那一层）执行。
+
+### 2. 环境变量（必做）
+
+Compose 只会自动读取 **仓库根目录**下的 `.env`（不会读取 `backend/.env`）。
+
+```bash
+cp .env.docker.example .env
+# Windows PowerShell: Copy-Item .env.docker.example .env
+```
+
+用编辑器打开根目录 `.env`，至少配置 **Planner / Router 用的 LLM**（与团队对齐网关与模型名）：
+
+- `MUSELENS_LLM_BASE_URL`（如 OpenAI 兼容或 SiliconFlow 等）
+- `MUSELENS_LLM_API_KEY`
+- `MUSELENS_LLM_MODEL`
+
+`MUSELENS_POSTGRES_PASSWORD`、`MUSELENS_POSTGRES_PORT` 可与 `.env.docker.example` 保持一致，除非本地 5433 已被占用。
+
+> **注意**：含密钥的 `.env` 已在 `.gitignore` 中，**勿提交**。
+
+### 3. 构建并启动
+
+```bash
+docker compose -f docker-compose.backend.yml build
+docker compose -f docker-compose.backend.yml up -d
+```
+
+首次或依赖变更后可用 `build --no-cache`。
+
+### 4. 验证
+
+- 浏览器打开 **http://127.0.0.1:8000/docs**（或你修改 `MUSELENS_BACKEND_PORT` 后的端口）。
+- 根路径 **http://127.0.0.1:8000/** 返回 JSON 即表示进程正常。
+
+### 5. 可选后续步骤
+
+| 目的 | 说明 |
+|------|------|
+| **pgvector 检索与 Router** | 需 LLM 配置正确；Lens 注册后可在容器内执行 `python -m app.scripts.sync_lens_embeddings_cli` 同步向量（详见 `docs/Router层详细说明.md`）。 |
+| **本机 ComfyUI（生图）** | 在宿主机启动 ComfyUI（默认 8188）。容器已通过 `host.docker.internal:8188` 访问宿主机；未启动 ComfyUI 仍可测数据库与 Router/LLM。 |
+| **跑后端测试** | 栈已启动后：`docker compose -f docker-compose.backend.yml exec backend python -m pytest tests/ -q`（容器工作目录为 `/app`，即 backend 内容）。 |
+| **真实 LLM 集成测试** | 需在容器内设置 `MUSELENS_TEST_REAL_LLM=1` 等，见 `docs/Router层-意图编排与实现对照.md` 中测试说明。 |
+
+### 6. 文档索引
+
+- Router 层总览：[docs/Router层详细说明.md](docs/Router层详细说明.md)
+- Docker 与知识库：[docs/Router架构与Lens知识库指南.md](docs/Router架构与Lens知识库指南.md)
+
+---
 
 # 项目结构
 
@@ -23,10 +83,11 @@ backend/
 │   └── services/            # 业务逻辑层
 │       ├── compiler.py      # [v3.0 核心] 盲执行器、沙盒参数注入中心
 │       └── comfy_service.py # 封装与 ComfyUI 的通信
-├── .env                     # 环境变量
 ├── .gitignore
 └── requirements.txt
 ```
+
+环境变量：使用 Docker Compose 时请在**仓库根目录**配置 `.env`（见上文「合作者如何复现」）。
 
 ### 核心架构理念 (v3.0)
 系统后端架构遵循 **AOT链接 (Ahead-Of-Time Linking)** 与 **盲执行管线 (Blind Execution Pipeline)**，核心分为以下层：
@@ -72,9 +133,7 @@ frontend/
 
 # 启动项目
 
-请按照以下顺序配置环境。
-
-> 我们前后端目前还没进行连接，因为后端现在还啥都没写呢
+请按照以下顺序配置环境。若仅需与团队一致的后端联调，优先使用上文 **「合作者如何复现」** 中的 Docker 流程。
 
 1. ### 前置要求 (Prerequisites)
 
@@ -88,13 +147,52 @@ frontend/
 
 1. ### 初始化后端 (Backend)
 
-后端负责处理业务逻辑及与 AI 服务的通信。必须**确保你的 ComfyUI 已经先在本地启动（默认 8188 端口）**。
+后端负责处理业务逻辑及与 AI 服务的通信。若需跑通 **依赖 ComfyUI 生图** 的接口（如 Phase 2 管线），再在本机启动 ComfyUI（默认 **8188**）；仅验证 Router / 数据库时可不启动。
 
 打开终端，进入 `backend` 目录：
 
 ```Bash
 cd backend
 ```
+
+#### 2.0 使用 Docker Compose 启动后端（推荐）
+
+在项目**仓库根目录**（含 `docker-compose.backend.yml`）执行：
+
+1. **（可选但推荐）** 复制环境变量模板，并填写 LLM 等密钥：
+
+   ```Bash
+   cp .env.docker.example .env
+   # Windows PowerShell: Copy-Item .env.docker.example .env
+   ```
+
+   Compose 会读取**根目录**下的 `.env`，把其中的 `MUSELENS_LLM_*` 等注入后端容器（勿将含密钥的 `.env` 提交到 Git）。
+
+2. 构建并启动：
+
+   ```Bash
+   docker compose -f docker-compose.backend.yml up --build
+   ```
+
+- **后端 API**：`http://127.0.0.1:8000`（Swagger：`/docs`）；容器内目录 `COMFYUI_*` 默认指向 `/tmp/comfyui/...`，与宿主机 ComfyUI 目录无关。
+- **PostgreSQL + pgvector**：镜像 `pgvector/pgvector:pg16`；宿主机端口默认 **5433**，库名 `muselens`，默认口令见 `.env.docker.example` 中的 `MUSELENS_POSTGRES_PASSWORD`（可用环境变量覆盖）。
+- **RAG**：容器内已设置 `MUSELENS_RAG_BACKEND=pgvector`，`MUSELENS_PG_DSN` 指向同一 Postgres 服务注册透镜后可同步向量表。
+- **宿主机上的 ComfyUI**（例如本机 `8188`）：容器通过 `host.docker.internal:8188` 访问（由 `MUSELENS_COMFY_NETLOC` 控制，Linux 下 compose 已配置 `extra_hosts: host-gateway`）。
+- 镜像由 [backend/Dockerfile](backend/Dockerfile) 构建（Python 3.12 + `requirements.txt` + `requirements-dev.txt`）。构建默认使用 **清华 Debian/apt 与 PyPI 镜像**，并启用 **BuildKit 的 pip/apt 缓存**（重复 `docker compose build` 会明显更快）；需要官方 PyPI 时可在根目录 `.env` 中设置 `PIP_INDEX_URL=https://pypi.org/simple` 后再构建。
+
+在**宿主机**跑集成测试并连接 Compose 暴露的 Postgres 时，可在 shell 或本机环境变量中设置（口令与端口须与 compose / 根目录 `.env` 一致），例如：
+
+`MUSELENS_TEST_POSTGRES_DSN=postgresql://postgres:123cfx@127.0.0.1:5433/postgres`
+
+**在 Docker 后端容器里跑 pytest（推荐与线上一致）**：先 `docker compose -f docker-compose.backend.yml up -d --build`，再在仓库根目录执行：
+
+```Bash
+docker compose -f docker-compose.backend.yml exec backend python -m pytest tests/ -v
+```
+
+仅跑集成测试（`-m integration`）、排除需真实 LLM 的用例时，可先不设 `MUSELENS_TEST_REAL_LLM`。镜像已安装 `requirements-dev.txt`（含 pytest），`MUSELENS_TEST_POSTGRES_DSN` 在 compose 里指向服务名 `postgres`。
+
+本地不用容器时，可使用 Conda（例如 `conda activate Muselens`）进入 `backend` 后执行 `pip install -r requirements.txt` 与 `pip install -r requirements-dev.txt`。运行后端单测请在 **`backend` 目录下**执行：`python -m pytest tests/`，以便正确解析 `app` 包。
 
 #### 2.1 创建并激活虚拟环境
 

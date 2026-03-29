@@ -1,0 +1,46 @@
+{
+  "lens_id": "lens_flux_edit",
+  "layer": "A2",
+  "description": "A2 全局语义重绘：基于 FLUX.2 参考潜空间保留原图构图，通过提示词整体改写风格、光影与材质。",
+  "workflow_file": "lens_flux_edit.json",
+  "inputs": [
+    {
+      "name": "base_image",
+      "type": "image",
+      "mapping": { "node_id": "12", "field_name": "image" }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result_image",
+      "type": "image",
+      "mapping": { "node_id": "1", "field_name": "images" }
+    }
+  ],
+  "params": [
+    {
+      "name": "prompt",
+      "type": "text",
+      "description": "描述希望重绘后的整体视觉方向，例如风格、材质、光照和氛围。",
+      "mapping": { "node_id": "21", "field_name": "text" }
+    },
+    {
+      "name": "steps",
+      "type": "int",
+      "description": "控制采样步数，步数越高通常重绘越充分。",
+      "mapping": { "node_id": "10", "field_name": "steps" }
+    },
+    {
+      "name": "cfg",
+      "type": "float",
+      "description": "控制文本提示对生成结果的引导强度。",
+      "mapping": { "node_id": "3", "field_name": "cfg" }
+    },
+    {
+      "name": "noise_seed",
+      "type": "int",
+      "description": "控制随机种子，用于复现或探索不同细节解。",
+      "mapping": { "node_id": "2", "field_name": "noise_seed" }
+    }
+  ]
+}

@@ -1,95 +1,10 @@
 import json
 import os
 import tempfile
-import uuid
-from contextlib import contextmanager
-from urllib.parse import urlparse, urlunparse
 
-import psycopg
 import pytest
-from fastapi.testclient import TestClient
-from psycopg import sql
-from sqlalchemy.orm import sessionmaker
 
-from app.core.database import Base, create_db_engine, get_db, normalize_database_url
-from app.lenses import registry
-from app.main import app
 from app.models.lens_model import LensRecord
-
-
-def _admin_dsn() -> str:
-    dsn = os.getenv("MUSELENS_TEST_POSTGRES_DSN", "").strip()
-    if not dsn:
-        pytest.skip("set MUSELENS_TEST_POSTGRES_DSN to run PostgreSQL integration tests")
-    return dsn
-
-
-def _replace_db_name(dsn: str, db_name: str) -> str:
-    parsed = urlparse(dsn)
-    return urlunparse(parsed._replace(path=f"/{db_name}"))
-
-
-@contextmanager
-def _temporary_postgres_database():
-    admin_dsn = _admin_dsn()
-    db_name = f"muselens_test_{uuid.uuid4().hex[:8]}"
-
-    with psycopg.connect(admin_dsn, autocommit=True) as conn:
-        with conn.cursor() as cur:
-            cur.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(db_name)))
-
-    try:
-        yield _replace_db_name(admin_dsn, db_name)
-    finally:
-        with psycopg.connect(admin_dsn, autocommit=True) as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT pg_terminate_backend(pid)
-                    FROM pg_stat_activity
-                    WHERE datname = %s AND pid <> pg_backend_pid()
-                    """,
-                    (db_name,),
-                )
-                cur.execute(sql.SQL("DROP DATABASE IF EXISTS {}").format(sql.Identifier(db_name)))
-
-
-@pytest.fixture(scope="function")
-def postgres_test_db():
-    with _temporary_postgres_database() as raw_dsn:
-        sqlalchemy_url = normalize_database_url(raw_dsn)
-        engine = create_db_engine(sqlalchemy_url)
-        Base.metadata.create_all(bind=engine)
-        session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-        def override_get_db():
-            db = session_local()
-            try:
-                yield db
-            finally:
-                db.close()
-
-        app.dependency_overrides[get_db] = override_get_db
-        db = session_local()
-        try:
-            yield {
-                "raw_dsn": raw_dsn,
-                "sqlalchemy_url": sqlalchemy_url,
-                "engine": engine,
-                "session_local": session_local,
-                "db": db,
-            }
-        finally:
-            db.close()
-            app.dependency_overrides.clear()
-            registry.LENS_REGISTRY.clear()
-            registry.load_builtin_lenses_into_memory()
-            engine.dispose()
-
-
-@pytest.fixture(scope="function")
-def client(postgres_test_db):
-    return TestClient(app)
 
 
 @pytest.fixture(scope="function")

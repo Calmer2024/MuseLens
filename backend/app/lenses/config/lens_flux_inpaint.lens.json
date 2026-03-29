@@ -1,0 +1,51 @@
+{
+  "lens_id": "lens_flux_inpaint",
+  "layer": "A2",
+  "description": "A2 局部遮罩重绘：接收原图与遮罩，仅对白色遮罩区域执行 FLUX.2 重绘并保持其余区域稳定。",
+  "workflow_file": "lens_flux_inpaint.json",
+  "inputs": [
+    {
+      "name": "base_image",
+      "type": "image",
+      "mapping": { "node_id": "12", "field_name": "image" }
+    },
+    {
+      "name": "mask",
+      "type": "mask",
+      "mapping": { "node_id": "22", "field_name": "image" }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result_image",
+      "type": "image",
+      "mapping": { "node_id": "1", "field_name": "images" }
+    }
+  ],
+  "params": [
+    {
+      "name": "prompt",
+      "type": "text",
+      "description": "描述遮罩区域希望被重绘成的内容、材质和光照效果。",
+      "mapping": { "node_id": "21", "field_name": "text" }
+    },
+    {
+      "name": "steps",
+      "type": "int",
+      "description": "控制局部重绘的采样步数。",
+      "mapping": { "node_id": "10", "field_name": "steps" }
+    },
+    {
+      "name": "cfg",
+      "type": "float",
+      "description": "控制文本提示对局部重绘结果的引导强度。",
+      "mapping": { "node_id": "3", "field_name": "cfg" }
+    },
+    {
+      "name": "noise_seed",
+      "type": "int",
+      "description": "控制局部重绘的随机种子。",
+      "mapping": { "node_id": "2", "field_name": "noise_seed" }
+    }
+  ]
+}

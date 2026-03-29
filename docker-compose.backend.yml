@@ -1,14 +1,23 @@
+# MuseLens 后端 + PostgreSQL（pgvector）
+#
+# 用法（在仓库根目录）：
+#   docker compose -f docker-compose.backend.yml up --build
+#
+# Compose 会从「仓库根目录」的 .env 读取变量（可拷贝 .env.docker.example → .env）。
+# API: http://127.0.0.1:8000   文档: /docs
+# Postgres 暴露端口默认 5433，避免与本机已安装的 PostgreSQL 冲突。
+
 services:
   postgres:
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     container_name: muselens-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 123cfx
+      POSTGRES_PASSWORD: ${MUSELENS_POSTGRES_PASSWORD:-123cfx}
       POSTGRES_DB: muselens
     ports:
-      - "5433:5432"
+      - "${MUSELENS_POSTGRES_PORT:-5433}:5432"
     volumes:
       - muselens_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -21,15 +30,31 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
     container_name: muselens-backend
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
-      MUSELENS_DB_URL: postgresql+psycopg://postgres:123cfx@postgres:5432/muselens
+      # 在容器内跑 pytest 集成测试时，连接同一 compose 内的 Postgres（admin 库 postgres，需 CREATEDB）
+      MUSELENS_TEST_POSTGRES_DSN: postgresql://postgres:${MUSELENS_POSTGRES_PASSWORD:-123cfx}@postgres:5432/postgres
+      MUSELENS_DB_URL: postgresql+psycopg://postgres:${MUSELENS_POSTGRES_PASSWORD:-123cfx}@postgres:5432/muselens
+      MUSELENS_PG_DSN: postgresql://postgres:${MUSELENS_POSTGRES_PASSWORD:-123cfx}@postgres:5432/muselens
+      MUSELENS_RAG_BACKEND: pgvector
+      MUSELENS_RAG_PGVECTOR_TABLE: ${MUSELENS_RAG_PGVECTOR_TABLE:-lens_embeddings}
+      COMFYUI_OUTPUT_DIR: ${COMFYUI_OUTPUT_DIR:-/tmp/comfyui/output}
+      COMFYUI_INPUT_DIR: ${COMFYUI_INPUT_DIR:-/tmp/comfyui/input}
+      MUSELENS_COMFY_NETLOC: ${MUSELENS_COMFY_NETLOC:-host.docker.internal:8188}
+      MUSELENS_LLM_BASE_URL: ${MUSELENS_LLM_BASE_URL:-https://api.openai.com/v1}
+      MUSELENS_LLM_API_KEY: ${MUSELENS_LLM_API_KEY:-}
+      MUSELENS_LLM_MODEL: ${MUSELENS_LLM_MODEL:-}
+      MUSELENS_LLM_TIMEOUT_S: ${MUSELENS_LLM_TIMEOUT_S:-60}
     ports:
-      - "8000:8000"
+      - "${MUSELENS_BACKEND_PORT:-8000}:8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/').read()"]
       interval: 10s

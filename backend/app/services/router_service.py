@@ -33,9 +33,7 @@ from app.schemas.router import (
     RouterRouteRequest,
     RouterStatus,
 )
-from app.schemas.planner import PlannerInput, PlannerOutput, PlannerQuestion
-from app.schemas.retrieval import LensKnowledge
-from app.services.blueprint_validator import blueprint_validator
+from app.schemas.planner import PlannerQuestion
 from app.services.planner_service import PlannerService
 from app.services.rag_client import (
     BaseLensRAGClient,
@@ -44,6 +42,7 @@ from app.services.rag_client import (
     PgVectorLensRAGClient,
 )
 from app.services.retrieval_service import RetrievalService, build_task_desc
+from app.services.router_graph import invoke_router_v2_graph
 from app.services.router_session_store import router_session_store
 
 
@@ -298,107 +297,14 @@ class RouterService:
                 user_message=user_message, history_summary=sess.history_summary or ""
             )
 
-            # 3) Retrieval：只找 Lens 知识
-            lenses: List[LensKnowledge] = self._retrieval.retrieve(
-                db, task_desc=task_desc, top_k=5
-            )
-            candidates_payload = [l.model_dump() for l in lenses]
-
-            # 4) Planner：生成 blueprint + missing + questions
-            planner_input = PlannerInput(
+            # 3+) LangGraph：retrieve → plan → validate →（可选）enrich → plan → finalize
+            return invoke_router_v2_graph(
+                self,
+                db=db,
+                sess=sess,
+                req=req,
                 task_desc=task_desc,
-                base_image_meta=req.base_image_meta or (sess.base_image_meta or {}),
-                candidates=candidates_payload,
-                session_context={
-                    "collected_params": collected_params,
-                    "pending_questions": sess.pending_questions or [],
-                    "lens_history": sess.lens_history or [],
-                    "previous_blueprint": sess.pending_blueprint,
-                },
-            )
-
-            planner_out: PlannerOutput = self._planner.plan(planner_input)
-
-            # 5) 若没有 blueprint，直接失败
-            if not planner_out.blueprint:
-                router_session_store.upsert_json_fields(
-                    db,
-                    sess.session_id,
-                    collected_params=collected_params,
-                )
-                return RouterResponse(
-                    session_id=sess.session_id,
-                    status=RouterStatus.FAILED,
-                    thought_process=planner_out.thought or "Planner 未返回 blueprint。",
-                    questions=[],
-                    blueprint=None,
-                    extra={"planner": planner_out.model_dump()},
-                )
-
-            # 6) 静态校验
-            verrors = blueprint_validator.validate(
-                db, planner_out.blueprint, collected_params=collected_params
-            )
-            if verrors:
-                router_session_store.upsert_json_fields(
-                    db,
-                    sess.session_id,
-                    collected_params=collected_params,
-                )
-                return RouterResponse(
-                    session_id=sess.session_id,
-                    status=RouterStatus.FAILED,
-                    thought_process="Blueprint 静态校验失败。",
-                    questions=[],
-                    blueprint=None,
-                    extra={"validation_errors": [e.__dict__ for e in verrors]},
-                )
-
-            # 7) 追问 vs READY
-            questions: List[ClarifyQuestion] = self._to_clarify_questions(
-                planner_out.clarification_questions
-            )
-
-            if planner_out.missing_params or questions:
-                router_session_store.upsert_json_fields(
-                    db,
-                    sess.session_id,
-                    collected_params=collected_params,
-                    pending_blueprint=planner_out.blueprint.model_dump(),
-                    pending_questions=[q.model_dump() for q in questions],
-                )
-                return RouterResponse(
-                    session_id=sess.session_id,
-                    status=RouterStatus.NEED_CLARIFICATION,
-                    thought_process=planner_out.thought
-                    or "参数信息不足，需要向用户追问补齐。",
-                    questions=questions,
-                    blueprint=None,
-                    extra={"retrieved_lenses": [l.lens_id for l in lenses]},
-                )
-
-            # READY：清理 pending，记录历史
-            lens_history = list(sess.lens_history or [])
-            lens_history.append(
-                {
-                    "blueprint": planner_out.blueprint.model_dump(),
-                }
-            )
-            router_session_store.upsert_json_fields(
-                db,
-                sess.session_id,
                 collected_params=collected_params,
-                pending_blueprint=None,
-                pending_questions=[],
-                lens_history=lens_history,
-            )
-            return RouterResponse(
-                session_id=sess.session_id,
-                status=RouterStatus.READY,
-                thought_process=planner_out.thought or "已生成可执行 Blueprint。",
-                questions=[],
-                blueprint=planner_out.blueprint,
-                extra={"retrieved_lenses": [l.lens_id for l in lenses]},
             )
         except Exception as exc:
             return RouterResponse(
