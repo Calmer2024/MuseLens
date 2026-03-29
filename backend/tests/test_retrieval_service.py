@@ -86,3 +86,35 @@ def test_retrieval_enriches_catalog_and_examples(db):
     assert one.description == "测试透镜描述"
     assert one.params and one.params[0].name == "prompt"
     assert one.examples and one.examples[0].nl_desc == "把杯子换成多肉"
+
+
+def test_retrieve_by_lens_ids(db):
+    lens_id = "lens_by_ids_only"
+    db.add(
+        LensRecord(
+            lens_id=lens_id,
+            layer="A2",
+            description="按 id 拉取",
+            workflow_file_path="dummy.json",
+            inputs=[],
+            outputs=[],
+            params=[
+                {
+                    "name": "prompt",
+                    "type": "text",
+                    "description": "提示",
+                    "required": False,
+                    "mapping": {},
+                }
+            ],
+        )
+    )
+    db.commit()
+
+    service = RetrievalService(_FakeRAGClient("unrelated_lens"))
+    items = service.retrieve_by_lens_ids(db, [lens_id], score_by_id={lens_id: 0.5})
+
+    assert len(items) == 1
+    assert items[0].lens_id == lens_id
+    assert items[0].score == 0.5
+    assert items[0].params and items[0].params[0].name == "prompt"

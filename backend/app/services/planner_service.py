@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 from pathlib import Path
@@ -19,7 +19,22 @@ from app.schemas.planner import (
 
 # 让 `.env` 内的 LLM 配置在当前进程里生效，避免 os.getenv 读不到。
 # 注意：这里**只注入** MUSELENS_LLM_*，不注入数据库/pgvector，避免环境缺少 psycopg 时导致导入阶段崩溃。
-_ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+#
+# 解析顺序：
+# 1) backend/.env — 兼容旧布局与 Docker 镜像内 /app/.env
+# 2) 仓库根目录 .env — 与 docker-compose 在宿主机读取的路径一致（本地 `backend/` 下跑 uvicorn 时可用）
+def _resolve_llm_dotenv_path() -> Path:
+    here = Path(__file__).resolve()
+    backend_root = here.parents[2] / ".env"
+    if backend_root.is_file():
+        return backend_root
+    repo_root = here.parents[3] / ".env"
+    if here.parents[3] != Path("/") and repo_root.is_file():
+        return repo_root
+    return backend_root
+
+
+_ENV_PATH = _resolve_llm_dotenv_path()
 _LLM_ENV_KEYS = {
     "MUSELENS_LLM_BASE_URL",
     "MUSELENS_LLM_API_KEY",
@@ -154,6 +169,23 @@ class MockPlannerService:
 
     def plan(self, planner_input: PlannerInput) -> PlannerOutput:
         return self._output
+
+    def is_configured(self) -> bool:
+        return True
+
+
+class SequenceMockPlannerService:
+    """测试用：按调用顺序依次返回多条 PlannerOutput（用于 enrich 二次 plan）。"""
+
+    def __init__(self, outputs: List[PlannerOutput]) -> None:
+        self._outputs = list(outputs)
+        self._idx = 0
+
+    def plan(self, planner_input: PlannerInput) -> PlannerOutput:
+        out = self._outputs[self._idx]
+        if self._idx < len(self._outputs) - 1:
+            self._idx += 1
+        return out
 
     def is_configured(self) -> bool:
         return True

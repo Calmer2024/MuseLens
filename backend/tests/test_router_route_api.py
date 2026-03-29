@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+from typing import List
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,7 +14,8 @@ from app.lenses import registry
 from app.main import app
 from app.schemas.lens import DAGBlueprint, DAGStep
 from app.schemas.planner import MissingParam, PlannerOutput, PlannerParamRef, PlannerQuestion
-from app.services.planner_service import MockPlannerService
+from app.schemas.router import RouterRouteRequest, RouterStatus
+from app.services.planner_service import MockPlannerService, SequenceMockPlannerService
 from app.services.retrieval_service import RetrievalService
 from app.services.router_service import RouterService
 
@@ -340,4 +342,113 @@ def test_route_endpoint_reads_lens_examples_from_register_api(
     assert body2["status"] == "ready"
     assert body2["blueprint"] is not None
     assert lens_id in (body2["extra"].get("retrieved_lenses") or [])
+
+
+class _RecordingSequencePlanner(SequenceMockPlannerService):
+    """记录每次 plan 的 PlannerInput，用于断言 enrich 后第二轮 candidates。"""
+
+    def __init__(self, outputs: List[PlannerOutput]) -> None:
+        super().__init__(outputs)
+        self.inputs: List = []
+
+    def plan(self, planner_input):
+        self.inputs.append(planner_input)
+        return super().plan(planner_input)
+
+
+def test_route_skill_enrich_on_missing_params_reloads_candidates(test_db, workflow_file):
+    """
+    首轮 Planner 报 missing_params 时触发 enrich，第二轮 Planner 输入的 candidates
+    应包含该 lens 的 params（来自 retrieve_by_lens_ids）；第二次 plan 返回 READY。
+    """
+    lens_id = "lens_enrich_skill"
+
+    registry.register_lens(
+        test_db,
+        {
+            "lens_id": lens_id,
+            "layer": "A2",
+            "description": "需要 prompt",
+            "workflow_file_path": workflow_file,
+            "inputs": [
+                {
+                    "name": "base_image",
+                    "type": "image",
+                    "mapping": {"node_id": "1", "field_name": "image"},
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "result_image",
+                    "type": "image",
+                    "mapping": {"node_id": "1", "field_name": "images"},
+                }
+            ],
+            "params": [
+                {
+                    "name": "prompt",
+                    "type": "text",
+                    "description": "",
+                    "mapping": {"node_id": "1", "field_name": "text"},
+                }
+            ],
+        },
+    )
+
+    blueprint_round1 = DAGBlueprint(
+        initial_inputs={"user_base_image": "upload.png"},
+        steps=[
+            DAGStep(
+                step_id="s1",
+                lens_id=lens_id,
+                input_links={"base_image": "$user_base_image"},
+                params={},
+            )
+        ],
+    )
+    out1 = PlannerOutput(
+        blueprint=blueprint_round1,
+        missing_params=[MissingParam(lens_id=lens_id, param_name="prompt", reason="缺参")],
+        clarification_questions=[
+            PlannerQuestion(
+                param_ref=PlannerParamRef(lens_id=lens_id, param_name="prompt"),
+                question_text="请输入 prompt",
+                required=True,
+            )
+        ],
+        thought="round1",
+    )
+    out2 = PlannerOutput(
+        blueprint=DAGBlueprint(
+            initial_inputs={"user_base_image": "upload.png"},
+            steps=[
+                DAGStep(
+                    step_id="s1",
+                    lens_id=lens_id,
+                    input_links={"base_image": "$user_base_image"},
+                    params={"prompt": "一盆多肉"},
+                )
+            ],
+        ),
+        missing_params=[],
+        clarification_questions=[],
+        thought="round2",
+    )
+
+    planner = _RecordingSequencePlanner([out1, out2])
+    rag = _FakeRAGClient(lens_id)
+    retrieval = RetrievalService(rag)
+    service = RouterService(rag_client=rag, retrieval=retrieval, planner=planner)  # type: ignore[arg-type]
+
+    resp = service.route_with_db(
+        RouterRouteRequest(user_id="u1", user_message="帮我改图", base_image="upload.png"),
+        db=test_db,
+    )
+
+    assert resp.status == RouterStatus.READY
+    assert resp.blueprint is not None
+    assert len(planner.inputs) == 2
+    cand = next(c for c in planner.inputs[1].candidates if c.get("lens_id") == lens_id)
+    param_names = [p.get("name") for p in (cand.get("params") or [])]
+    assert "prompt" in param_names
 

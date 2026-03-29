@@ -17,8 +17,8 @@ import websockets
 
 logger = logging.getLogger(__name__)
 
-# ComfyUI 地址
-COMFY_URL = "127.0.0.1:8188"
+# ComfyUI 地址（Docker 内用 host.docker.internal:8188 指向宿主机）
+COMFY_URL = os.environ.get("MUSELENS_COMFY_NETLOC", "127.0.0.1:8188").strip()
 SERVER_ADDRESS = f"http://{COMFY_URL}"
 WS_ADDRESS = f"ws://{COMFY_URL}/ws?clientId="
 
