@@ -1,3 +1,5 @@
+.cursor
+
 # Python / Backend
 backend/venv/
 backend/app/__pycache__/
@@ -15,3 +17,5 @@ frontend/ios/Pods/
 
 # vscode/
 .vscode/
+
+*.db

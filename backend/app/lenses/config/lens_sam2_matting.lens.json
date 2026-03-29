@@ -1,0 +1,28 @@
+{
+  "lens_id": "lens_sam2_matting",
+  "layer": "A1",
+  "description": "A1 视觉解析：基于 Grounding DINO + SAM2 的指定目标抠图，输出遮罩",
+  "workflow_file": "lens_sam2_matting .json",
+  "inputs": [
+    {
+      "name": "base_image",
+      "type": "image",
+      "mapping": { "node_id": "1", "field_name": "image" }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "mask_result",
+      "type": "image",
+      "mapping": { "node_id": "14", "field_name": "images" }
+    }
+  ],
+  "params": [
+    {
+      "name": "prompt",
+      "type": "text",
+      "description": "要分割的目标物体描述，例如 'Woman'、'水杯'",
+      "mapping": { "node_id": "8", "field_name": "prompt" }
+    }
+  ]
+}
