@@ -140,8 +140,8 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 32),
 
               // --- 2. 最近使用 ---
-              _buildSectionHeader(context, title: "最近使用", showViewAll: false),
-              const SizedBox(height: 16),
+              _buildSectionHeader(context, title: "最近使用", onTapViewAll: () {}),
+              const SizedBox(height: 12),
               SizedBox(
                 height: 160,
                 child: ListView.builder(
@@ -158,7 +158,7 @@ class HomeScreen extends StatelessWidget {
 
               // --- 3. 热门创作 ---
               _buildSectionHeader(context, title: "热门创作", onTapViewAll: () {}),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -178,7 +178,7 @@ class HomeScreen extends StatelessWidget {
 
               // --- 4. 话题与挑战 ---
               _buildSectionHeader(context, title: "话题与挑战", onTapViewAll: () {}),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -211,7 +211,7 @@ class HomeScreen extends StatelessWidget {
         Text(
           title,
           style: const TextStyle(
-            fontSize: 18,
+            fontSize: 14,
             fontWeight: FontWeight.bold,
             color: Color(0xFF1E1E1E),
           ),

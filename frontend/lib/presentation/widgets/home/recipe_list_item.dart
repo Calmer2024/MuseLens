@@ -11,10 +11,10 @@ class RecipeListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 140, // 原型图中是偏方形的
-      margin: const EdgeInsets.only(right: 16),
+      width: 120, // 原型图中是偏方形的
+      margin: const EdgeInsets.only(right: 8),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(6),
         color: Colors.transparent,
       ),
       child: Stack(
@@ -22,7 +22,7 @@ class RecipeListItem extends StatelessWidget {
         children: [
           // 图片背景
           ClipRRect(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(6),
             child: ShaderMask(
               shaderCallback: (rect) {
                 return const LinearGradient(
