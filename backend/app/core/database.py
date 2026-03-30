@@ -79,6 +79,7 @@ def get_db():
 def init_db() -> None:
     """Create all ORM tables if they do not already exist."""
     from app.models import asset_tree_models  # noqa: F401
+    from app.models import chat_models  # noqa: F401
     from app.models import community_models  # noqa: F401
     from app.models import lens_example_model  # noqa: F401
     from app.models import lens_model  # noqa: F401
