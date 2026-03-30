@@ -69,7 +69,6 @@ class PlannerService:
             raise RuntimeError("PlannerService 需要配置 MUSELENS_LLM_API_KEY 和 MUSELENS_LLM_MODEL")
 
         system = _build_planner_system_prompt()
-
         user = {
             "task_desc": planner_input.task_desc,
             "base_image_meta": planner_input.base_image_meta,
@@ -153,11 +152,6 @@ class SequenceMockPlannerService:
 
 
 def _fallback_missing_questions(out: PlannerOutput, planner_input: PlannerInput) -> PlannerOutput:
-    """
-    Conservative fallback:
-    - if the LLM clearly indicates incompatibility/no suitable lens, do not fabricate a question
-    - only synthesize a clarification question when a candidate has non-trivial lexical compatibility
-    """
     if _planner_thought_indicates_incompatibility(out.thought):
         return out
 
@@ -224,7 +218,6 @@ def _pick_fallback_candidate(planner_input: PlannerInput) -> tuple[str, str] | N
         candidate_tokens = set(tokenize_text(_candidate_text(cand)))
         overlap = len(query_tokens & candidate_tokens)
         score = float(cand.get("score") or 0.0) + overlap
-
         if overlap <= 0:
             continue
 
@@ -253,7 +246,16 @@ def _candidate_text(cand: Dict[str, Any]) -> str:
         str(cand.get("lens_id") or ""),
         str(cand.get("layer") or ""),
         str(cand.get("description") or ""),
+        str(cand.get("notes") or ""),
     ]
+
+    for asset in cand.get("inputs") or []:
+        parts.append(str(asset.get("name") or ""))
+        parts.append(str(asset.get("type") or ""))
+
+    for asset in cand.get("outputs") or []:
+        parts.append(str(asset.get("name") or ""))
+        parts.append(str(asset.get("type") or ""))
 
     for p in cand.get("params") or []:
         parts.append(str(p.get("name") or ""))
@@ -270,33 +272,36 @@ def _candidate_text(cand: Dict[str, Any]) -> str:
 
 def _build_planner_system_prompt() -> str:
     return (
-        "你是 MuseLens 的 Planner（智能编排器）。\n"
-        "你将收到：用户任务描述 task_desc、候选 Lens 列表 candidates（含 layer、description、inputs、outputs、params、examples）、以及会话上下文 session_context。\n"
-        "你的目标：仅从 candidates 中选择合适的 Lens，生成可执行 DAGBlueprint，并填充参数；若信息不足，则返回 clarification_questions 与 missing_params。\n"
+        "You are the MuseLens Planner.\n"
+        "You receive task_desc, candidates, and session_context.\n"
+        "Each candidate may include layer, description, notes, inputs, outputs, params, and examples.\n"
+        "Your job is to select only from the provided candidates and return a valid structured plan.\n"
         "\n"
-        "关于透镜库的全局职责分层：\n"
-        "- A1 通常是视觉解析/约束提取层：负责从原图中提取 mask、depth、canny、pose 等中间资产，不直接完成最终生成。\n"
-        "- A2 通常是像素修改与语义重构层：负责 text2image、global edit、reference edit、inpaint 等生成或重绘任务。\n"
-        "- A3 通常是光影/光学层：负责 relighting、depth of field 等物理或视觉效果重构。\n"
-        "- A4 通常是风格化层：负责 style transfer、LoRA filter 等风格映射。\n"
-        "- A5 通常是终端交付层：负责 watermark、upscale 等收尾和交付处理。\n"
+        "Global library rules:\n"
+        "- A1 usually extracts intermediate constraints such as mask, depth, canny, pose.\n"
+        "- A2 usually performs image generation or semantic editing such as text2image, global edit, reference edit, inpaint.\n"
+        "- A3 usually performs relighting or optical effects.\n"
+        "- A4 usually performs style transfer or LoRA-based stylization.\n"
+        "- A5 usually performs delivery-stage operations such as watermark or upscale.\n"
         "\n"
-        "编排原则：\n"
-        "- 如果单个 Lens 无法完成任务，优先组合多个 Lens 形成多步 DAG，而不是过早 failed。\n"
-        "- 如果某个候选 Lens 的 inputs 依赖 mask、depth_map、canny_map、pose_map 等中间资产，应优先在 candidates 中寻找能产出对应 outputs 的上游 Lens。\n"
-        "- 优先依据 inputs/outputs 资产兼容性来决定串联关系，而不是只看 layer 名称。\n"
-        "- 对“局部替换、只改某个对象、替换主体、补画局部”一类任务，优先考虑『解析/提取约束资产 + 局部重绘』的链式方案。\n"
-        "- 对“全局风格、整体光影、整体材质、整体氛围”一类任务，优先考虑单步全局编辑或风格化 Lens；仅在确有必要时再增加上游约束 Lens。\n"
-        "- 对“最终交付、版权、水印、放大”一类任务，优先放在链路末端作为后处理步骤，而不是主编辑步骤。\n"
+        "Planning rules:\n"
+        "- If one lens is insufficient, prefer a multi-step DAG rather than failing early.\n"
+        "- If a candidate depends on assets like mask, depth_map, canny_map, or pose_map, first look for upstream candidates whose outputs can provide those assets.\n"
+        "- Prefer chaining by asset compatibility using inputs and outputs, not just by layer names.\n"
+        "- For local replacement, subject replacement, replace-only-this-object, or partial repaint tasks, prefer a pipeline like constraint extraction plus local inpaint.\n"
+        "- For global style, global lighting, global material, or global mood tasks, prefer a single global edit or style lens unless extra constraints are clearly needed.\n"
+        "- For final delivery tasks such as watermark or upscale, place them near the end of the chain rather than as the main edit step.\n"
+        "- candidates.notes comes from the lens documentation body and may contain usage boundaries, failure modes, and handoff guidance; use it actively.\n"
         "\n"
-        "追问原则：\n"
-        "- 只有在存在合适 Lens 但关键参数不足时，才提出 clarification_questions。\n"
-        "- 如果用户意图已经足以确定步骤，只缺少具体参数值，应直接追问参数，不要先 failed。\n"
-        "- 如果 candidates 确实不足以完成任务，才返回 failed；failed 时不要伪造不相关 Lens 的参数追问。\n"
+        "Clarification rules:\n"
+        "- Ask clarification questions only when suitable candidates exist but important parameters are missing.\n"
+        "- If the task can be planned and only parameter values are missing, ask for those values instead of failing.\n"
+        "- Fail only when the candidates are truly insufficient.\n"
+        "- When failing, do not invent unrelated clarification questions for a mismatched lens.\n"
         "\n"
-        "严格要求：\n"
-        "- 只能使用 candidates 中出现的 lens_id，不得虚构 Lens。\n"
-        "- 只能使用候选 Lens 的 params schema 中存在的参数名，不得虚构参数。\n"
-        "- 如果返回 blueprint，steps 必须满足资产依赖自洽：下游 input_links 只能引用 initial_inputs 或上游 step.outputs。\n"
-        "- 只输出结构化 JSON。"
+        "Strict rules:\n"
+        "- Only use lens_id values that appear in candidates.\n"
+        "- Only use parameter names that appear in the chosen candidate params schema.\n"
+        "- If you return a blueprint, asset dependencies must be valid: each input_link must reference initial_inputs or an upstream step output.\n"
+        "- Output structured JSON only."
     )

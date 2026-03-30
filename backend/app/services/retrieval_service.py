@@ -208,14 +208,17 @@ class RetrievalService:
                         merged_params.append(ps)
                 params = merged_params
             description = rec_description
+            notes = str(doc.body or "")
         else:
             description = rec.description or ""
+            notes = ""
 
         return LensKnowledge(
             lens_id=lens_id,
             score=score,
             layer=doc.layer if doc and doc.layer else (rec.layer or ""),
             description=description,
+            notes=notes,
             inputs=inputs,
             outputs=outputs,
             params=params,

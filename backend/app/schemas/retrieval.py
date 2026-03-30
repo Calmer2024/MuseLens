@@ -31,6 +31,7 @@ class LensKnowledge(BaseModel):
     score: float = 0.0
     layer: str = ""
     description: str = ""
+    notes: str = ""
     inputs: List[LensAssetSchema] = Field(default_factory=list)
     outputs: List[LensAssetSchema] = Field(default_factory=list)
     params: List[LensParamSchema] = Field(default_factory=list)
