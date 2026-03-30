@@ -6,15 +6,17 @@ class CommunityLocalStore {
   final SharedPreferences _prefs;
 
   static String _likedPostsKey(int userId) => 'community_liked_posts_$userId';
-  static String _favoritePostsKey(int userId) => 'community_favorite_posts_$userId';
-  static String _likedCommentsKey(int userId) => 'community_liked_comments_$userId';
+  static String _favoritePostsKey(int userId) =>
+      'community_favorite_posts_$userId';
+  static String _likedCommentsKey(int userId) =>
+      'community_liked_comments_$userId';
 
   Set<int> getLikedPostIds(int userId) {
     return _prefs
-        .getStringList(_likedPostsKey(userId))
-        ?.map(int.tryParse)
-        .whereType<int>()
-        .toSet() ??
+            .getStringList(_likedPostsKey(userId))
+            ?.map(int.tryParse)
+            .whereType<int>()
+            .toSet() ??
         <int>{};
   }
 
@@ -54,10 +56,10 @@ class CommunityLocalStore {
 
   Set<int> getLikedCommentIds(int userId) {
     return _prefs
-        .getStringList(_likedCommentsKey(userId))
-        ?.map(int.tryParse)
-        .whereType<int>()
-        .toSet() ??
+            .getStringList(_likedCommentsKey(userId))
+            ?.map(int.tryParse)
+            .whereType<int>()
+            .toSet() ??
         <int>{};
   }
 
@@ -72,5 +74,10 @@ class CommunityLocalStore {
       _likedCommentsKey(userId),
       ids.map((item) => item.toString()).toList(),
     );
+  }
+
+  Future<void> removePostState(int userId, int postId) async {
+    await setPostLiked(userId, postId, false);
+    await setPostFavorited(userId, postId, false);
   }
 }

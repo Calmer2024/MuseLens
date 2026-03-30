@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -11,6 +12,7 @@ import '../../../data/models/user_model.dart';
 
 import '../../../data/models/community_models.dart';
 import '../../../data/models/market_models.dart';
+import '../../../data/repositories/community_repository.dart';
 import '../community/community_post_detail_screen.dart';
 import '../lens/market_lens_detail_screen.dart';
 import '../library/my_library_screen.dart';
@@ -36,6 +38,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   // 当前选中的 Tab 索引: 0=My Lens, 1=My Post, 2=Favorite
   int _currentTab = 0;
+  final Set<int> _deletingPostIds = <int>{};
 
   void _openLoginScreen() {
     Navigator.of(
@@ -93,6 +96,69 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     if (confirmed == true) {
       await ref.read(authProvider.notifier).logout();
+    }
+  }
+
+  Future<void> _deleteOwnPost(CommunityPostView post) async {
+    final user = ref.read(authProvider);
+    if (user == null) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('删除帖子'),
+        content: Text('确认删除“${post.displayTitle}”吗？删除后无法恢复。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text(
+              '确认删除',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    setState(() => _deletingPostIds.add(post.post.postId));
+    try {
+      await ref
+          .read(communityRepositoryProvider)
+          .deletePost(postId: post.post.postId, userId: user.userId);
+      ref.invalidate(communityPostDetailProvider);
+      ref.invalidate(communityPostsProvider);
+      ref.invalidate(communityFavoritePostsProvider);
+      ref.invalidate(communityTagsProvider);
+      ref.invalidate(userDetailProvider(user.userId));
+      await ref.read(authProvider.notifier).refreshUser();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('帖子已删除')));
+    } on DioException catch (error) {
+      if (!mounted) return;
+      final data = error.response?.data;
+      final message = data is Map<String, dynamic> && data['detail'] != null
+          ? data['detail'].toString()
+          : (error.message ?? '删除失败，请稍后重试');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) {
+        setState(() => _deletingPostIds.remove(post.post.postId));
+      }
     }
   }
 
@@ -158,8 +224,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final followersAsync = ref.watch(followersProvider(user.userId));
     final followingAsync = ref.watch(followingProvider(user.userId));
     final liveUser = liveUserAsync.value ?? user;
-    final followerCount = followersAsync.value?.length ?? liveUser.followerCount;
-    final followingCount = followingAsync.value?.length ?? liveUser.followingCount;
+    final followerCount =
+        followersAsync.value?.length ?? liveUser.followerCount;
+    final followingCount =
+        followingAsync.value?.length ?? liveUser.followingCount;
 
     return Column(
       children: [
@@ -175,7 +243,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 color: Colors.grey.shade100,
-                image: liveUser.bannerUrl != null && liveUser.bannerUrl!.isNotEmpty
+                image:
+                    liveUser.bannerUrl != null && liveUser.bannerUrl!.isNotEmpty
                     ? DecorationImage(
                         image: _getImageProvider(liveUser.bannerUrl!),
                         fit: BoxFit.cover,
@@ -222,7 +291,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     radius: 46,
                     backgroundColor: Colors.grey.shade200,
                     backgroundImage:
-                        liveUser.avatarUrl != null && liveUser.avatarUrl!.isNotEmpty
+                        liveUser.avatarUrl != null &&
+                            liveUser.avatarUrl!.isNotEmpty
                         ? _getImageProvider(liveUser.avatarUrl!)
                         : const AssetImage('assets/images/profile.png'),
                   ),
@@ -734,7 +804,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ),
       );
       return postsAsync.when(
-        data: (posts) => _buildPostGrid(posts, emptyText: '你还没有发布过帖子'),
+        data: (posts) =>
+            _buildPostGrid(posts, emptyText: '你还没有发布过帖子', allowDelete: true),
         loading: () => const Padding(
           padding: EdgeInsets.symmetric(vertical: 40),
           child: Center(child: CircularProgressIndicator()),
@@ -757,6 +828,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget _buildPostGrid(
     List<CommunityPostView> posts, {
     required String emptyText,
+    bool allowDelete = false,
   }) {
     if (posts.isEmpty) {
       return Padding(
@@ -784,11 +856,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         final post = posts[index];
         return CommunityPostCard(
           post: post,
+          onMenuTap: allowDelete && !_deletingPostIds.contains(post.post.postId)
+              ? () => _deleteOwnPost(post)
+              : null,
           onAuthorTap: () {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => UserDetailScreen(userId: post.author.userId),
+                builder: (context) =>
+                    UserDetailScreen(userId: post.author.userId),
               ),
             );
           },

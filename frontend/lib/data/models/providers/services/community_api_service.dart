@@ -8,10 +8,7 @@ class CommunityApiService {
   static const String _basePath = '/api/v1/community';
 
   Future<CommunityPost> createPost(CreatePostInput input) async {
-    final response = await _dio.post(
-      '$_basePath/posts',
-      data: input.toJson(),
-    );
+    final response = await _dio.post('$_basePath/posts', data: input.toJson());
     return CommunityPost.fromJson(response.data as Map<String, dynamic>);
   }
 
@@ -24,7 +21,8 @@ class CommunityApiService {
       '$_basePath/posts',
       queryParameters: {
         if (userId != null) 'user_id': userId,
-        if (tagName != null && tagName.trim().isNotEmpty) 'tag_name': tagName.trim(),
+        if (tagName != null && tagName.trim().isNotEmpty)
+          'tag_name': tagName.trim(),
         'only_public': onlyPublic,
       },
     );
@@ -36,6 +34,10 @@ class CommunityApiService {
   Future<CommunityPost> getPostDetail(int postId) async {
     final response = await _dio.get('$_basePath/posts/$postId');
     return CommunityPost.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<void> deletePost({required int postId, required int userId}) async {
+    await _dio.delete('$_basePath/posts/$postId', data: {'user_id': userId});
   }
 
   Future<CommunityComment> createComment({
@@ -63,30 +65,18 @@ class CommunityApiService {
         .toList();
   }
 
-  Future<void> likePost({
-    required int postId,
-    required int userId,
-  }) async {
-    await _dio.post(
-      '$_basePath/posts/$postId/like',
-      data: {'user_id': userId},
-    );
+  Future<void> likePost({required int postId, required int userId}) async {
+    await _dio.post('$_basePath/posts/$postId/like', data: {'user_id': userId});
   }
 
-  Future<void> unlikePost({
-    required int postId,
-    required int userId,
-  }) async {
+  Future<void> unlikePost({required int postId, required int userId}) async {
     await _dio.delete(
       '$_basePath/posts/$postId/like',
       data: {'user_id': userId},
     );
   }
 
-  Future<void> favoritePost({
-    required int postId,
-    required int userId,
-  }) async {
+  Future<void> favoritePost({required int postId, required int userId}) async {
     await _dio.post(
       '$_basePath/posts/$postId/favorite',
       data: {'user_id': userId},

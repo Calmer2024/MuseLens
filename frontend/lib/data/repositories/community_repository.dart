@@ -28,9 +28,9 @@ class CommunityRepository {
     required CommunityApiService apiService,
     required UserApiService userApiService,
     required CommunityLocalStore localStore,
-  })  : _apiService = apiService,
-        _userApiService = userApiService,
-        _localStore = localStore;
+  }) : _apiService = apiService,
+       _userApiService = userApiService,
+       _localStore = localStore;
 
   final CommunityApiService _apiService;
   final UserApiService _userApiService;
@@ -64,11 +64,9 @@ class CommunityRepository {
     ]);
     final post = results[0] as CommunityPost;
     final comments = results[1] as List<CommunityComment>;
-    final hydratedPost = (await _hydratePosts(
-      [post],
-      actingUserId: actingUserId,
-    ))
-        .first;
+    final hydratedPost = (await _hydratePosts([
+      post,
+    ], actingUserId: actingUserId)).first;
     final hydratedComments = await _hydrateComments(
       comments,
       actingUserId: actingUserId,
@@ -84,11 +82,14 @@ class CommunityRepository {
     int? actingUserId,
   }) async {
     final post = await _apiService.createPost(input);
-    return (await _hydratePosts(
-      [post],
-      actingUserId: actingUserId ?? input.userId,
-    ))
-        .first;
+    return (await _hydratePosts([
+      post,
+    ], actingUserId: actingUserId ?? input.userId)).first;
+  }
+
+  Future<void> deletePost({required int postId, required int userId}) async {
+    await _apiService.deletePost(postId: postId, userId: userId);
+    await _localStore.removePostState(userId, postId);
   }
 
   Future<void> setPostLiked({
@@ -158,7 +159,9 @@ class CommunityRepository {
       for (final post in listedPosts) post.postId: post,
     };
 
-    final missingIds = favoriteIds.where((id) => !listedById.containsKey(id)).toList();
+    final missingIds = favoriteIds
+        .where((id) => !listedById.containsKey(id))
+        .toList();
     for (final postId in missingIds) {
       try {
         listedById[postId] = await _apiService.getPostDetail(postId);
@@ -180,8 +183,9 @@ class CommunityRepository {
       for (var i = 0; i < favoriteIds.length; i++) favoriteIds[i]: i,
     };
     hydratedPosts.sort(
-      (a, b) => (orderMap[a.post.postId] ?? 99999)
-          .compareTo(orderMap[b.post.postId] ?? 99999),
+      (a, b) => (orderMap[a.post.postId] ?? 99999).compareTo(
+        orderMap[b.post.postId] ?? 99999,
+      ),
     );
     return hydratedPosts;
   }
@@ -202,7 +206,9 @@ class CommunityRepository {
         .map(
           (post) => CommunityPostView(
             post: post,
-            author: authors[post.userId] ?? CommunityAuthor.placeholder(post.userId),
+            author:
+                authors[post.userId] ??
+                CommunityAuthor.placeholder(post.userId),
             isLiked: likedPosts.contains(post.postId),
             isFavorited: favoritedPosts.contains(post.postId),
           ),
@@ -225,7 +231,9 @@ class CommunityRepository {
     for (final comment in comments) {
       final view = CommunityCommentView(
         comment: comment,
-        author: authors[comment.userId] ?? CommunityAuthor.placeholder(comment.userId),
+        author:
+            authors[comment.userId] ??
+            CommunityAuthor.placeholder(comment.userId),
         isLiked: likedComments.contains(comment.commentId),
         replies: const [],
       );
@@ -233,7 +241,9 @@ class CommunityRepository {
       if (comment.parentId == null) {
         roots.add(view);
       } else {
-        replyMap.putIfAbsent(comment.parentId!, () => <CommunityCommentView>[]).add(view);
+        replyMap
+            .putIfAbsent(comment.parentId!, () => <CommunityCommentView>[])
+            .add(view);
       }
     }
 

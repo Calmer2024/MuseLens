@@ -4,18 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ecaa38ef-164a-450d-a163-5447dd1d1afc" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/frontend/assets/images/profile.jpg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/lib/core/providers/user_provider.dart" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/core/providers/user_provider.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/lib/presentation/navigation/main_wrapper.dart" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/presentation/navigation/main_wrapper.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/lib/presentation/screens/community/community_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/presentation/screens/community/community_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/lib/presentation/screens/community/search_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/presentation/screens/community/search_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/lib/presentation/screens/editor/editor_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/presentation/screens/editor/editor_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/lib/presentation/screens/profile/edit_profile_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/presentation/screens/profile/edit_profile_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/lib/presentation/screens/profile/profile_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/presentation/screens/profile/profile_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/lib/presentation/widgets/community/community_post_card.dart" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/lib/presentation/widgets/community/community_post_card.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/macos/Flutter/GeneratedPluginRegistrant.swift" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/macos/Flutter/GeneratedPluginRegistrant.swift" afterDir="false" />
-    </list>
+    <list default="true" id="ecaa38ef-164a-450d-a163-5447dd1d1afc" name="更改" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

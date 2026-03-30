@@ -10,11 +10,13 @@ class CommunityPostCard extends StatelessWidget {
     required this.post,
     this.onTap,
     this.onAuthorTap,
+    this.onMenuTap,
   });
 
   final CommunityPostView post;
   final VoidCallback? onTap;
   final VoidCallback? onAuthorTap;
+  final VoidCallback? onMenuTap;
 
   @override
   Widget build(BuildContext context) {
@@ -33,114 +35,162 @@ class CommunityPostCard extends StatelessWidget {
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
           children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              child: _buildCoverImage(),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (post.post.title != null && post.post.title!.trim().isNotEmpty) ...[
-                    Text(
-                      post.post.title!.trim(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.black87,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                  ],
-                  Text(
-                    post.post.content.trim().isEmpty ? '这条帖子还没有正文内容' : post.post.content,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.black.withOpacity(0.72),
-                      fontSize: 13,
-                      height: 1.45,
-                    ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(20),
                   ),
-                  if (post.post.tags.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: post.post.tags.take(3).map((tag) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppTheme.electricIndigo.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            '#${tag.name}',
-                            style: const TextStyle(
-                              color: AppTheme.electricIndigo,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                  const SizedBox(height: 14),
-                  Row(
+                  child: _buildCoverImage(),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: onAuthorTap,
-                          behavior: HitTestBehavior.opaque,
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 10,
-                                backgroundColor: Colors.grey.shade200,
-                                backgroundImage: _getAvatarProvider(post.author.avatarUrl),
-                                child: post.author.avatarUrl == null || post.author.avatarUrl!.trim().isEmpty
-                                    ? const Icon(Icons.person, size: 12, color: Colors.black38)
-                                    : null,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  post.author.displayName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.black.withOpacity(0.58),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
+                      if (post.post.title != null &&
+                          post.post.title!.trim().isNotEmpty) ...[
+                        Text(
+                          post.post.title!.trim(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.black87,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
+                        const SizedBox(height: 6),
+                      ],
+                      Text(
+                        post.post.content.trim().isEmpty
+                            ? '这条帖子还没有正文内容'
+                            : post.post.content,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.black.withOpacity(0.72),
+                          fontSize: 13,
+                          height: 1.45,
+                        ),
                       ),
-                      _MetricChip(
-                        icon: post.isLiked ? Icons.favorite : Icons.favorite_border,
-                        label: _formatCount(post.post.likeCount),
-                        active: post.isLiked,
-                      ),
-                      const SizedBox(width: 6),
-                      _MetricChip(
-                        icon: Icons.chat_bubble_outline,
-                        label: _formatCount(post.post.commentCount),
+                      if (post.post.tags.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: post.post.tags.take(3).map((tag) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppTheme.electricIndigo.withOpacity(
+                                  0.08,
+                                ),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                '#${tag.name}',
+                                style: const TextStyle(
+                                  color: AppTheme.electricIndigo,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: onAuthorTap,
+                              behavior: HitTestBehavior.opaque,
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 10,
+                                    backgroundColor: Colors.grey.shade200,
+                                    backgroundImage: _getAvatarProvider(
+                                      post.author.avatarUrl,
+                                    ),
+                                    child:
+                                        post.author.avatarUrl == null ||
+                                            post.author.avatarUrl!
+                                                .trim()
+                                                .isEmpty
+                                        ? const Icon(
+                                            Icons.person,
+                                            size: 12,
+                                            color: Colors.black38,
+                                          )
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      post.author.displayName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.black.withOpacity(0.58),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          _MetricChip(
+                            icon: post.isLiked
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                            label: _formatCount(post.post.likeCount),
+                            active: post.isLiked,
+                          ),
+                          const SizedBox(width: 6),
+                          _MetricChip(
+                            icon: Icons.chat_bubble_outline,
+                            label: _formatCount(post.post.commentCount),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
+            if (onMenuTap != null)
+              Positioned(
+                top: 10,
+                right: 10,
+                child: Material(
+                  color: Colors.white.withOpacity(0.94),
+                  shape: const CircleBorder(),
+                  elevation: 2,
+                  child: InkWell(
+                    onTap: onMenuTap,
+                    customBorder: const CircleBorder(),
+                    child: const Padding(
+                      padding: EdgeInsets.all(6),
+                      child: Icon(
+                        Icons.more_horiz_rounded,
+                        size: 18,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -161,7 +211,11 @@ class CommunityPostCard extends StatelessWidget {
     final placeholder = Container(
       color: Colors.grey.shade100,
       child: const Center(
-        child: Icon(Icons.broken_image_outlined, color: Colors.black26, size: 30),
+        child: Icon(
+          Icons.broken_image_outlined,
+          color: Colors.black26,
+          size: 30,
+        ),
       ),
     );
 
@@ -192,10 +246,7 @@ class CommunityPostCard extends StatelessWidget {
       return image;
     }
 
-    return AspectRatio(
-      aspectRatio: aspectRatio,
-      child: image,
-    );
+    return AspectRatio(aspectRatio: aspectRatio, child: image);
   }
 
   String _formatCount(int value) {
@@ -230,7 +281,9 @@ class _MetricChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: active ? AppTheme.electricIndigo.withOpacity(0.08) : Colors.grey.shade100,
+        color: active
+            ? AppTheme.electricIndigo.withOpacity(0.08)
+            : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(

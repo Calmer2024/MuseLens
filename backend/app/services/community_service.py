@@ -106,6 +106,69 @@ def create_post(
     return post
 
 
+def delete_post(db: Session, *, post_id: int, user_id: int) -> bool:
+    post = get_post(db, post_id)
+    if not post:
+        raise ValueError(f"帖子不存在：{post_id}")
+
+    acting_user = db.query(User).filter(User.user_id == user_id).first()
+    if not acting_user:
+        raise ValueError(f"用户不存在：{user_id}")
+
+    if post.user_id != user_id:
+        raise PermissionError("只能删除自己的帖子")
+
+    tags = list_post_tags(db, post_id)
+    for tag in tags:
+        tag.post_count = max(0, tag.post_count - 1)
+
+    owner = db.query(User).filter(User.user_id == post.user_id).first()
+    if owner:
+        owner.total_likes = max(0, owner.total_likes - post.like_count)
+
+    comments = list_comments(db, post_id)
+    comment_like_deductions: Dict[int, int] = {}
+    comment_ids = [comment.comment_id for comment in comments]
+    for comment in comments:
+        if comment.like_count <= 0:
+            continue
+        comment_like_deductions[comment.user_id] = (
+            comment_like_deductions.get(comment.user_id, 0) + comment.like_count
+        )
+
+    for comment_user_id, deducted_likes in comment_like_deductions.items():
+        comment_owner = db.query(User).filter(User.user_id == comment_user_id).first()
+        if comment_owner:
+            comment_owner.total_likes = max(
+                0,
+                comment_owner.total_likes - deducted_likes,
+            )
+
+    if comment_ids:
+        db.query(CommentLike).filter(CommentLike.comment_id.in_(comment_ids)).delete(
+            synchronize_session=False
+        )
+        db.query(Comment).filter(Comment.post_id == post_id).delete(
+            synchronize_session=False
+        )
+
+    db.query(PostLike).filter(PostLike.post_id == post_id).delete(
+        synchronize_session=False
+    )
+    db.query(PostFavorite).filter(PostFavorite.post_id == post_id).delete(
+        synchronize_session=False
+    )
+    db.query(PostImage).filter(PostImage.post_id == post_id).delete(
+        synchronize_session=False
+    )
+    db.query(PostTag).filter(PostTag.post_id == post_id).delete(
+        synchronize_session=False
+    )
+    db.delete(post)
+    db.commit()
+    return True
+
+
 def list_posts(
     db: Session,
     *,

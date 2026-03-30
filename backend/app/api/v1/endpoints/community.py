@@ -79,6 +79,17 @@ def get_post_detail(post_id: int, db: Session = Depends(get_db)) -> PostOut:
     return _post_out(db, post)
 
 
+@router.delete("/posts/{post_id}", response_model=MessageResponse, summary="删除帖子")
+def delete_post(post_id: int, body: UserActionRequest, db: Session = Depends(get_db)) -> MessageResponse:
+    try:
+        svc.delete_post(db, post_id=post_id, user_id=body.user_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return MessageResponse(message="删除帖子成功")
+
+
 @router.post("/posts/{post_id}/comments", response_model=CommentOut, status_code=201, summary="发表评论")
 def create_comment(post_id: int, body: CommentCreateRequest, db: Session = Depends(get_db)) -> CommentOut:
     try:

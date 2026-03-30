@@ -268,6 +268,34 @@ def test_postgres_user_community_market_roundtrip(client, postgres_test_db):
     )
     assert comment_resp.status_code == 201
 
+    delete_forbidden_resp = client.delete(
+        f"/api/v1/community/posts/{post['post_id']}",
+        json={"user_id": author["user_id"]},
+    )
+    assert delete_forbidden_resp.status_code == 403
+
+    delete_resp = client.delete(
+        f"/api/v1/community/posts/{post['post_id']}",
+        json={"user_id": user["user_id"]},
+    )
+    assert delete_resp.status_code == 200
+
+    deleted_detail_resp = client.get(f"/api/v1/community/posts/{post['post_id']}")
+    assert deleted_detail_resp.status_code == 404
+
+    post_resp = client.post(
+        "/api/v1/community/posts",
+        json={
+            "user_id": user["user_id"],
+            "title": "PostgreSQL 社区帖子 2",
+            "content": "删除后重新创建，继续测试市场链路",
+            "images": [],
+            "tag_names": ["postgres", "integration"],
+        },
+    )
+    assert post_resp.status_code == 201
+    post = post_resp.json()
+
     lens_resp = client.post(
         "/api/v1/market/lenses",
         json={

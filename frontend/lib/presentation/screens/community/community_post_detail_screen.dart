@@ -15,24 +15,24 @@ import '../auth/login_screen.dart';
 import '../profile/user_detail_screen.dart';
 
 class CommunityPostDetailScreen extends ConsumerStatefulWidget {
-  const CommunityPostDetailScreen({
-    super.key,
-    required this.postId,
-  });
+  const CommunityPostDetailScreen({super.key, required this.postId});
 
   final int postId;
 
   @override
-  ConsumerState<CommunityPostDetailScreen> createState() => _CommunityPostDetailScreenState();
+  ConsumerState<CommunityPostDetailScreen> createState() =>
+      _CommunityPostDetailScreenState();
 }
 
-class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailScreen> {
+class _CommunityPostDetailScreenState
+    extends ConsumerState<CommunityPostDetailScreen> {
   final _commentController = TextEditingController();
   final _pageController = PageController();
 
   int _currentImage = 0;
   bool _submittingComment = false;
   bool _updatingPostAction = false;
+  bool _deletingPost = false;
   final Set<int> _updatingComments = <int>{};
   CommunityCommentView? _replyTarget;
 
@@ -46,6 +46,7 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
   @override
   Widget build(BuildContext context) {
     final detailAsync = ref.watch(communityPostDetailProvider(widget.postId));
+    final currentUser = ref.watch(authProvider);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -54,7 +55,9 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
           color: AppTheme.electricIndigo,
           onRefresh: _refreshDetail,
           child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
             slivers: [
               SliverAppBar(
                 pinned: true,
@@ -64,23 +67,30 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
                 title: Row(
                   children: [
                     GestureDetector(
-                      onTap: () => _openAuthorProfile(detail.post.author.userId),
+                      onTap: () =>
+                          _openAuthorProfile(detail.post.author.userId),
                       child: CircleAvatar(
                         radius: 16,
                         backgroundColor: Colors.grey.shade200,
                         backgroundImage: resolveAdaptiveImageProvider(
                           detail.post.author.avatarUrl,
                         ),
-                        child: detail.post.author.avatarUrl == null ||
+                        child:
+                            detail.post.author.avatarUrl == null ||
                                 detail.post.author.avatarUrl!.trim().isEmpty
-                            ? const Icon(Icons.person, size: 18, color: Colors.black45)
+                            ? const Icon(
+                                Icons.person,
+                                size: 18,
+                                color: Colors.black45,
+                              )
                             : null,
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => _openAuthorProfile(detail.post.author.userId),
+                        onTap: () =>
+                            _openAuthorProfile(detail.post.author.userId),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
@@ -89,7 +99,10 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
                               detail.post.author.displayName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                             Text(
                               '@${detail.post.author.username}',
@@ -105,18 +118,56 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
                   ],
                 ),
                 actions: [
-                  FollowActionButton(
-                    targetUserId: detail.post.author.userId,
-                    compact: true,
-                    onChanged: () {
-                      ref.invalidate(userDetailProvider(detail.post.author.userId));
-                    },
-                  ),
+                  if (currentUser?.userId != detail.post.author.userId)
+                    FollowActionButton(
+                      targetUserId: detail.post.author.userId,
+                      compact: true,
+                      onChanged: () {
+                        ref.invalidate(
+                          userDetailProvider(detail.post.author.userId),
+                        );
+                      },
+                    ),
+                  if (currentUser?.userId == detail.post.author.userId)
+                    PopupMenuButton<_PostMenuAction>(
+                      enabled: !_deletingPost,
+                      onSelected: (value) {
+                        if (value == _PostMenuAction.delete) {
+                          _deletePost(detail.post);
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: _PostMenuAction.delete,
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.delete_outline,
+                                color: Colors.redAccent,
+                                size: 18,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                '删除帖子',
+                                style: TextStyle(color: Colors.redAccent),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      icon: _deletingPost
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.more_horiz_rounded),
+                    ),
                   IconButton(
                     onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('分享功能稍后开放')),
-                      );
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(const SnackBar(content: Text('分享功能稍后开放')));
                     },
                     icon: const Icon(Icons.share_outlined),
                   ),
@@ -130,17 +181,25 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
                   child: Row(
                     children: [
                       _StatPill(
-                        icon: detail.post.isLiked ? Icons.favorite : Icons.favorite_border,
+                        icon: detail.post.isLiked
+                            ? Icons.favorite
+                            : Icons.favorite_border,
                         label: _formatCount(detail.post.post.likeCount),
                         active: detail.post.isLiked,
-                        onTap: _updatingPostAction ? null : () => _togglePostLike(detail.post),
+                        onTap: _updatingPostAction
+                            ? null
+                            : () => _togglePostLike(detail.post),
                       ),
                       const SizedBox(width: 10),
                       _StatPill(
-                        icon: detail.post.isFavorited ? Icons.bookmark : Icons.bookmark_border,
+                        icon: detail.post.isFavorited
+                            ? Icons.bookmark
+                            : Icons.bookmark_border,
                         label: detail.post.isFavorited ? '已收藏' : '收藏',
                         active: detail.post.isFavorited,
-                        onTap: _updatingPostAction ? null : () => _toggleFavorite(detail.post),
+                        onTap: _updatingPostAction
+                            ? null
+                            : () => _toggleFavorite(detail.post),
                       ),
                       const SizedBox(width: 10),
                       _StatPill(
@@ -191,7 +250,9 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
                     itemBuilder: (context, index) {
                       final comment = detail.comments[index];
                       return Padding(
-                        padding: EdgeInsets.only(bottom: index == detail.comments.length - 1 ? 0 : 18),
+                        padding: EdgeInsets.only(
+                          bottom: index == detail.comments.length - 1 ? 0 : 18,
+                        ),
                         child: _CommentTile(
                           comment: comment,
                           loadingIds: _updatingComments,
@@ -228,7 +289,11 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
         height: 260,
         color: Colors.grey.shade100,
         alignment: Alignment.center,
-        child: const Icon(Icons.image_outlined, size: 42, color: Colors.black26),
+        child: const Icon(
+          Icons.image_outlined,
+          size: 42,
+          color: Colors.black26,
+        ),
       );
     }
 
@@ -293,7 +358,8 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (post.post.title != null && post.post.title!.trim().isNotEmpty) ...[
+          if (post.post.title != null &&
+              post.post.title!.trim().isNotEmpty) ...[
             Text(
               post.post.title!.trim(),
               style: const TextStyle(
@@ -306,7 +372,9 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
             const SizedBox(height: 12),
           ],
           Text(
-            post.post.content.trim().isEmpty ? '这条帖子还没有正文内容。' : post.post.content,
+            post.post.content.trim().isEmpty
+                ? '这条帖子还没有正文内容。'
+                : post.post.content,
             style: TextStyle(
               color: Colors.black.withOpacity(0.78),
               fontSize: 15,
@@ -320,7 +388,10 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
             children: [
               ...post.post.tags.map(
                 (tag) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: AppTheme.electricIndigo.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(999),
@@ -336,15 +407,22 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  color: post.post.isPublic ? Colors.green.shade50 : Colors.orange.shade50,
+                  color: post.post.isPublic
+                      ? Colors.green.shade50
+                      : Colors.orange.shade50,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   post.post.isPublic ? '公开' : '仅自己可见',
                   style: TextStyle(
-                    color: post.post.isPublic ? Colors.green.shade700 : Colors.orange.shade700,
+                    color: post.post.isPublic
+                        ? Colors.green.shade700
+                        : Colors.orange.shade700,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -366,7 +444,9 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
   }
 
   Widget _buildComposer() {
-    final replyLabel = _replyTarget == null ? null : '回复 ${_replyTarget!.author.displayName}';
+    final replyLabel = _replyTarget == null
+        ? null
+        : '回复 ${_replyTarget!.author.displayName}';
 
     return SafeArea(
       top: false,
@@ -374,7 +454,9 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         decoration: BoxDecoration(
           color: Colors.white,
-          border: Border(top: BorderSide(color: Colors.black.withOpacity(0.06))),
+          border: Border(
+            top: BorderSide(color: Colors.black.withOpacity(0.06)),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -382,7 +464,10 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
             if (replyLabel != null)
               Container(
                 margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(999),
@@ -401,7 +486,11 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
                     ),
                     GestureDetector(
                       onTap: () => setState(() => _replyTarget = null),
-                      child: const Icon(Icons.close, size: 16, color: Colors.black45),
+                      child: const Icon(
+                        Icons.close,
+                        size: 16,
+                        color: Colors.black45,
+                      ),
                     ),
                   ],
                 ),
@@ -414,7 +503,9 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
                     minLines: 1,
                     maxLines: 4,
                     decoration: InputDecoration(
-                      hintText: _replyTarget == null ? '写下你的评论...' : '写下你的回复...',
+                      hintText: _replyTarget == null
+                          ? '写下你的评论...'
+                          : '写下你的回复...',
                       filled: true,
                       fillColor: Colors.grey.shade100,
                       border: OutlineInputBorder(
@@ -432,13 +523,18 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.electricIndigo,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                     child: _submittingComment
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
                         : const Text('发送'),
                   ),
@@ -457,7 +553,9 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
 
     setState(() => _updatingPostAction = true);
     try {
-      await ref.read(communityRepositoryProvider).setPostLiked(
+      await ref
+          .read(communityRepositoryProvider)
+          .setPostLiked(
             postId: post.post.postId,
             userId: user.userId,
             liked: !post.isLiked,
@@ -478,7 +576,9 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
 
     setState(() => _updatingPostAction = true);
     try {
-      await ref.read(communityRepositoryProvider).setPostFavorited(
+      await ref
+          .read(communityRepositoryProvider)
+          .setPostFavorited(
             postId: post.post.postId,
             userId: user.userId,
             favorited: !post.isFavorited,
@@ -499,7 +599,9 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
 
     setState(() => _updatingComments.add(comment.comment.commentId));
     try {
-      await ref.read(communityRepositoryProvider).setCommentLiked(
+      await ref
+          .read(communityRepositoryProvider)
+          .setCommentLiked(
             commentId: comment.comment.commentId,
             userId: user.userId,
             liked: !comment.isLiked,
@@ -525,7 +627,9 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
 
     setState(() => _submittingComment = true);
     try {
-      await ref.read(communityRepositoryProvider).createComment(
+      await ref
+          .read(communityRepositoryProvider)
+          .createComment(
             postId: widget.postId,
             userId: user.userId,
             content: text,
@@ -543,6 +647,54 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
     }
   }
 
+  Future<void> _deletePost(CommunityPostView post) async {
+    final user = await _requireLogin();
+    if (user == null || !mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('删除帖子'),
+        content: const Text('删除后将无法恢复，帖子内容、评论和互动记录都会一起移除。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text(
+              '确认删除',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _deletingPost = true);
+    try {
+      await ref
+          .read(communityRepositoryProvider)
+          .deletePost(postId: post.post.postId, userId: user.userId);
+      await _refreshAfterDelete(user.userId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('帖子已删除')));
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      _showError(error);
+    } finally {
+      if (mounted) {
+        setState(() => _deletingPost = false);
+      }
+    }
+  }
+
   Future<void> _refreshDetail() async {
     ref.invalidate(communityPostDetailProvider(widget.postId));
     await ref.read(communityPostDetailProvider(widget.postId).future);
@@ -551,21 +703,25 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
   Future<void> _refreshAfterMutation(int userId) async {
     ref.invalidate(communityPostDetailProvider(widget.postId));
     ref.invalidate(communityFavoritePostsProvider);
-    ref.invalidate(communityPostsProvider(const CommunityPostQuery()));
-    ref.invalidate(
-      communityPostsProvider(CommunityPostQuery(userId: userId, onlyPublic: false)),
-    );
+    ref.invalidate(communityPostsProvider);
     ref.invalidate(userDetailProvider(userId));
     await ref.read(authProvider.notifier).refreshUser();
     await ref.read(communityPostDetailProvider(widget.postId).future);
   }
 
+  Future<void> _refreshAfterDelete(int userId) async {
+    ref.invalidate(communityPostDetailProvider);
+    ref.invalidate(communityFavoritePostsProvider);
+    ref.invalidate(communityPostsProvider);
+    ref.invalidate(communityTagsProvider);
+    ref.invalidate(userDetailProvider(userId));
+    await ref.read(authProvider.notifier).refreshUser();
+  }
+
   void _openAuthorProfile(int userId) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => UserDetailScreen(userId: userId),
-      ),
+      MaterialPageRoute(builder: (_) => UserDetailScreen(userId: userId)),
     );
   }
 
@@ -591,7 +747,9 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
         message = error.message!;
       }
     }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _formatCount(int value) {
@@ -632,7 +790,9 @@ class _StatPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = active ? AppTheme.electricIndigo : Colors.black87;
     return Material(
-      color: active ? AppTheme.electricIndigo.withOpacity(0.08) : Colors.grey.shade100,
+      color: active
+          ? AppTheme.electricIndigo.withOpacity(0.08)
+          : Colors.grey.shade100,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         onTap: onTap,
@@ -726,8 +886,12 @@ class _CommentBubble extends StatelessWidget {
         CircleAvatar(
           radius: 16,
           backgroundColor: Colors.grey.shade200,
-          backgroundImage: resolveAdaptiveImageProvider(comment.author.avatarUrl),
-          child: comment.author.avatarUrl == null || comment.author.avatarUrl!.trim().isEmpty
+          backgroundImage: resolveAdaptiveImageProvider(
+            comment.author.avatarUrl,
+          ),
+          child:
+              comment.author.avatarUrl == null ||
+                  comment.author.avatarUrl!.trim().isEmpty
               ? const Icon(Icons.person, size: 16, color: Colors.black38)
               : null,
         ),
@@ -800,7 +964,9 @@ class _CommentBubble extends StatelessWidget {
                   Icon(
                     comment.isLiked ? Icons.favorite : Icons.favorite_border,
                     size: 16,
-                    color: comment.isLiked ? AppTheme.electricIndigo : Colors.black38,
+                    color: comment.isLiked
+                        ? AppTheme.electricIndigo
+                        : Colors.black38,
                   ),
                 const SizedBox(height: 2),
                 Text(
@@ -826,7 +992,11 @@ class _EmptyCommentState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Icon(Icons.chat_bubble_outline, size: 42, color: Colors.black.withOpacity(0.14)),
+        Icon(
+          Icons.chat_bubble_outline,
+          size: 42,
+          color: Colors.black.withOpacity(0.14),
+        ),
         const SizedBox(height: 12),
         const Text(
           '还没有评论',
@@ -845,3 +1015,5 @@ class _EmptyCommentState extends StatelessWidget {
     );
   }
 }
+
+enum _PostMenuAction { delete }

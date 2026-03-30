@@ -157,3 +157,65 @@ def test_comment_like_favorite_and_tag_flow(client, seeded_users):
     tags_resp = client.get("/api/v1/community/tags")
     assert tags_resp.status_code == 200
     assert tags_resp.json()[0]["name"] == "测试标签"
+
+
+def test_delete_post_by_owner_updates_lists_and_tags(client, seeded_users):
+    user_a, user_b = seeded_users
+    post_resp = client.post(
+        "/api/v1/community/posts",
+        json={
+            "user_id": user_a.user_id,
+            "title": "待删除帖子",
+            "content": "删除后不应该再被查询到",
+            "images": [],
+            "tag_names": ["删除测试"],
+        },
+    )
+    assert post_resp.status_code == 201
+    post_id = post_resp.json()["post_id"]
+
+    like_resp = client.post(
+        f"/api/v1/community/posts/{post_id}/like",
+        json={"user_id": user_b.user_id},
+    )
+    assert like_resp.status_code == 200
+
+    delete_resp = client.delete(
+        f"/api/v1/community/posts/{post_id}",
+        json={"user_id": user_a.user_id},
+    )
+    assert delete_resp.status_code == 200
+
+    detail_resp = client.get(f"/api/v1/community/posts/{post_id}")
+    assert detail_resp.status_code == 404
+
+    list_resp = client.get("/api/v1/community/posts")
+    assert list_resp.status_code == 200
+    assert list_resp.json() == []
+
+    tags_resp = client.get("/api/v1/community/tags")
+    assert tags_resp.status_code == 200
+    assert tags_resp.json()[0]["post_count"] == 0
+
+
+def test_delete_post_forbidden_for_non_owner(client, seeded_users):
+    user_a, user_b = seeded_users
+    post_resp = client.post(
+        "/api/v1/community/posts",
+        json={
+            "user_id": user_a.user_id,
+            "title": "禁止删除测试",
+            "content": "只有作者自己可以删",
+            "images": [],
+            "tag_names": [],
+        },
+    )
+    assert post_resp.status_code == 201
+    post_id = post_resp.json()["post_id"]
+
+    delete_resp = client.delete(
+        f"/api/v1/community/posts/{post_id}",
+        json={"user_id": user_b.user_id},
+    )
+    assert delete_resp.status_code == 403
+    assert delete_resp.json()["detail"] == "只能删除自己的帖子"
