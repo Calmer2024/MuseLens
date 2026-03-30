@@ -8,11 +8,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/market_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../data/models/chat_models.dart';
 import '../../../data/models/market_models.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/repositories/market_repository.dart';
 import '../../widgets/lens/market_lens_visuals.dart';
 import '../auth/login_screen.dart';
+import '../community/chat_friend_picker_screen.dart';
 import 'market_lens_editor_screen.dart';
 
 class MarketLensDetailScreen extends ConsumerStatefulWidget {
@@ -129,6 +131,28 @@ class _MarketLensDetailScreenState
               onTap: () => _openEditor(lens.lens),
             ),
           ),
+        Padding(
+          padding: const EdgeInsets.only(right: 10),
+          child: _buildCircleButton(
+            icon: Icons.share_outlined,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChatFriendPickerScreen(
+                    shareDraft: ChatComposerShareDraft.marketLens(
+                      lensId: lens.lens.lensId,
+                      title: lens.lens.name,
+                      summary: lens.lens.description.trim(),
+                      coverUrl: visual.afterImage,
+                      authorName: lens.author.displayName,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
         _buildCircleButton(
           icon: lens.isFavorited
               ? Icons.favorite_rounded
