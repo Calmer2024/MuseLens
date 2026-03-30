@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -8,14 +9,12 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/community_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/local_media_store.dart';
 import '../../../data/models/community_models.dart';
 import '../../../data/repositories/community_repository.dart';
 
 class CreatePostScreen extends ConsumerStatefulWidget {
-  const CreatePostScreen({
-    super.key,
-    required this.initialImages,
-  });
+  const CreatePostScreen({super.key, required this.initialImages});
 
   final List<XFile> initialImages;
 
@@ -28,7 +27,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   final _tagController = TextEditingController();
-  
+
   late List<XFile> _selectedImages;
   final List<String> _tags = [];
   bool _submitting = false;
@@ -112,9 +111,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             children: [
               // 1. 图片预览 (小红书风格轮播)
               _buildImageCarousel(),
-              
+
               const SizedBox(height: 24),
-              
+
               // 2. 标题输入
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -137,15 +136,18 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   maxLength: 30,
                 ),
               ),
-              
+
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Divider(color: Colors.grey.shade100, height: 1),
               ),
-              
+
               // 3. 正文输入
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
                 child: TextFormField(
                   controller: _contentController,
                   maxLines: null,
@@ -164,12 +166,12 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   },
                 ),
               ),
-              
+
               const SizedBox(height: 12),
-              
+
               // 4. 标签区域
               _buildTagSection(),
-              
+
               const SizedBox(height: 40),
             ],
           ),
@@ -188,7 +190,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         children: [
           PageView.builder(
             itemCount: _selectedImages.length,
-            onPageChanged: (index) => setState(() => _currentImageIndex = index),
+            onPageChanged: (index) =>
+                setState(() => _currentImageIndex = index),
             itemBuilder: (context, index) {
               return Stack(
                 fit: StackFit.expand,
@@ -222,7 +225,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                           color: Colors.black.withOpacity(0.3),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.close, color: Colors.white, size: 18),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                       ),
                     ),
                   ),
@@ -269,7 +276,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
               GestureDetector(
                 onTap: () => _showAddTagSheet(),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.grey.shade50,
                     borderRadius: BorderRadius.circular(999),
@@ -366,7 +376,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     borderSide: BorderSide.none,
                   ),
                   suffixIcon: IconButton(
-                    icon: const Icon(Icons.check, color: AppTheme.electricIndigo),
+                    icon: const Icon(
+                      Icons.check,
+                      color: AppTheme.electricIndigo,
+                    ),
                     onPressed: () {
                       _addTag();
                       Navigator.pop(context);
@@ -394,50 +407,71 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
     setState(() => _submitting = true);
     try {
-      // 在这个演示版本中，由于后端目前期望 URL，我们将本地路径模拟为“URL”
-      // 在实际生产中，这里应该先调用上传接口获取远程 URL。
-      final input = CreatePostInput(
-        userId: user.userId,
-        title: _titleController.text.trim().isEmpty ? null : _titleController.text.trim(),
-        content: _contentController.text.trim(),
-        isPublic: true,
-        images: _selectedImages.asMap().entries.map((entry) {
+      final imageInputs = await Future.wait(
+        _selectedImages.asMap().entries.map((entry) async {
           final index = entry.key;
           final file = entry.value;
+          final imageSize = await _readImageSize(file);
+          final persistedPath = await LocalMediaStore.persistXFile(
+            file,
+            folder: 'community/posts',
+            prefix: 'post_image',
+          );
           return CreatePostImageInput(
-            // 这里我们传入本地路径，社区列表显示时会判断：如果是本地路径则用 Image.file，否则用 Image.network
-            imageUrl: file.path, 
+            imageUrl: persistedPath,
+            width: imageSize?.$1,
+            height: imageSize?.$2,
             orderIndex: index,
           );
-        }).toList(),
+        }),
+      );
+
+      final input = CreatePostInput(
+        userId: user.userId,
+        title: _titleController.text.trim().isEmpty
+            ? null
+            : _titleController.text.trim(),
+        content: _contentController.text.trim(),
+        isPublic: true,
+        images: imageInputs,
         tagNames: _tags,
       );
 
       final repository = ref.read(communityRepositoryProvider);
-      await repository.createPost(
-        input,
-        actingUserId: user.userId,
-      );
-      
+      await repository.createPost(input, actingUserId: user.userId);
+
       ref.invalidate(communityTagsProvider);
       ref.invalidate(communityPostsProvider(const CommunityPostQuery()));
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已成功发布到创作广场')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已成功发布到创作广场')));
       Navigator.pop(context, true);
     } on DioException catch (e) {
-      final detail = e.response?.data is Map ? e.response?.data['detail'] : e.message;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('发布失败: $detail')),
-      );
+      final detail = e.response?.data is Map
+          ? e.response?.data['detail']
+          : e.message;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('发布失败: $detail')));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('发布失败，请重试')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('发布失败，请重试')));
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<(int, int)?> _readImageSize(XFile file) async {
+    try {
+      final bytes = await File(file.path).readAsBytes();
+      final codec = await ui.instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      return (frame.image.width, frame.image.height);
+    } catch (_) {
+      return null;
     }
   }
 }

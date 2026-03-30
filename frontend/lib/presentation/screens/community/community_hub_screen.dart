@@ -9,6 +9,7 @@ import '../../../core/providers/community_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/community_models.dart';
 import '../../widgets/community/community_post_card.dart';
+import '../profile/user_detail_screen.dart';
 import '../auth/login_screen.dart';
 import 'chat_detail_screen.dart';
 import 'package:image_picker/image_picker.dart' as image_picker;
@@ -71,10 +72,7 @@ class _CommunityHubScreenState extends ConsumerState<CommunityHubScreen>
                     onTap: () => setState(() => _selectedTag = null),
                   ),
                   _buildHeaderTabs(),
-                  _buildCircleButton(
-                    icon: Icons.search,
-                    onTap: _openSearch,
-                  ),
+                  _buildCircleButton(icon: Icons.search, onTap: _openSearch),
                 ],
               ),
             ),
@@ -88,6 +86,7 @@ class _CommunityHubScreenState extends ConsumerState<CommunityHubScreen>
                     query: query,
                     onSelectTag: (tag) => setState(() => _selectedTag = tag),
                     onOpenPost: _openPostDetail,
+                    onOpenAuthor: _openAuthorProfile,
                     onRefreshAll: () {
                       ref.invalidate(communityTagsProvider);
                       ref.invalidate(communityPostsProvider(_allPostsQuery));
@@ -110,9 +109,9 @@ class _CommunityHubScreenState extends ConsumerState<CommunityHubScreen>
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
         child: Container(
-          width: 178,
-          height: 48,
-          padding: const EdgeInsets.all(4),
+          width: 156,
+          height: 42,
+          padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.28),
             borderRadius: BorderRadius.circular(999),
@@ -134,7 +133,7 @@ class _CommunityHubScreenState extends ConsumerState<CommunityHubScreen>
                     ? Alignment.centerLeft
                     : Alignment.centerRight,
                 child: Container(
-                  width: 84,
+                  width: 74,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(999),
                     gradient: const LinearGradient(
@@ -178,7 +177,7 @@ class _CommunityHubScreenState extends ConsumerState<CommunityHubScreen>
             color: isActive
                 ? AppTheme.electricIndigo
                 : Colors.black.withValues(alpha: 0.55),
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.2,
           ),
@@ -195,8 +194,8 @@ class _CommunityHubScreenState extends ConsumerState<CommunityHubScreen>
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
       child: Ink(
-        width: 42,
-        height: 42,
+        width: 38,
+        height: 38,
         decoration: BoxDecoration(
           color: Colors.white,
           shape: BoxShape.circle,
@@ -209,7 +208,7 @@ class _CommunityHubScreenState extends ConsumerState<CommunityHubScreen>
             ),
           ],
         ),
-        child: Icon(icon, color: Colors.black87, size: 20),
+        child: Icon(icon, color: Colors.black87, size: 18),
       ),
     );
   }
@@ -229,11 +228,7 @@ class _CommunityHubScreenState extends ConsumerState<CommunityHubScreen>
             width: 60,
             height: 60,
             alignment: Alignment.center,
-            child: const Icon(
-              Icons.add_rounded,
-              color: Colors.white,
-              size: 32,
-            ),
+            child: const Icon(Icons.add_rounded, color: Colors.white, size: 32),
           ),
         ),
       ),
@@ -266,7 +261,7 @@ class _CommunityHubScreenState extends ConsumerState<CommunityHubScreen>
 
     final picker = image_picker.ImagePicker();
     final pickedFiles = await picker.pickMultiImage();
-    
+
     if (pickedFiles.isEmpty || !mounted) return;
 
     final created = await Navigator.push<bool>(
@@ -275,10 +270,12 @@ class _CommunityHubScreenState extends ConsumerState<CommunityHubScreen>
         builder: (_) => CreatePostScreen(initialImages: pickedFiles),
       ),
     );
-    
+
     if (created == true) {
       ref.invalidate(communityPostsProvider(_allPostsQuery));
-      ref.invalidate(communityPostsProvider(CommunityPostQuery(tagName: _selectedTag)));
+      ref.invalidate(
+        communityPostsProvider(CommunityPostQuery(tagName: _selectedTag)),
+      );
       ref.invalidate(communityTagsProvider);
     }
   }
@@ -291,6 +288,15 @@ class _CommunityHubScreenState extends ConsumerState<CommunityHubScreen>
       ),
     );
   }
+
+  void _openAuthorProfile(CommunityPostView post) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UserDetailScreen(userId: post.author.userId),
+      ),
+    );
+  }
 }
 
 class _DiscoverTab extends ConsumerWidget {
@@ -299,6 +305,7 @@ class _DiscoverTab extends ConsumerWidget {
     required this.query,
     required this.onSelectTag,
     required this.onOpenPost,
+    required this.onOpenAuthor,
     required this.onRefreshAll,
   });
 
@@ -306,6 +313,7 @@ class _DiscoverTab extends ConsumerWidget {
   final CommunityPostQuery query;
   final ValueChanged<String?> onSelectTag;
   final ValueChanged<CommunityPostView> onOpenPost;
+  final ValueChanged<CommunityPostView> onOpenAuthor;
   final VoidCallback onRefreshAll;
 
   @override
@@ -328,17 +336,19 @@ class _DiscoverTab extends ConsumerWidget {
                   onTap: () => onSelectTag(null),
                 ),
                 const SizedBox(width: 8),
-                ...tags.take(12).map(
-                  (tag) => Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: _TagChip(
-                      label: '#${tag.name}',
-                      subtitle: '${tag.postCount}',
-                      isActive: selectedTag == tag.name,
-                      onTap: () => onSelectTag(tag.name),
+                ...tags
+                    .take(12)
+                    .map(
+                      (tag) => Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: _TagChip(
+                          label: '#${tag.name}',
+                          subtitle: '${tag.postCount}',
+                          isActive: selectedTag == tag.name,
+                          onTap: () => onSelectTag(tag.name),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
               ],
             ),
             loading: () => const Center(
@@ -380,15 +390,14 @@ class _DiscoverTab extends ConsumerWidget {
                     return CommunityPostCard(
                       post: post,
                       onTap: () => onOpenPost(post),
+                      onAuthorTap: () => onOpenAuthor(post),
                     );
                   },
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => _EmptyList(
-                title: '加载失败',
-                description: '$error',
-              ),
+              error: (error, _) =>
+                  _EmptyList(title: '加载失败', description: '$error'),
             ),
           ),
         ),
@@ -413,15 +422,17 @@ class _MessagesTab extends StatelessWidget {
       ),
       _MessageItemData(
         name: 'Tim',
-        avatar: 'https://api.dicebear.com/7.x/avataaars/png?seed=Cher',
+        avatar: 'assets/images/profile.png',
         message: '夜景那个标签页终于不是摆设了，我已经刷到你的帖子了。',
         time: '昨天',
+        isLocalImage: true,
       ),
       _MessageItemData(
         name: '设计大师',
-        avatar: 'https://api.dicebear.com/7.x/avataaars/png?seed=Design',
+        avatar: 'assets/images/profile.png',
         message: '你下次发作品记得叫我，我想试试评论回复。',
         time: '周一',
+        isLocalImage: true,
       ),
     ];
 
@@ -467,13 +478,19 @@ class _MessagesTab extends StatelessWidget {
                       backgroundColor: Colors.grey.shade100,
                       child: ClipOval(
                         child: item.isLocalImage
-                            ? Image.asset(item.avatar, width: 48, height: 48, fit: BoxFit.cover)
+                            ? Image.asset(
+                                item.avatar,
+                                width: 48,
+                                height: 48,
+                                fit: BoxFit.cover,
+                              )
                             : Image.network(
                                 item.avatar,
                                 width: 48,
                                 height: 48,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(Icons.person),
+                                errorBuilder: (_, __, ___) =>
+                                    const Icon(Icons.person),
                               ),
                       ),
                     ),
@@ -573,7 +590,9 @@ class _TagChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                color: isActive ? AppTheme.electricIndigo : const Color(0xFF6D5AE6),
+                color: isActive
+                    ? AppTheme.electricIndigo
+                    : const Color(0xFF6D5AE6),
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -598,10 +617,7 @@ class _TagChip extends StatelessWidget {
 }
 
 class _EmptyList extends StatelessWidget {
-  const _EmptyList({
-    required this.title,
-    required this.description,
-  });
+  const _EmptyList({required this.title, required this.description});
 
   final String title;
   final String description;
@@ -612,7 +628,11 @@ class _EmptyList extends StatelessWidget {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(24, 90, 24, 120),
       children: [
-        Icon(Icons.auto_awesome_mosaic_outlined, size: 52, color: Colors.black.withOpacity(0.14)),
+        Icon(
+          Icons.auto_awesome_mosaic_outlined,
+          size: 52,
+          color: Colors.black.withOpacity(0.14),
+        ),
         const SizedBox(height: 14),
         Text(
           title,

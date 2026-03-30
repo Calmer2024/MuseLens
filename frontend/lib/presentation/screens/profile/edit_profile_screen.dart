@@ -7,6 +7,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/local_media_store.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
@@ -97,13 +98,16 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       );
 
       if (image != null) {
-        // 注意：我们这里是在模拟文件上传！
-        // 将本地文件路径 file:///... 保存，用于前端直接渲染。
+        final persistedPath = await LocalMediaStore.persistXFile(
+          image,
+          folder: isAvatar ? 'profile/avatar' : 'profile/banner',
+          prefix: isAvatar ? 'avatar' : 'banner',
+        );
         setState(() {
           if (isAvatar) {
-            _avatarPath = 'file://${image.path}';
+            _avatarPath = persistedPath;
           } else {
-            _bannerPath = 'file://${image.path}';
+            _bannerPath = persistedPath;
           }
         });
       }

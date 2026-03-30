@@ -8,19 +8,19 @@ class ProfileCreationMock {
     return [
       ProfileCreationMock(
         title: "Neon Samurai",
-        imageUrl: "https://picsum.photos/id/237/400/600", // 替换为类似赛博武士的图
+        imageUrl: "assets/images/home/CyberpunkNightChallenge.jpg",
       ),
       ProfileCreationMock(
         title: "Abstract Flow",
-        imageUrl: "https://picsum.photos/id/238/400/300", // 替换为抽象流体
+        imageUrl: "assets/images/home/SpringFilmFestival.png",
       ),
       ProfileCreationMock(
         title: "Space Cat",
-        imageUrl: "https://picsum.photos/id/239/400/250", // 替换为太空猫
+        imageUrl: "assets/images/home/AnimeGroupPhoto.JPG",
       ),
       ProfileCreationMock(
         title: "Cyber City",
-        imageUrl: "https://picsum.photos/id/240/400/500",
+        imageUrl: "assets/images/home/TravelVlog.JPG",
       ),
     ];
   }

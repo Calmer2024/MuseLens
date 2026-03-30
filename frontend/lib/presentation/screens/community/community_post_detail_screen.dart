@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +8,11 @@ import '../../../core/theme/app_theme.dart';
 import '../../../data/models/community_models.dart';
 import '../../../data/repositories/community_repository.dart';
 import '../../../data/models/user_model.dart';
+import '../../../core/providers/user_provider.dart';
+import '../../widgets/profile/follow_action_button.dart';
+import '../../widgets/shared/adaptive_media.dart';
 import '../auth/login_screen.dart';
+import '../profile/user_detail_screen.dart';
 
 class CommunityPostDetailScreen extends ConsumerStatefulWidget {
   const CommunityPostDetailScreen({
@@ -60,43 +63,55 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
                 titleSpacing: 0,
                 title: Row(
                   children: [
-                    CircleAvatar(
-                      radius: 16,
-                      backgroundColor: Colors.grey.shade200,
-                      backgroundImage: detail.post.author.avatarUrl != null &&
-                              detail.post.author.avatarUrl!.trim().isNotEmpty
-                          ? NetworkImage(detail.post.author.avatarUrl!)
-                          : null,
-                      child: detail.post.author.avatarUrl == null ||
-                              detail.post.author.avatarUrl!.trim().isEmpty
-                          ? const Icon(Icons.person, size: 18, color: Colors.black45)
-                          : null,
+                    GestureDetector(
+                      onTap: () => _openAuthorProfile(detail.post.author.userId),
+                      child: CircleAvatar(
+                        radius: 16,
+                        backgroundColor: Colors.grey.shade200,
+                        backgroundImage: resolveAdaptiveImageProvider(
+                          detail.post.author.avatarUrl,
+                        ),
+                        child: detail.post.author.avatarUrl == null ||
+                                detail.post.author.avatarUrl!.trim().isEmpty
+                            ? const Icon(Icons.person, size: 18, color: Colors.black45)
+                            : null,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            detail.post.author.displayName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                          ),
-                          Text(
-                            '@${detail.post.author.username}',
-                            style: TextStyle(
-                              color: Colors.black.withOpacity(0.45),
-                              fontSize: 11,
+                      child: GestureDetector(
+                        onTap: () => _openAuthorProfile(detail.post.author.userId),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              detail.post.author.displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                             ),
-                          ),
-                        ],
+                            Text(
+                              '@${detail.post.author.username}',
+                              style: TextStyle(
+                                color: Colors.black.withOpacity(0.45),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
                 actions: [
+                  FollowActionButton(
+                    targetUserId: detail.post.author.userId,
+                    compact: true,
+                    onChanged: () {
+                      ref.invalidate(userDetailProvider(detail.post.author.userId));
+                    },
+                  ),
                   IconButton(
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -220,36 +235,33 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
     return Stack(
       alignment: Alignment.bottomCenter,
       children: [
-        SizedBox(
-          height: 360,
-          child: PageView.builder(
-            controller: _pageController,
-            itemCount: images.length,
-            onPageChanged: (index) => setState(() => _currentImage = index),
-            itemBuilder: (context, index) {
-              final imageUrl = images[index];
-              if (imageUrl.startsWith('http')) {
-                return Image.network(
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          child: AspectRatio(
+            aspectRatio: _currentImageAspectRatio(post),
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: images.length,
+              onPageChanged: (index) => setState(() => _currentImage = index),
+              itemBuilder: (context, index) {
+                final imageUrl = images[index];
+                return buildAdaptiveImage(
                   imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  errorWidget: Container(
                     color: Colors.grey.shade100,
                     alignment: Alignment.center,
-                    child: const Icon(Icons.broken_image_outlined, color: Colors.black26, size: 36),
+                    child: const Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.black26,
+                      size: 36,
+                    ),
                   ),
                 );
-              } else {
-                return Image.file(
-                  File(imageUrl),
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    color: Colors.grey.shade100,
-                    alignment: Alignment.center,
-                    child: const Icon(Icons.broken_image_outlined, color: Colors.black26, size: 36),
-                  ),
-                );
-              }
-            },
+              },
+            ),
           ),
         ),
         if (images.length > 1)
@@ -543,7 +555,18 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
     ref.invalidate(
       communityPostsProvider(CommunityPostQuery(userId: userId, onlyPublic: false)),
     );
+    ref.invalidate(userDetailProvider(userId));
+    await ref.read(authProvider.notifier).refreshUser();
     await ref.read(communityPostDetailProvider(widget.postId).future);
+  }
+
+  void _openAuthorProfile(int userId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UserDetailScreen(userId: userId),
+      ),
+    );
   }
 
   Future<User?> _requireLogin() async {
@@ -583,6 +606,12 @@ class _CommunityPostDetailScreenState extends ConsumerState<CommunityPostDetailS
 
   String _formatTime(DateTime time) {
     return '${time.year}-${time.month.toString().padLeft(2, '0')}-${time.day.toString().padLeft(2, '0')}';
+  }
+
+  double _currentImageAspectRatio(CommunityPostView post) {
+    return post.imageAspectRatioAt(_currentImage) ??
+        post.coverAspectRatio ??
+        1.0;
   }
 }
 
@@ -697,9 +726,7 @@ class _CommentBubble extends StatelessWidget {
         CircleAvatar(
           radius: 16,
           backgroundColor: Colors.grey.shade200,
-          backgroundImage: comment.author.avatarUrl != null && comment.author.avatarUrl!.trim().isNotEmpty
-              ? NetworkImage(comment.author.avatarUrl!)
-              : null,
+          backgroundImage: resolveAdaptiveImageProvider(comment.author.avatarUrl),
           child: comment.author.avatarUrl == null || comment.author.avatarUrl!.trim().isEmpty
               ? const Icon(Icons.person, size: 16, color: Colors.black38)
               : null,

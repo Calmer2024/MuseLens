@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'dart:ui'; // 用于 ImageFilter
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/community_post_mock.dart';
 import '../../../data/models/lens_template_mock.dart';
+import '../../widgets/shared/adaptive_media.dart';
 import '../lens/lens_detail_screen.dart'; // Lens 详情页
 import 'post_detail_screen.dart'; // 帖子详情页
 
@@ -223,10 +223,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Text(
                   msg.time,
-                  style: TextStyle(
-                    color: Colors.black45,
-                    fontSize: 10,
-                  ),
+                  style: TextStyle(color: Colors.black45, fontSize: 10),
                 ),
               ),
             ],
@@ -439,10 +436,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       Expanded(
                         child: Text(
                           post.authorName,
-                          style: TextStyle(
-                            color: Colors.black54,
-                            fontSize: 11,
-                          ),
+                          style: TextStyle(color: Colors.black54, fontSize: 11),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -520,13 +514,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   ImageProvider _getImageProvider(String? url) {
-    if (url == null || url.isEmpty) {
-      return const NetworkImage("https://via.placeholder.com/150");
-    }
-    if (url.startsWith('http')) {
-      return NetworkImage(url);
-    } else {
-      return AssetImage(url);
-    }
+    return resolveAdaptiveImageProvider(url) ??
+        const AssetImage('assets/images/profile.png');
   }
 }

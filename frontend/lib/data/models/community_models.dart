@@ -274,14 +274,30 @@ class CommunityPostView {
     if (post.images.isEmpty) return const [];
     final sortedImages = [...post.images]
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
-    return sortedImages.map((item) => item.imageUrl).toList();
+    return sortedImages
+        .map((item) => item.imageUrl.trim())
+        .where((url) => url.isNotEmpty)
+        .toList();
+  }
+
+  List<CommunityPostImage> get orderedImages {
+    if (post.images.isEmpty) return const [];
+    final sortedImages = [...post.images]
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    return sortedImages;
+  }
+
+  CommunityPostImage? get coverImage {
+    for (final image in orderedImages) {
+      if (image.imageUrl.trim().isNotEmpty) {
+        return image;
+      }
+    }
+    return null;
   }
 
   String? get coverImageUrl {
-    if (galleryImages.isNotEmpty) {
-      return galleryImages.first;
-    }
-    return null;
+    return coverImage?.imageUrl.trim();
   }
 
   String get displayTitle {
@@ -296,15 +312,26 @@ class CommunityPostView {
     return '未命名帖子';
   }
 
-  double get coverAspectRatio {
-    if (post.images.isEmpty) return 1.0;
-    final image = [...post.images]
-      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
-    final cover = image.first;
+  double? get coverAspectRatio {
+    final cover = coverImage;
+    if (cover == null) return null;
     final width = cover.width;
     final height = cover.height;
     if (width == null || height == null || width <= 0 || height <= 0) {
-      return 1.0;
+      return null;
+    }
+    return width / height;
+  }
+
+  double? imageAspectRatioAt(int index) {
+    if (index < 0 || index >= orderedImages.length) {
+      return null;
+    }
+    final image = orderedImages[index];
+    final width = image.width;
+    final height = image.height;
+    if (width == null || height == null || width <= 0 || height <= 0) {
+      return null;
     }
     return width / height;
   }

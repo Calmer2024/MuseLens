@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../../../data/models/recipe_mock.dart';
-import '../../../core/theme/app_theme.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import '../shared/adaptive_media.dart';
 
 class RecipeListItem extends StatelessWidget {
   final RecipeMock recipe;
@@ -34,11 +34,11 @@ class RecipeListItem extends StatelessWidget {
                 );
               },
               blendMode: BlendMode.srcOver,
-              child: CachedNetworkImage(
-                imageUrl: recipe.imageUrl,
+              child: buildAdaptiveImage(
+                recipe.imageUrl,
                 fit: BoxFit.cover,
-                placeholder: (context, url) =>
-                    Container(color: Colors.grey[200]),
+                placeholder: Container(color: Colors.grey[200]),
+                errorWidget: Container(color: Colors.grey[200]),
               ),
             ),
           ),

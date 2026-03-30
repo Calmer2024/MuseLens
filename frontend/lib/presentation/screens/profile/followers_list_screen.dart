@@ -1,12 +1,12 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/user_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/user_summary_model.dart';
+import '../../widgets/profile/follow_action_button.dart';
+import '../../widgets/shared/adaptive_media.dart';
 
 class FollowersListScreen extends ConsumerStatefulWidget {
   final int userId;
@@ -196,51 +196,15 @@ class _FollowersListScreenState extends ConsumerState<FollowersListScreen> {
 
           // 关注/取关按钮（不显示自己）
           if (!isMe && currentUser != null)
-            _buildFollowButton(user.userId),
+            FollowActionButton(
+              targetUserId: user.userId,
+              compact: true,
+              onChanged: () {
+                ref.invalidate(followersProvider(widget.userId));
+                ref.invalidate(followingProvider(widget.userId));
+              },
+            ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildFollowButton(int targetUserId) {
-    // 简单的关注按钮（可以扩展为检查是否已关注）
-    return GestureDetector(
-      onTap: () async {
-        final currentUser = ref.read(authProvider);
-        if (currentUser == null) return;
-
-        try {
-          final apiService = ref.read(userApiServiceProvider);
-          await apiService.followUser(targetUserId, currentUser.userId);
-          // 刷新列表
-          ref.invalidate(followersProvider(widget.userId));
-          ref.invalidate(followingProvider(widget.userId));
-        } catch (_) {
-          // 可能已经关注了，尝试取关
-          try {
-            final apiService = ref.read(userApiServiceProvider);
-            await apiService.unfollowUser(targetUserId, ref.read(authProvider)!.userId);
-            ref.invalidate(followersProvider(widget.userId));
-            ref.invalidate(followingProvider(widget.userId));
-          } catch (_) {}
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          gradient: const LinearGradient(
-            colors: [AppTheme.electricIndigo, Color(0xFF584CF4)],
-          ),
-        ),
-        child: Text(
-          context.tr('follow'),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
       ),
     );
   }
@@ -253,35 +217,14 @@ class _FollowersListScreenState extends ConsumerState<FollowersListScreen> {
       );
     }
     
-    if (avatarUrl.startsWith('file://')) {
-      return Image.file(
-        File(avatarUrl.substring(7)),
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Icon(
-          Icons.person_rounded,
-          color: Colors.grey.shade400,
-        ),
-      );
-    } else if (avatarUrl.startsWith('/')) {
-      return Image.file(
-        File(avatarUrl),
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Icon(
-          Icons.person_rounded,
-          color: Colors.grey.shade400,
-        ),
-      );
-    } else {
-      return CachedNetworkImage(
-        imageUrl: avatarUrl,
-        fit: BoxFit.cover,
-        placeholder: (_, __) => Container(color: Colors.grey.shade200),
-        errorWidget: (_, __, ___) => Icon(
-          Icons.person_rounded,
-          color: Colors.grey.shade400,
-        ),
-      );
-    }
+    return buildAdaptiveImage(
+      avatarUrl,
+      fit: BoxFit.cover,
+      errorWidget: Icon(
+        Icons.person_rounded,
+        color: Colors.grey.shade400,
+      ),
+    );
   }
 }
 

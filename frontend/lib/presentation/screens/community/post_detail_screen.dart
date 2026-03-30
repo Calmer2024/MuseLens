@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/community_post_mock.dart';
+import '../../widgets/shared/adaptive_media.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final CommunityPostMock post;
@@ -22,29 +23,28 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   final List<Map<String, dynamic>> _comments = [
     {
       "name": "Neon_Walker",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/png?seed=Walker",
-      "content":
-          "这看起来太不可思议了！色彩无比鲜艳。一定要试试这个滤镜。",
+      "avatar": "assets/images/profile.png",
+      "content": "这看起来太不可思议了！色彩无比鲜艳。一定要试试这个滤镜。",
       "likes": 45,
       "time": "2小时前",
     },
     {
       "name": "Digital_Dreamer",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/png?seed=Dreamer",
+      "avatar": "assets/images/profile.png",
       "content": "这是我本周见过的最棒的赛博朋克照片。干得漂亮！🔥",
       "likes": 28,
       "time": "5小时前",
     },
     {
       "name": "Tech_Nomad",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/png?seed=Nomad",
+      "avatar": "assets/images/profile.png",
       "content": "氛围感太强了。绝佳的构图。",
       "likes": 12,
       "time": "1天前",
     },
     {
       "name": "Lens_Master",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/png?seed=Master",
+      "avatar": "assets/images/profile.png",
       "content": "这是V2版本吗？光晕更柔和了。",
       "likes": 8,
       "time": "1天前",
@@ -59,8 +59,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     } else {
       _postImages = [
         widget.post.imageUrl,
-        "https://picsum.photos/seed/detail2/600/800",
-        "https://picsum.photos/seed/detail3/600/800",
+        "assets/images/home/AnimeGroupPhoto.JPG",
+        "assets/images/home/TravelVlog.JPG",
       ];
     }
   }
@@ -112,10 +112,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       const SizedBox(height: 16),
                       Text(
                         "10-24 · 使用 MuseLens 编辑",
-                        style: TextStyle(
-                          color: Colors.black54,
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: Colors.black54, fontSize: 12),
                       ),
                     ],
                   ),
@@ -186,43 +183,24 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             },
             itemBuilder: (context, index) {
               final path = _postImages[index];
-              // 🔥 核心修改：区分加载逻辑
-              if (path.startsWith('http')) {
-                return Image.network(
-                  path,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Container(
-                      color: Colors.grey[100],
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                    loadingProgress.expectedTotalBytes!
-                              : null,
-                          color: AppTheme.electricIndigo,
-                        ),
-                      ),
-                    );
-                  },
-                  errorBuilder: (c, e, s) => Container(color: Colors.grey[200]),
-                );
-              } else {
-                // 本地资源
-                return Image.asset(
-                  path,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: Colors.grey[200],
-                      child: const Center(
-                        child: Icon(Icons.broken_image, color: Colors.black12),
-                      ),
-                    );
-                  },
-                );
-              }
+              return buildAdaptiveImage(
+                path,
+                fit: BoxFit.cover,
+                placeholder: Container(
+                  color: Colors.grey[100],
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                      color: AppTheme.electricIndigo,
+                    ),
+                  ),
+                ),
+                errorWidget: Container(
+                  color: Colors.grey[200],
+                  child: const Center(
+                    child: Icon(Icons.broken_image, color: Colors.black12),
+                  ),
+                ),
+              );
             },
           ),
         ),
@@ -295,16 +273,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 CircleAvatar(
                   radius: 16,
                   backgroundColor: Colors.grey[800],
-                  child: ClipOval(
-                    child: Image.network(
-                      widget.post.authorAvatar,
-                      width: 32,
-                      height: 32,
-                      fit: BoxFit.cover,
-                      errorBuilder: (c, e, s) =>
-                          const Icon(Icons.person, color: Colors.white, size: 20),
-                    ),
+                  backgroundImage: resolveAdaptiveImageProvider(
+                    widget.post.authorAvatar,
                   ),
+                  child: widget.post.authorAvatar.trim().isEmpty
+                      ? const Icon(Icons.person, color: Colors.white, size: 20)
+                      : null,
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -370,9 +344,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               borderRadius: BorderRadius.circular(8),
               // 使用帖子封面图作为缩略图，智能判断类型
               image: DecorationImage(
-                image: widget.post.imageUrl.startsWith('http')
-                    ? NetworkImage(widget.post.imageUrl) as ImageProvider
-                    : AssetImage(widget.post.imageUrl),
+                image:
+                    resolveAdaptiveImageProvider(widget.post.imageUrl) ??
+                    const AssetImage('assets/images/profile.png'),
                 fit: BoxFit.cover,
               ),
             ),
@@ -409,10 +383,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 const SizedBox(height: 2),
                 Text(
                   "Neon Tokyo V2",
-                  style: TextStyle(
-                    color: Colors.black54,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: Colors.black54, fontSize: 12),
                 ),
               ],
             ),
@@ -444,16 +415,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         CircleAvatar(
           radius: 16,
           backgroundColor: Colors.grey[200],
-          child: ClipOval(
-            child: Image.network(
-              comment['avatar'],
-              width: 32,
-              height: 32,
-              fit: BoxFit.cover,
-              errorBuilder: (c, e, s) =>
-                  const Icon(Icons.person, color: Colors.grey, size: 20),
-            ),
+          backgroundImage: resolveAdaptiveImageProvider(
+            comment['avatar'] as String?,
           ),
+          child:
+              (comment['avatar'] as String?) == null ||
+                  (comment['avatar'] as String).trim().isEmpty
+              ? const Icon(Icons.person, color: Colors.grey, size: 20)
+              : null,
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -462,10 +431,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             children: [
               Text(
                 comment['name'],
-                style: const TextStyle(
-                  color: Colors.black54,
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: Colors.black54, fontSize: 12),
               ),
               const SizedBox(height: 4),
               Text(
@@ -481,10 +447,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 children: [
                   Text(
                     comment['time'],
-                    style: const TextStyle(
-                      color: Colors.black45,
-                      fontSize: 11,
-                    ),
+                    style: const TextStyle(color: Colors.black45, fontSize: 11),
                   ),
                   const SizedBox(width: 16),
                   Text(
@@ -502,18 +465,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         ),
         Column(
           children: [
-            Icon(
-              Icons.favorite_border,
-              size: 16,
-              color: Colors.black26,
-            ),
+            Icon(Icons.favorite_border, size: 16, color: Colors.black26),
             const SizedBox(height: 4),
             Text(
               "${comment['likes']}",
-              style: const TextStyle(
-                color: Colors.black45,
-                fontSize: 10,
-              ),
+              style: const TextStyle(color: Colors.black45, fontSize: 10),
             ),
           ],
         ),
@@ -531,9 +487,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       ),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.95),
-        border: Border(
-          top: BorderSide(color: Colors.black.withOpacity(0.1)),
-        ),
+        border: Border(top: BorderSide(color: Colors.black.withOpacity(0.1))),
       ),
       child: Row(
         children: [
@@ -548,10 +502,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               alignment: Alignment.centerLeft,
               child: Text(
                 "添加评论...",
-                style: const TextStyle(
-                  color: Colors.black54,
-                  fontSize: 14,
-                ),
+                style: const TextStyle(color: Colors.black54, fontSize: 14),
               ),
             ),
           ),
@@ -586,9 +537,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         Text(
           count,
           style: TextStyle(
-            color: color == Colors.black87
-                ? Colors.black54
-                : color,
+            color: color == Colors.black87 ? Colors.black54 : color,
             fontSize: 10,
             fontWeight: FontWeight.bold,
           ),

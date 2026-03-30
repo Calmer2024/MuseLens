@@ -23,3 +23,14 @@ final followingProvider =
   final apiService = ref.watch(userApiServiceProvider);
   return apiService.getFollowing(userId);
 });
+
+final userIsFollowingProvider =
+    FutureProvider.family<bool, int>((ref, targetUserId) async {
+  final currentUser = ref.watch(authProvider);
+  if (currentUser == null || currentUser.userId == targetUserId) {
+    return false;
+  }
+
+  final following = await ref.watch(followingProvider(currentUser.userId).future);
+  return following.any((user) => user.userId == targetUserId);
+});

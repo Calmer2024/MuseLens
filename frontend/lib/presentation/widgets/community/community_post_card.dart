@@ -1,18 +1,20 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/community_models.dart';
+import '../shared/adaptive_media.dart';
 
 class CommunityPostCard extends StatelessWidget {
   const CommunityPostCard({
     super.key,
     required this.post,
     this.onTap,
+    this.onAuthorTap,
   });
 
   final CommunityPostView post;
   final VoidCallback? onTap;
+  final VoidCallback? onAuthorTap;
 
   @override
   Widget build(BuildContext context) {
@@ -36,10 +38,7 @@ class CommunityPostCard extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              child: AspectRatio(
-                aspectRatio: post.coverAspectRatio.clamp(0.65, 1.35).toDouble(),
-                child: _buildCoverImage(),
-              ),
+              child: _buildCoverImage(),
             ),
             Padding(
               padding: const EdgeInsets.all(14),
@@ -96,27 +95,34 @@ class CommunityPostCard extends StatelessWidget {
                   const SizedBox(height: 14),
                   Row(
                     children: [
-                      CircleAvatar(
-                        radius: 10,
-                        backgroundColor: Colors.grey.shade200,
-                        backgroundImage: post.author.avatarUrl != null &&
-                                post.author.avatarUrl!.trim().isNotEmpty
-                            ? NetworkImage(post.author.avatarUrl!)
-                            : null,
-                        child: post.author.avatarUrl == null || post.author.avatarUrl!.trim().isEmpty
-                            ? const Icon(Icons.person, size: 12, color: Colors.black38)
-                            : null,
-                      ),
-                      const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
-                          post.author.displayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.black.withOpacity(0.58),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                        child: GestureDetector(
+                          onTap: onAuthorTap,
+                          behavior: HitTestBehavior.opaque,
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 10,
+                                backgroundColor: Colors.grey.shade200,
+                                backgroundImage: _getAvatarProvider(post.author.avatarUrl),
+                                child: post.author.avatarUrl == null || post.author.avatarUrl!.trim().isEmpty
+                                    ? const Icon(Icons.person, size: 12, color: Colors.black38)
+                                    : null,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  post.author.displayName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.black.withOpacity(0.58),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -142,7 +148,7 @@ class CommunityPostCard extends StatelessWidget {
   }
 
   Widget _buildCoverImage() {
-    final coverUrl = post.coverImageUrl;
+    final coverUrl = post.coverImageUrl?.trim();
     if (coverUrl == null || coverUrl.isEmpty) {
       return Container(
         color: Colors.grey.shade100,
@@ -152,49 +158,44 @@ class CommunityPostCard extends StatelessWidget {
       );
     }
 
-    if (coverUrl.startsWith('http')) {
-      return Image.network(
-        coverUrl,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            color: Colors.grey.shade100,
-            child: const Center(
-              child: Icon(Icons.broken_image_outlined, color: Colors.black26, size: 30),
+    final placeholder = Container(
+      color: Colors.grey.shade100,
+      child: const Center(
+        child: Icon(Icons.broken_image_outlined, color: Colors.black26, size: 30),
+      ),
+    );
+
+    final image = buildAdaptiveImage(
+      coverUrl,
+      fit: BoxFit.fitWidth,
+      width: double.infinity,
+      errorWidget: placeholder,
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) {
+          return child;
+        }
+        return Container(
+          color: Colors.grey.shade100,
+          child: const Center(
+            child: SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
-          );
-        },
-        loadingBuilder: (context, child, progress) {
-          if (progress == null) {
-            return child;
-          }
-          return Container(
-            color: Colors.grey.shade100,
-            child: const Center(
-              child: SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          );
-        },
-      );
-    } else {
-      // 本地文件路径
-      return Image.file(
-        File(coverUrl),
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            color: Colors.grey.shade100,
-            child: const Center(
-              child: Icon(Icons.broken_image_outlined, color: Colors.black26, size: 30),
-            ),
-          );
-        },
-      );
+          ),
+        );
+      },
+    );
+
+    final aspectRatio = post.coverAspectRatio;
+    if (aspectRatio == null) {
+      return image;
     }
+
+    return AspectRatio(
+      aspectRatio: aspectRatio,
+      child: image,
+    );
   }
 
   String _formatCount(int value) {
@@ -205,6 +206,10 @@ class CommunityPostCard extends StatelessWidget {
       return '${(value / 1000).toStringAsFixed(1)}k';
     }
     return '$value';
+  }
+
+  ImageProvider? _getAvatarProvider(String? path) {
+    return resolveAdaptiveImageProvider(path);
   }
 }
 

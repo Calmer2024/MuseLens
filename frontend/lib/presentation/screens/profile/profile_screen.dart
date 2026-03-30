@@ -1,8 +1,7 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/providers/auth_provider.dart';
@@ -15,13 +14,17 @@ import '../../../data/models/market_models.dart';
 import '../community/community_post_detail_screen.dart';
 import '../lens/market_lens_detail_screen.dart';
 import '../library/my_library_screen.dart';
+import '../../widgets/community/community_post_card.dart';
 import '../../widgets/lens/market_lens_visuals.dart';
+import '../../widgets/shared/adaptive_media.dart';
+import '../../../core/providers/user_provider.dart';
 
 // 新页面
 import '../auth/login_screen.dart';
 import '../auth/register_screen.dart';
 import 'edit_profile_screen.dart';
 import 'followers_list_screen.dart';
+import 'user_detail_screen.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -40,10 +43,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     ).push(MaterialPageRoute(builder: (_) => const LoginScreen()));
   }
 
-  void _openEditProfile() {
-    Navigator.of(
+  Future<void> _openEditProfile() async {
+    final currentUser = ref.read(authProvider);
+    await Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const EditProfileScreen()));
+    if (currentUser != null) {
+      ref.invalidate(userDetailProvider(currentUser.userId));
+    }
   }
 
   void _openFollowersList(int userId, bool isFollowers) {
@@ -147,6 +154,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   // 已登录态
   // ═══════════════════════════════════════════════
   Widget _buildLoggedInProfile(User user) {
+    final liveUserAsync = ref.watch(userDetailProvider(user.userId));
+    final followersAsync = ref.watch(followersProvider(user.userId));
+    final followingAsync = ref.watch(followingProvider(user.userId));
+    final liveUser = liveUserAsync.value ?? user;
+    final followerCount = followersAsync.value?.length ?? liveUser.followerCount;
+    final followingCount = followingAsync.value?.length ?? liveUser.followingCount;
+
     return Column(
       children: [
         // 头像与背景 Banner 组合
@@ -161,9 +175,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 color: Colors.grey.shade100,
-                image: user.bannerUrl != null && user.bannerUrl!.isNotEmpty
+                image: liveUser.bannerUrl != null && liveUser.bannerUrl!.isNotEmpty
                     ? DecorationImage(
-                        image: _getImageProvider(user.bannerUrl!),
+                        image: _getImageProvider(liveUser.bannerUrl!),
                         fit: BoxFit.cover,
                       )
                     : null,
@@ -175,7 +189,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                 ],
               ),
-              child: user.bannerUrl == null || user.bannerUrl!.isEmpty
+              child: liveUser.bannerUrl == null || liveUser.bannerUrl!.isEmpty
                   ? Icon(
                       Icons.image_outlined,
                       size: 40,
@@ -208,8 +222,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     radius: 46,
                     backgroundColor: Colors.grey.shade200,
                     backgroundImage:
-                        user.avatarUrl != null && user.avatarUrl!.isNotEmpty
-                        ? _getImageProvider(user.avatarUrl!)
+                        liveUser.avatarUrl != null && liveUser.avatarUrl!.isNotEmpty
+                        ? _getImageProvider(liveUser.avatarUrl!)
                         : const AssetImage('assets/images/profile.png'),
                   ),
                 ),
@@ -221,7 +235,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         const SizedBox(height: 56), // 为悬浮的头像留出空间
 
         Text(
-          user.nickname ?? user.username,
+          liveUser.nickname ?? liveUser.username,
           style: const TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
@@ -230,13 +244,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ),
         const SizedBox(height: 4),
         Text(
-          '@${user.username}',
+          '@${liveUser.username}',
           style: TextStyle(fontSize: 14, color: Colors.black.withOpacity(0.5)),
         ),
-        if (user.bio != null && user.bio!.isNotEmpty) ...[
+        if (liveUser.bio != null && liveUser.bio!.isNotEmpty) ...[
           const SizedBox(height: 12),
           Text(
-            user.bio!,
+            liveUser.bio!,
             style: TextStyle(
               fontSize: 14,
               color: Colors.black.withOpacity(0.8),
@@ -246,7 +260,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ],
 
         // 会员等级标签
-        if (user.memberLevel != 'free') ...[
+        if (liveUser.memberLevel != 'free') ...[
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -257,7 +271,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              user.memberLevel.toUpperCase(),
+              liveUser.memberLevel.toUpperCase(),
               style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
@@ -275,19 +289,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildStatItem(
-              '${user.totalLikes}',
+              '${liveUser.totalLikes}',
               context.tr('likes'),
               onTap: null,
             ),
             _buildStatItem(
-              '${user.followerCount}',
+              '$followerCount',
               context.tr('followers'),
-              onTap: () => _openFollowersList(user.userId, true),
+              onTap: () => _openFollowersList(liveUser.userId, true),
             ),
             _buildStatItem(
-              '${user.followingCount}',
+              '$followingCount',
               context.tr('following'),
-              onTap: () => _openFollowersList(user.userId, false),
+              onTap: () => _openFollowersList(liveUser.userId, false),
             ),
           ],
         ),
@@ -558,7 +572,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final installedCount = installedAsync.value?.length ?? 0;
     final favoriteCount = favoriteAsync.value?.length ?? 0;
     final authoredCount = authoredAsync.value?.length ?? 0;
-    final isLoading = installedAsync.isLoading ||
+    final isLoading =
+        installedAsync.isLoading ||
         favoriteAsync.isLoading ||
         authoredAsync.isLoading;
 
@@ -584,7 +599,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             children: [
               const Expanded(
                 child: Text(
-                  '透镜市场概览',
+                  '我的透镜',
                   style: TextStyle(
                     color: Colors.black87,
                     fontSize: 16,
@@ -739,31 +754,54 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildPostGrid(List<CommunityPostView> posts, {required String emptyText}) {
+  Widget _buildPostGrid(
+    List<CommunityPostView> posts, {
+    required String emptyText,
+  }) {
     if (posts.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 36),
         child: Center(
           child: Text(
             emptyText,
-            style: TextStyle(color: Colors.black.withOpacity(0.38), fontSize: 14),
+            style: TextStyle(
+              color: Colors.black.withOpacity(0.38),
+              fontSize: 14,
+            ),
           ),
         ),
       );
     }
 
-    return GridView.builder(
+    return MasonryGridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
+      crossAxisCount: 2,
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
       itemCount: posts.length,
       itemBuilder: (context, index) {
-        return _buildPostCard(posts[index]);
+        final post = posts[index];
+        return CommunityPostCard(
+          post: post,
+          onAuthorTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => UserDetailScreen(userId: post.author.userId),
+              ),
+            );
+          },
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    CommunityPostDetailScreen(postId: post.post.postId),
+              ),
+            );
+          },
+        );
       },
     );
   }
@@ -788,7 +826,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         child: Center(
           child: Text(
             '你还没有发布过透镜',
-            style: TextStyle(color: Colors.black.withOpacity(0.38), fontSize: 14),
+            style: TextStyle(
+              color: Colors.black.withOpacity(0.38),
+              fontSize: 14,
+            ),
           ),
         ),
       );
@@ -843,10 +884,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(16),
                 ),
-                child: Image.asset(
-                  visual.afterImage,
-                  fit: BoxFit.cover,
-                ),
+                child: Image.asset(visual.afterImage, fit: BoxFit.cover),
               ),
             ),
             Padding(
@@ -870,59 +908,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     style: const TextStyle(color: Colors.black54, fontSize: 11),
                   ),
                 ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPostCard(CommunityPostView post) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CommunityPostDetailScreen(postId: post.post.postId),
-          ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: Colors.white,
-          border: Border.all(color: Colors.black.withOpacity(0.05)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(16),
-                ),
-                child: _buildSmartImage(post.coverImageUrl ?? ''),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(10.0),
-              child: Text(
-                post.displayTitle,
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 12,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -966,46 +951,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildSmartImage(String path) {
-    if (path.trim().isEmpty) {
-      return Container(color: Colors.grey[200]);
-    } else if (path.startsWith('http')) {
-      return CachedNetworkImage(
-        imageUrl: path,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        placeholder: (context, url) => Container(color: Colors.grey[200]),
-        errorWidget: (context, url, error) =>
-            Container(color: Colors.grey[200]),
-      );
-    } else if (path.startsWith('file://')) {
-      return Image.file(
-        File(path.substring(7)),
-        fit: BoxFit.cover,
-        width: double.infinity,
-        errorBuilder: (context, error, stackTrace) =>
-            Container(color: Colors.grey[200]),
-      );
-    } else {
-      return Image.asset(
-        path,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        errorBuilder: (context, error, stackTrace) =>
-            Container(color: Colors.grey[200]),
-      );
-    }
-  }
-
   ImageProvider _getImageProvider(String path) {
-    if (path.startsWith('http')) {
-      return CachedNetworkImageProvider(path);
-    } else if (path.startsWith('file://')) {
-      return FileImage(File(path.substring(7)));
-    } else if (path.startsWith('/')) {
-      return FileImage(File(path));
-    } else {
-      return AssetImage(path);
-    }
+    return resolveAdaptiveImageProvider(path) ??
+        const AssetImage('assets/images/profile.png');
   }
 }

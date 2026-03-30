@@ -23,35 +23,31 @@ class RecipeMock {
     return [
       RecipeMock(
         title: "赛博朋克城市",
-        imageUrl: "https://picsum.photos/id/122/200/200", // 模拟赛博朋克图
+        imageUrl: "assets/images/home/CyberpunkNightChallenge.jpg",
         iconName: "city",
-        // --- 补充缺失的参数 ---
         author: "Neon_Walker",
-        authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Felix",
+        authorAvatar: "assets/images/profile.png",
       ),
       RecipeMock(
         title: "复古胶片",
-        imageUrl: "https://picsum.photos/id/123/200/200", // 模拟复古图
+        imageUrl: "assets/images/home/OldPhotoRestore.jpg",
         iconName: "film",
-        // --- 补充缺失的参数 ---
         author: "Film_Master",
-        authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Jack",
+        authorAvatar: "assets/images/profile.png",
       ),
       RecipeMock(
         title: "油画风格",
-        imageUrl: "https://picsum.photos/id/124/200/200", // 模拟油画
+        imageUrl: "assets/images/home/SpringFilmFestival.png",
         iconName: "brush",
-        // --- 补充缺失的参数 ---
         author: "Art_Vibes",
-        authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Bella",
+        authorAvatar: "assets/images/profile.png",
       ),
       RecipeMock(
         title: "数字故障风",
-        imageUrl: "https://picsum.photos/id/125/200/200", // 模拟故障风
+        imageUrl: "assets/images/home/TravelVlog.JPG",
         iconName: "glitch",
-        // --- 补充缺失的参数 ---
         author: "Glitch_God",
-        authorAvatar: "https://api.dicebear.com/7.x/avataaars/png?seed=Max",
+        authorAvatar: "assets/images/profile.png",
       ),
     ];
   }

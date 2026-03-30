@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/navigation/slide_right_route.dart';
 import '../../../data/models/lens_template_mock.dart';
 import '../lens/lens_detail_screen.dart';
+import '../../widgets/shared/adaptive_media.dart';
 
 // --- 1. 临时 Mock 数据 ---
 class OfficialLensItem {
@@ -70,8 +71,8 @@ class HomeScreen extends StatelessWidget {
           author: "MuseLens Official",
           authorAvatar: "assets/images/logo.png",
           usageCount: "850k",
-          beforeImage: "https://picsum.photos/seed/travel_before/300/300",
-          afterImage: "https://picsum.photos/seed/travel_after/300/300",
+          beforeImage: "assets/images/home/TravelVlog.JPG",
+          afterImage: "assets/images/home/SpringFilmFestival.png",
           isOfficial: true,
           splitStyle: LensSplitStyle.diagonal,
         ),
@@ -93,7 +94,7 @@ class HomeScreen extends StatelessWidget {
       ),
       OfficialLensItem(
         title: "你也可以变成摄影大师~",
-        imageUrl: "https://picsum.photos/seed/anime/300/400",
+        imageUrl: "assets/images/home/Photography_after.png",
         usageCount: "50万次使用",
         templateData: LensTemplateMock(
           title: "大师名作",
@@ -436,10 +437,7 @@ class HomeScreen extends StatelessWidget {
   }
 
   ImageProvider _getImageProvider(String path) {
-    if (path.startsWith('http')) {
-      return NetworkImage(path);
-    } else {
-      return AssetImage(path);
-    }
+    return resolveAdaptiveImageProvider(path) ??
+        const AssetImage('assets/images/profile.png');
   }
 }
