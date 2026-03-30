@@ -8,30 +8,11 @@
       "title": "Checkpoint加载器（简易）"
     }
   },
-  "19": {
-    "inputs": {
-      "lora_name": "Vintage_styleV2.safetensors",
-      "strength_model": 1,
-      "strength_clip": 1,
-      "model": [
-        "18",
-        0
-      ],
-      "clip": [
-        "18",
-        1
-      ]
-    },
-    "class_type": "LoraLoader",
-    "_meta": {
-      "title": "加载LoRA"
-    }
-  },
   "20": {
     "inputs": {
       "text": "watercolor painting, traditional art, expressive brushstrokes, color wash, visible paper texture, pastel colors, artistic, masterpiece, elegant, highly detailed",
       "clip": [
-        "19",
+        "34",
         1
       ]
     },
@@ -44,7 +25,7 @@
     "inputs": {
       "text": "photographic, 3d render, sharp edges, digital painting, oil painting, plastic, lowres, bad quality",
       "clip": [
-        "19",
+        "34",
         1
       ]
     },
@@ -76,15 +57,6 @@
       "title": "Depth Anything V2 - Relative"
     }
   },
-  "24": {
-    "inputs": {
-      "control_net_name": "controlnet-depth-sdxl-1.0.safetensors"
-    },
-    "class_type": "ControlNetLoader",
-    "_meta": {
-      "title": "加载ControlNet模型"
-    }
-  },
   "25": {
     "inputs": {
       "strength": 1,
@@ -99,7 +71,7 @@
         0
       ],
       "control_net": [
-        "24",
+        "33",
         0
       ],
       "image": [
@@ -141,7 +113,7 @@
       "scheduler": "simple",
       "denoise": 1,
       "model": [
-        "19",
+        "34",
         0
       ],
       "positive": [
@@ -204,6 +176,34 @@
     "class_type": "ImageScaleToTotalPixels",
     "_meta": {
       "title": "缩放图像（像素）"
+    }
+  },
+  "33": {
+    "inputs": {
+      "control_net_name": "controlnet-depth-sdxl-1.0.safetensors"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": {
+      "title": "加载ControlNet模型"
+    }
+  },
+  "34": {
+    "inputs": {
+      "lora_name": "Vintage_styleV2.safetensors",
+      "strength_model": 1,
+      "strength_clip": 1,
+      "model": [
+        "18",
+        0
+      ],
+      "clip": [
+        "18",
+        1
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "加载LoRA"
     }
   }
 }

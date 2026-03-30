@@ -41,14 +41,12 @@ examples:
   - nl_desc: "把这张人像改成杂志封面风格，保持人物姿态和构图不变。"
     params_example:
       prompt: "fashion magazine cover style, dramatic studio lighting, premium texture, keep original composition"
-      megapixels: 1
       steps: 20
       cfg: 5
       noise_seed: 38564433706143
   - nl_desc: "把原图整体改成雨夜霓虹电影感，构图保持一致。"
     params_example:
       prompt: "rainy neon night cinematic look, reflective surfaces, moody contrast, keep original framing"
-      megapixels: 1
       steps: 24
       cfg: 5.5
       noise_seed: 38564433706144

@@ -452,3 +452,146 @@ def test_route_skill_enrich_on_missing_params_reloads_candidates(test_db, workfl
     param_names = [p.get("name") for p in (cand.get("params") or [])]
     assert "prompt" in param_names
 
+
+def test_route_and_run_endpoint_returns_questions_without_execution(
+    client, test_db, workflow_file, monkeypatch
+):
+    lens_id = "lens_api_route_and_run_clarify"
+
+    registry.register_lens(
+        test_db,
+        {
+            "lens_id": lens_id,
+            "layer": "A2",
+            "description": "需要 prompt",
+            "workflow_file_path": workflow_file,
+            "inputs": [{"name": "base_image", "type": "image", "mapping": {"node_id": "1", "field_name": "image"}}],
+            "outputs": [{"name": "result_image", "type": "image", "mapping": {"node_id": "1", "field_name": "images"}}],
+            "params": [{"name": "prompt", "type": "text", "description": "", "mapping": {"node_id": "1", "field_name": "text"}}],
+        },
+    )
+
+    planner = MockPlannerService(
+        PlannerOutput(
+            blueprint=DAGBlueprint(
+                initial_inputs={"user_base_image": "upload.png"},
+                steps=[
+                    DAGStep(
+                        step_id="s1",
+                        lens_id=lens_id,
+                        input_links={"base_image": "$user_base_image"},
+                        params={},
+                    )
+                ],
+            ),
+            missing_params=[MissingParam(lens_id=lens_id, param_name="prompt", reason="缺少")],
+            clarification_questions=[
+                PlannerQuestion(
+                    param_ref=PlannerParamRef(lens_id=lens_id, param_name="prompt"),
+                    question_text="请输入 prompt",
+                    required=True,
+                )
+            ],
+            thought="need prompt",
+        )
+    )
+
+    rag = _FakeRAGClient(lens_id)
+    retrieval = RetrievalService(rag)
+
+    import app.api.v1.endpoints.router as router_endpoint
+
+    async def _unexpected_execute(_blueprint):
+        raise AssertionError("execute_blueprint should not be called when clarification is needed")
+
+    monkeypatch.setattr(
+        router_endpoint,
+        "router_service",
+        RouterService(rag_client=rag, retrieval=retrieval, planner=planner),  # type: ignore[arg-type]
+    )
+    monkeypatch.setattr(router_endpoint.compiler, "execute_blueprint", _unexpected_execute)
+
+    resp = client.post(
+        "/api/v1/router/route_and_run",
+        json={"user_id": "u1", "user_message": "帮我改图", "base_image": "upload.png"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "need_clarification"
+    assert body["executed"] is False
+    assert body["execution_context"] == {}
+    assert body["result_filename"] is None
+    assert body["execution_error"] is None
+    assert body["questions"][0]["id"] == f"{lens_id}.prompt"
+
+
+def test_route_and_run_endpoint_executes_ready_blueprint(client, test_db, workflow_file, monkeypatch):
+    lens_id = "lens_api_route_and_run_ready"
+
+    registry.register_lens(
+        test_db,
+        {
+            "lens_id": lens_id,
+            "layer": "A2",
+            "description": "ready 执行测试",
+            "workflow_file_path": workflow_file,
+            "inputs": [{"name": "base_image", "type": "image", "mapping": {"node_id": "1", "field_name": "image"}}],
+            "outputs": [{"name": "result_image", "type": "image", "mapping": {"node_id": "1", "field_name": "images"}}],
+            "params": [{"name": "prompt", "type": "text", "description": "", "mapping": {"node_id": "1", "field_name": "text"}}],
+        },
+    )
+
+    planner = MockPlannerService(
+        PlannerOutput(
+            blueprint=DAGBlueprint(
+                initial_inputs={"user_base_image": "upload.png"},
+                steps=[
+                    DAGStep(
+                        step_id="s1",
+                        lens_id=lens_id,
+                        input_links={"base_image": "$user_base_image"},
+                        params={"prompt": "一盆多肉"},
+                    )
+                ],
+            ),
+            missing_params=[],
+            clarification_questions=[],
+            thought="ready",
+        )
+    )
+
+    rag = _FakeRAGClient(lens_id)
+    retrieval = RetrievalService(rag)
+
+    import app.api.v1.endpoints.router as router_endpoint
+
+    captured = {}
+
+    async def _fake_execute(blueprint):
+        captured["blueprint"] = blueprint.model_dump()
+        return {
+            "user_base_image": "upload.png",
+            "s1.result_image": "result.png",
+        }
+
+    monkeypatch.setattr(
+        router_endpoint,
+        "router_service",
+        RouterService(rag_client=rag, retrieval=retrieval, planner=planner),  # type: ignore[arg-type]
+    )
+    monkeypatch.setattr(router_endpoint.compiler, "execute_blueprint", _fake_execute)
+
+    resp = client.post(
+        "/api/v1/router/route_and_run",
+        json={"user_id": "u1", "user_message": "帮我改图", "base_image": "upload.png"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ready"
+    assert body["executed"] is True
+    assert body["result_filename"] == "result.png"
+    assert body["result_url"] == "http://127.0.0.1:8188/view?filename=result.png&type=output"
+    assert body["execution_error"] is None
+    assert body["execution_context"]["s1.result_image"] == "result.png"
+    assert captured["blueprint"]["steps"][0]["lens_id"] == lens_id
+

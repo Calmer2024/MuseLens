@@ -20,11 +20,19 @@ class LensParamSchema(BaseModel):
     default: Any = None
 
 
+class LensAssetSchema(BaseModel):
+    name: str
+    type: str
+    description: str = ""
+
+
 class LensKnowledge(BaseModel):
     lens_id: str
     score: float = 0.0
     layer: str = ""
     description: str = ""
+    inputs: List[LensAssetSchema] = Field(default_factory=list)
+    outputs: List[LensAssetSchema] = Field(default_factory=list)
     params: List[LensParamSchema] = Field(default_factory=list)
     examples: List[LensExample] = Field(default_factory=list)
 

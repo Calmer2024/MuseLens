@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.lens_example_model import LensExampleRecord
 from app.models.lens_model import LensRecord
-from app.schemas.retrieval import LensExample, LensKnowledge, LensParamSchema
+from app.schemas.retrieval import LensAssetSchema, LensExample, LensKnowledge, LensParamSchema
 from app.services.rag_client import BaseLensRAGClient
 from app.services.lens_docs_service import load_lens_doc
 
@@ -141,6 +141,8 @@ class RetrievalService:
             doc = None
 
         raw_params = rec.params or []
+        raw_inputs = rec.inputs or []
+        raw_outputs = rec.outputs or []
 
         params: List[LensParamSchema] = []
         for p in raw_params:
@@ -152,6 +154,26 @@ class RetrievalService:
                     description=str(p.get("description", "")),
                     required=bool(p.get("required", False)),
                     default=p.get("default", None),
+                )
+            )
+
+        inputs: List[LensAssetSchema] = []
+        for item in raw_inputs:
+            inputs.append(
+                LensAssetSchema(
+                    name=str(item.get("name", "")),
+                    type=str(item.get("type", "")),
+                    description=str(item.get("description", "")),
+                )
+            )
+
+        outputs: List[LensAssetSchema] = []
+        for item in raw_outputs:
+            outputs.append(
+                LensAssetSchema(
+                    name=str(item.get("name", "")),
+                    type=str(item.get("type", "")),
+                    description=str(item.get("description", "")),
                 )
             )
 
@@ -194,6 +216,8 @@ class RetrievalService:
             score=score,
             layer=doc.layer if doc and doc.layer else (rec.layer or ""),
             description=description,
+            inputs=inputs,
+            outputs=outputs,
             params=params,
             examples=(
                 (doc.examples if doc and doc.examples else [])

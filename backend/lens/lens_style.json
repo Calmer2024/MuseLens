@@ -66,15 +66,6 @@
       "title": "Depth Anything V2 - Relative"
     }
   },
-  "9": {
-    "inputs": {
-      "control_net_name": "diffusers_xl_depth_mid.safetensors"
-    },
-    "class_type": "ControlNetLoader",
-    "_meta": {
-      "title": "加载ControlNet模型"
-    }
-  },
   "10": {
     "inputs": {
       "strength": 1,
@@ -89,7 +80,7 @@
         0
       ],
       "control_net": [
-        "9",
+        "23",
         0
       ],
       "image": [
@@ -257,6 +248,15 @@
     "class_type": "ImageScaleToTotalPixels",
     "_meta": {
       "title": "缩放图像（像素）"
+    }
+  },
+  "23": {
+    "inputs": {
+      "control_net_name": "controlnet-depth-sdxl-1.0.safetensors"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": {
+      "title": "加载ControlNet模型"
     }
   }
 }

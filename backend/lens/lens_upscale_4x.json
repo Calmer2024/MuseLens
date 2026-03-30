@@ -19,7 +19,7 @@
   },
   "3": {
     "inputs": {
-      "ckpt_name": "realisticVisionV60B1_v51VAE.safetensors"
+      "ckpt_name": "juggernautXL_ragnarokBy.safetensors"
     },
     "class_type": "CheckpointLoaderSimple",
     "_meta": {
@@ -75,7 +75,7 @@
       "tiled_decode": false,
       "batch_size": 1,
       "image": [
-        "1",
+        "13",
         0
       ],
       "model": [
@@ -104,15 +104,6 @@
       "title": "Ultimate SD Upscale"
     }
   },
-  "7": {
-    "inputs": {
-      "filename_prefix": "MuseLens_Upscale_"
-    },
-    "class_type": "SaveImage",
-    "_meta": {
-      "title": "保存图像"
-    }
-  },
   "8": {
     "inputs": {
       "filename_prefix": "MC_",
@@ -124,6 +115,21 @@
     "class_type": "SaveImage",
     "_meta": {
       "title": "保存图像"
+    }
+  },
+  "13": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "megapixels": 1,
+      "resolution_steps": 1,
+      "image": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "缩放图像（像素）"
     }
   }
 }

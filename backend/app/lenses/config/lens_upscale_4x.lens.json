@@ -1,0 +1,70 @@
+{
+  "lens_id": "lens_upscale_4x",
+  "layer": "A5",
+  "description": "A5 超清放大：结合 Ultimate SD Upscale 与 UltraSharp 放大模型，对输入图像执行清晰度增强与细节补全。",
+  "workflow_file": "lens_upscale_4x.json",
+  "inputs": [
+    {
+      "name": "base_image",
+      "type": "image",
+      "mapping": { "node_id": "1", "field_name": "image" }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result_image",
+      "type": "image",
+      "mapping": { "node_id": "8", "field_name": "images" }
+    }
+  ],
+  "params": [
+    {
+      "name": "upscale_by",
+      "type": "float",
+      "description": "控制放大倍数。",
+      "mapping": { "node_id": "6", "field_name": "upscale_by" }
+    },
+    {
+      "name": "prompt",
+      "type": "text",
+      "description": "描述放大时希望补充的纹理与细节方向。",
+      "mapping": { "node_id": "4", "field_name": "text" }
+    },
+    {
+      "name": "denoise",
+      "type": "float",
+      "description": "控制放大时的重绘幅度。",
+      "mapping": { "node_id": "6", "field_name": "denoise" }
+    },
+    {
+      "name": "steps",
+      "type": "int",
+      "description": "控制采样步数。",
+      "mapping": { "node_id": "6", "field_name": "steps" }
+    },
+    {
+      "name": "cfg",
+      "type": "float",
+      "description": "控制提示词引导强度。",
+      "mapping": { "node_id": "6", "field_name": "cfg" }
+    },
+    {
+      "name": "tile_width",
+      "type": "int",
+      "description": "控制分块放大时的 tile 宽度。",
+      "mapping": { "node_id": "6", "field_name": "tile_width" }
+    },
+    {
+      "name": "tile_height",
+      "type": "int",
+      "description": "控制分块放大时的 tile 高度。",
+      "mapping": { "node_id": "6", "field_name": "tile_height" }
+    },
+    {
+      "name": "seed",
+      "type": "int",
+      "description": "控制随机种子。",
+      "mapping": { "node_id": "6", "field_name": "seed" }
+    }
+  ]
+}

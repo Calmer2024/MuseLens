@@ -1,0 +1,69 @@
+{
+  "lens_id": "lens_style",
+  "layer": "A4",
+  "description": "A4 风格迁移：结合原图与风格参考图，通过 IPAdapter 与深度约束在保留结构的前提下完成整体风格化重绘。",
+  "workflow_file": "lens_style.json",
+  "inputs": [
+    {
+      "name": "base_image",
+      "type": "image",
+      "mapping": { "node_id": "3", "field_name": "image" }
+    },
+    {
+      "name": "style_reference_image",
+      "type": "image",
+      "mapping": { "node_id": "4", "field_name": "image" }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result_image",
+      "type": "image",
+      "mapping": { "node_id": "17", "field_name": "images" }
+    }
+  ],
+  "params": [
+    {
+      "name": "prompt",
+      "type": "text",
+      "description": "补充描述最终风格化结果的视觉方向、氛围与主体保留要求。",
+      "mapping": { "node_id": "5", "field_name": "text" }
+    },
+    {
+      "name": "ipadapter_weight",
+      "type": "float",
+      "description": "控制参考风格图对结果的影响强度。",
+      "mapping": { "node_id": "13", "field_name": "weight" }
+    },
+    {
+      "name": "controlnet_strength",
+      "type": "float",
+      "description": "控制深度结构约束强度。",
+      "mapping": { "node_id": "10", "field_name": "strength" }
+    },
+    {
+      "name": "denoise",
+      "type": "float",
+      "description": "控制风格迁移时的重绘幅度。",
+      "mapping": { "node_id": "15", "field_name": "denoise" }
+    },
+    {
+      "name": "steps",
+      "type": "int",
+      "description": "控制采样步数。",
+      "mapping": { "node_id": "15", "field_name": "steps" }
+    },
+    {
+      "name": "cfg",
+      "type": "float",
+      "description": "控制文本与条件对结果的引导强度。",
+      "mapping": { "node_id": "15", "field_name": "cfg" }
+    },
+    {
+      "name": "seed",
+      "type": "int",
+      "description": "控制随机种子。",
+      "mapping": { "node_id": "15", "field_name": "seed" }
+    }
+  ]
+}

@@ -5,13 +5,18 @@ from app.core.database import get_db
 from app.schemas.router import (
     RouterAnswerRequest,
     RouterCompileRequest,
+    RouterRouteAndRunRequest,
+    RouterRouteAndRunResponse,
     RouterRouteRequest,
     RouterResponse,
+    RouterStatus,
 )
+from app.services.compiler import COMFYUI_INPUT_DIR, COMFYUI_OUTPUT_DIR, MuseDNACompiler
 from app.services.router_service import router_service
 
 
 router = APIRouter()
+compiler = MuseDNACompiler(input_dir=COMFYUI_INPUT_DIR, output_dir=COMFYUI_OUTPUT_DIR)
 
 
 @router.post("/route", response_model=RouterResponse)
@@ -24,6 +29,59 @@ def route(req: RouterRouteRequest, db: Session = Depends(get_db)) -> RouterRespo
     该端点用于逐步替代 /compile_or_ask 与 /answer。
     """
     return router_service.route_with_db(req, db=db)
+
+
+@router.post("/route_and_run", response_model=RouterRouteAndRunResponse)
+async def route_and_run(
+    req: RouterRouteAndRunRequest,
+    db: Session = Depends(get_db),
+) -> RouterRouteAndRunResponse:
+    """
+    Router 测试执行闭环：
+    - 先复用现有 Router 编排；
+    - 若返回 need_clarification，则原样返回追问；
+    - 若返回 ready 且 execute_when_ready=true，则继续执行 blueprint。
+    """
+    routed = router_service.route_with_db(req, db=db)
+    payload = routed.model_dump()
+    payload.update(
+        {
+            "executed": False,
+            "execution_context": {},
+            "result_filename": None,
+            "result_url": None,
+            "execution_error": None,
+        }
+    )
+
+    if routed.status != RouterStatus.READY or not req.execute_when_ready:
+        return RouterRouteAndRunResponse(**payload)
+
+    if routed.blueprint is None:
+        payload["execution_error"] = "Router returned ready but blueprint is missing."
+        return RouterRouteAndRunResponse(**payload)
+
+    if not routed.blueprint.initial_inputs.get("user_base_image"):
+        payload["execution_error"] = "Blueprint is missing initial input 'user_base_image'."
+        return RouterRouteAndRunResponse(**payload)
+
+    try:
+        final_context = await compiler.execute_blueprint(routed.blueprint)
+        result_filename = _infer_result_filename(routed.blueprint, final_context)
+        payload.update(
+            {
+                "executed": True,
+                "execution_context": final_context,
+                "result_filename": result_filename,
+                "result_url": _build_result_url(result_filename) if result_filename else None,
+            }
+        )
+        if not result_filename:
+            payload["execution_error"] = "Blueprint executed, but no result image was found in execution context."
+    except Exception as exc:
+        payload["execution_error"] = str(exc)
+
+    return RouterRouteAndRunResponse(**payload)
 
 
 @router.post("/compile_or_ask", response_model=RouterResponse)
@@ -62,4 +120,16 @@ def answer(req: RouterAnswerRequest, db: Session = Depends(get_db)) -> RouterRes
         ),
         db=db,
     )
+
+
+def _infer_result_filename(blueprint, execution_context: dict[str, str]) -> str | None:
+    for step in reversed(blueprint.steps):
+        candidate = execution_context.get(f"{step.step_id}.result_image")
+        if candidate:
+            return candidate
+    return None
+
+
+def _build_result_url(filename: str) -> str:
+    return f"http://127.0.0.1:8188/view?filename={filename}&type=output"
 
