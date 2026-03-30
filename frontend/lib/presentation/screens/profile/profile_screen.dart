@@ -6,13 +6,16 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/community_provider.dart';
+import '../../../core/providers/market_provider.dart';
 import '../../../data/models/user_model.dart';
 
-// 引入之前定义的数据模型和详情页
-import '../../../data/models/lens_template_mock.dart';
-import '../community/community_screen.dart'; // 包含 CommunityPostMock
-import '../lens/lens_detail_screen.dart'; // Lens 详情页
-import '../community/post_detail_screen.dart'; // 帖子详情页
+import '../../../data/models/community_models.dart';
+import '../../../data/models/market_models.dart';
+import '../community/community_post_detail_screen.dart';
+import '../lens/market_lens_detail_screen.dart';
+import '../library/my_library_screen.dart';
+import '../../widgets/lens/market_lens_visuals.dart';
 
 // 新页面
 import '../auth/login_screen.dart';
@@ -31,38 +34,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   // 当前选中的 Tab 索引: 0=My Lens, 1=My Post, 2=Favorite
   int _currentTab = 0;
 
-  // 模拟数据源
-  late List<LensTemplateMock> _myLenses;
-  late List<CommunityPostMock> _myPosts;
-  late List<CommunityPostMock> _favorites;
-
-  @override
-  void initState() {
-    super.initState();
-    _myLenses = LensTemplateMock.getTemplates();
-    _myPosts = CommunityPostMock.getPosts().take(5).toList();
-    _favorites = CommunityPostMock.getPosts().skip(5).toList();
-  }
-
   void _openLoginScreen() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const LoginScreen()));
   }
 
   void _openEditProfile() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const EditProfileScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const EditProfileScreen()));
   }
 
   void _openFollowersList(int userId, bool isFollowers) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => FollowersListScreen(
-          userId: userId,
-          isFollowers: isFollowers,
-        ),
+        builder: (_) =>
+            FollowersListScreen(userId: userId, isFollowers: isFollowers),
       ),
     );
   }
@@ -137,40 +125,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               physics: const BouncingScrollPhysics(),
               child: Column(
                 children: [
-                  const SizedBox(height: 10),
-
-                  // --- 1. Header ---
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const SizedBox(width: 40),
-                      Text(
-                        context.tr('profile'),
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      // 退出登录按钮（仅已登录时显示）
-                      if (isLoggedIn)
-                        IconButton(
-                          onPressed: _handleLogout,
-                          icon: Icon(
-                            Icons.logout_rounded,
-                            color: Colors.black.withOpacity(0.4),
-                            size: 22,
-                          ),
-                        )
-                      else
-                        const SizedBox(width: 40),
-                    ],
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  // --- 2. User Info ---
+                  const SizedBox(height: 30), // 保留适度留白
+                  // --- User Info ---
                   if (isLoggedIn)
                     _buildLoggedInProfile(user)
                   else
@@ -227,7 +183,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     )
                   : null,
             ),
-            
+
             // 头像
             Positioned(
               bottom: -40,
@@ -251,10 +207,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   child: CircleAvatar(
                     radius: 46,
                     backgroundColor: Colors.grey.shade200,
-                    backgroundImage: user.avatarUrl != null &&
-                            user.avatarUrl!.isNotEmpty
+                    backgroundImage:
+                        user.avatarUrl != null && user.avatarUrl!.isNotEmpty
                         ? _getImageProvider(user.avatarUrl!)
-                        : const AssetImage('assets/images/profile.jpg'),
+                        : const AssetImage('assets/images/profile.png'),
                   ),
                 ),
               ),
@@ -275,10 +231,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         const SizedBox(height: 4),
         Text(
           '@${user.username}',
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.black.withOpacity(0.5),
-          ),
+          style: TextStyle(fontSize: 14, color: Colors.black.withOpacity(0.5)),
         ),
         if (user.bio != null && user.bio!.isNotEmpty) ...[
           const SizedBox(height: 12),
@@ -317,41 +270,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
         const SizedBox(height: 24),
 
-        // 编辑资料按钮
-        GestureDetector(
-          onTap: _openEditProfile,
-          child: Container(
-            width: 200,
-            height: 48,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              gradient: const LinearGradient(
-                colors: [AppTheme.electricIndigo, Color(0xFF584CF4)],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.electricIndigo.withOpacity(0.4),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                context.tr('edit_profile'),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 30),
-
-        // Stats Row
+        // Stats Row (位于按钮上方)
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -372,6 +291,61 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
           ],
         ),
+
+        const SizedBox(height: 24),
+
+        // 编辑资料与退出登录按钮行（编辑居中，退出靠右，纯灰色icon）
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            // 主按钮：居中的编辑资料按钮
+            Container(
+              width: double.infinity,
+              alignment: Alignment.center,
+              child: GestureDetector(
+                onTap: _openEditProfile,
+                child: Container(
+                  width: 120, // 缩小尺寸
+                  height: 36, // 缩小尺寸
+                  decoration: BoxDecoration(
+                    color: Colors.black, // 黑色背景
+                    borderRadius: BorderRadius.circular(6), // 微小的圆角
+                  ),
+                  child: Center(
+                    child: Text(
+                      context.tr('edit_profile'),
+                      style: const TextStyle(
+                        color: Colors.white, // 白色文字
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14, // 略微缩小字体
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // 次按钮：位于最右侧的灰色退出Icon（无背景圆形）
+            Positioned(
+              right: 0,
+              child: IconButton(
+                onPressed: _handleLogout,
+                padding: EdgeInsets.zero, // 减少点击区域的边距
+                constraints: const BoxConstraints(), // 移除默认的最小尺寸限制
+                icon: const Icon(
+                  Icons.logout_rounded,
+                  color: Colors.black54, // 灰色Icon
+                  size: 20, // 略微调整尺寸
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 30),
+
+        _buildMarketSummary(),
 
         const SizedBox(height: 30),
 
@@ -439,51 +413,55 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
         Text(
           context.tr('login_prompt'),
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.black.withOpacity(0.5),
-          ),
+          style: TextStyle(fontSize: 14, color: Colors.black.withOpacity(0.5)),
         ),
 
         const SizedBox(height: 32),
 
         // 登录按钮
         GestureDetector(
-          onTap: _openLoginScreen,
-          child: Container(
-            width: 220,
-            height: 52,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(26),
-              gradient: const LinearGradient(
-                colors: [AppTheme.electricIndigo, Color(0xFF584CF4)],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.electricIndigo.withOpacity(0.4),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.login_rounded, color: Colors.white, size: 20),
-                const SizedBox(width: 10),
-                Text(
-                  context.tr('login_button'),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 17,
-                    letterSpacing: 0.5,
+              onTap: _openLoginScreen,
+              child: Container(
+                width: 220,
+                height: 52,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(26),
+                  gradient: const LinearGradient(
+                    colors: [AppTheme.electricIndigo, Color(0xFF584CF4)],
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.electricIndigo.withOpacity(0.4),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        ).animate().fade(duration: 500.ms).scale(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.login_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      context.tr('login_button'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 17,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+            .animate()
+            .fade(duration: 500.ms)
+            .scale(
               begin: const Offset(0.95, 0.95),
               end: const Offset(1, 1),
               duration: 500.ms,
@@ -495,11 +473,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         // 注册链接
         GestureDetector(
           onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const RegisterScreen(),
-              ),
-            );
+            Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const RegisterScreen()));
           },
           child: RichText(
             text: TextSpan(
@@ -574,6 +550,109 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   // 公共组件
   // ═══════════════════════════════════════════════
 
+  Widget _buildMarketSummary() {
+    final installedAsync = ref.watch(marketInstalledLensesProvider);
+    final favoriteAsync = ref.watch(marketFavoriteLensesProvider);
+    final authoredAsync = ref.watch(marketAuthoredLensesProvider);
+
+    final installedCount = installedAsync.value?.length ?? 0;
+    final favoriteCount = favoriteAsync.value?.length ?? 0;
+    final authoredCount = authoredAsync.value?.length ?? 0;
+    final isLoading = installedAsync.isLoading ||
+        favoriteAsync.isLoading ||
+        authoredAsync.isLoading;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.black.withOpacity(0.05)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  '透镜市场概览',
+                  style: TextStyle(
+                    color: Colors.black87,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const MyLibraryScreen()),
+                  );
+                },
+                child: const Text('查看全部'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (isLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else
+            Row(
+              children: [
+                Expanded(child: _buildMarketMetric('已安装', installedCount)),
+                const SizedBox(width: 10),
+                Expanded(child: _buildMarketMetric('已收藏', favoriteCount)),
+                const SizedBox(width: 10),
+                Expanded(child: _buildMarketMetric('已发布', authoredCount)),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMarketMetric(String label, int value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        color: AppTheme.electricIndigo.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Text(
+            '$value',
+            style: const TextStyle(
+              color: Colors.black87,
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.black.withOpacity(0.54),
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTabButton(int index, String label) {
     final bool isActive = _currentTab == index;
     return GestureDetector(
@@ -587,9 +666,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           Text(
             label,
             style: TextStyle(
-              color: isActive
-                  ? Colors.black87
-                  : Colors.black.withOpacity(0.5),
+              color: isActive ? Colors.black87 : Colors.black.withOpacity(0.5),
               fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
               fontSize: 16,
             ),
@@ -618,61 +695,130 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildContentGrid() {
+    final user = ref.watch(authProvider);
     if (_currentTab == 0) {
-      return GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 0.7,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
+      final authoredLensesAsync = ref.watch(marketAuthoredLensesProvider);
+      return authoredLensesAsync.when(
+        data: (lenses) => _buildLensGrid(lenses),
+        loading: () => const Padding(
+          padding: EdgeInsets.symmetric(vertical: 40),
+          child: Center(child: CircularProgressIndicator()),
         ),
-        itemCount: _myLenses.length,
-        itemBuilder: (context, index) {
-          return _buildLensCard(_myLenses[index]);
-        },
-      );
-    } else if (_currentTab == 1) {
-      return GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 0.75,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-        ),
-        itemCount: _myPosts.length,
-        itemBuilder: (context, index) {
-          return _buildPostCard(_myPosts[index]);
-        },
-      );
-    } else {
-      return GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 0.75,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-        ),
-        itemCount: _favorites.length,
-        itemBuilder: (context, index) {
-          return _buildPostCard(_favorites[index]);
-        },
+        error: (error, _) => _buildGridError('透镜加载失败：$error'),
       );
     }
+
+    if (user == null) {
+      return const SizedBox.shrink();
+    }
+
+    if (_currentTab == 1) {
+      final postsAsync = ref.watch(
+        communityPostsProvider(
+          CommunityPostQuery(userId: user.userId, onlyPublic: false),
+        ),
+      );
+      return postsAsync.when(
+        data: (posts) => _buildPostGrid(posts, emptyText: '你还没有发布过帖子'),
+        loading: () => const Padding(
+          padding: EdgeInsets.symmetric(vertical: 40),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+        error: (error, _) => _buildGridError('帖子加载失败：$error'),
+      );
+    }
+
+    final favoritesAsync = ref.watch(communityFavoritePostsProvider);
+    return favoritesAsync.when(
+      data: (posts) => _buildPostGrid(posts, emptyText: '你还没有收藏任何帖子'),
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 40),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, _) => _buildGridError('收藏加载失败：$error'),
+    );
   }
 
-  Widget _buildLensCard(LensTemplateMock lens) {
+  Widget _buildPostGrid(List<CommunityPostView> posts, {required String emptyText}) {
+    if (posts.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 36),
+        child: Center(
+          child: Text(
+            emptyText,
+            style: TextStyle(color: Colors.black.withOpacity(0.38), fontSize: 14),
+          ),
+        ),
+      );
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.75,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: posts.length,
+      itemBuilder: (context, index) {
+        return _buildPostCard(posts[index]);
+      },
+    );
+  }
+
+  Widget _buildGridError(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 36),
+      child: Center(
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.black.withOpacity(0.38), fontSize: 14),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLensGrid(List<MarketLensView> lenses) {
+    if (lenses.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 36),
+        child: Center(
+          child: Text(
+            '你还没有发布过透镜',
+            style: TextStyle(color: Colors.black.withOpacity(0.38), fontSize: 14),
+          ),
+        ),
+      );
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.7,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: lenses.length,
+      itemBuilder: (context, index) {
+        return _buildLensCard(lenses[index]);
+      },
+    );
+  }
+
+  Widget _buildLensCard(MarketLensView lens) {
+    final visual = MarketLensVisualResolver.resolve(lens.lens);
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => LensDetailScreen(template: lens),
+            builder: (context) =>
+                MarketLensDetailScreen(lensId: lens.lens.lensId),
           ),
         );
       },
@@ -697,7 +843,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(16),
                 ),
-                child: _buildSmartImage(lens.afterImage),
+                child: Image.asset(
+                  visual.afterImage,
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
             Padding(
@@ -706,7 +855,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    lens.title,
+                    lens.lens.name,
                     style: const TextStyle(
                       color: Colors.black87,
                       fontWeight: FontWeight.bold,
@@ -717,11 +866,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${lens.usageCount} ${context.tr('uses')}',
-                    style: const TextStyle(
-                      color: Colors.black54,
-                      fontSize: 11,
-                    ),
+                    '${lens.lens.installCount} ${context.tr('uses')}',
+                    style: const TextStyle(color: Colors.black54, fontSize: 11),
                   ),
                 ],
               ),
@@ -732,13 +878,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildPostCard(CommunityPostMock post) {
+  Widget _buildPostCard(CommunityPostView post) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-              builder: (context) => PostDetailScreen(post: post)),
+            builder: (context) => CommunityPostDetailScreen(postId: post.post.postId),
+          ),
         );
       },
       child: Container(
@@ -762,13 +909,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(16),
                 ),
-                child: _buildSmartImage(post.imageUrl),
+                child: _buildSmartImage(post.coverImageUrl ?? ''),
               ),
             ),
             Padding(
               padding: const EdgeInsets.all(10.0),
               child: Text(
-                post.description,
+                post.displayTitle,
                 style: const TextStyle(
                   color: Colors.black87,
                   fontWeight: FontWeight.w500,
@@ -820,13 +967,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildSmartImage(String path) {
-    if (path.startsWith('http')) {
+    if (path.trim().isEmpty) {
+      return Container(color: Colors.grey[200]);
+    } else if (path.startsWith('http')) {
       return CachedNetworkImage(
         imageUrl: path,
         fit: BoxFit.cover,
         width: double.infinity,
-        placeholder: (context, url) =>
-            Container(color: Colors.grey[200]),
+        placeholder: (context, url) => Container(color: Colors.grey[200]),
         errorWidget: (context, url, error) =>
             Container(color: Colors.grey[200]),
       );

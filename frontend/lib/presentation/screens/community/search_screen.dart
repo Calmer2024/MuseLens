@@ -1,105 +1,130 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
+import '../../../core/providers/community_provider.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../data/models/community_models.dart';
+
+class SearchScreen extends ConsumerStatefulWidget {
+  const SearchScreen({
+    super.key,
+    this.initialKeyword,
+  });
+
+  final String? initialKeyword;
 
   @override
-  State<SearchScreen> createState() => _SearchScreenState();
+  ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> {
-  final TextEditingController _searchController = TextEditingController();
+class _SearchScreenState extends ConsumerState<SearchScreen> {
+  late final TextEditingController _searchController;
+  final List<String> _history = ['夜景', '人像', '建筑', '胶片', '赛博朋克'];
 
-  // 1. 历史记录 (保留中文，模拟用户输入习惯)
-  final List<String> _historyTags = [
-    "赛博朋克",
-    "人像精修",
-    "日系",
-    "建筑摄影",
-    "夜景",
-    "OOTD",
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController(text: widget.initialKeyword ?? '');
+  }
 
-  // 2. 猜你想搜 (英文)
-  final List<String> _guessTags = [
-    "复古胶片",
-    "美食",
-    "喵星人",
-    "极简",
-    "旅行",
-    "手工",
-    "插画",
-  ];
-
-  // 3. 热搜榜 (英文)
-  final List<Map<String, dynamic>> _trendingList = [
-    {"rank": 1, "title": "霓虹东京V2", "isHot": true},
-    {"rank": 2, "title": "吉卜力风格", "isHot": true},
-    {"rank": 3, "title": "冷色调", "isHot": false},
-    {"rank": 4, "title": "胶片模拟", "isHot": false},
-    {"rank": 5, "title": "人像精修", "isHot": false},
-  ];
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final tagsAsync = ref.watch(communityTagsProvider);
+    final keyword = _searchController.text.trim();
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
-            // --- 1. 顶部搜索栏 ---
-            _buildSearchBar(context),
-
-            // --- 2. 可滚动内容区 ---
+            _buildSearchBar(),
             Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 2.1 搜索记录
-                    _buildSectionHeader("搜索历史", showDelete: true),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: _historyTags
-                          .map((tag) => _buildHistoryChip(tag))
-                          .toList(),
+              child: tagsAsync.when(
+                data: (tags) {
+                  final filtered = keyword.isEmpty
+                      ? tags
+                      : tags
+                          .where((tag) => tag.name.toLowerCase().contains(keyword.toLowerCase()))
+                          .toList();
+                  return SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionHeader('搜索历史', showClear: _history.isNotEmpty),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: _history.map((tag) => _buildChip(tag, onTap: () => _submit(tag))).toList(),
+                        ),
+                        const SizedBox(height: 28),
+                        _buildSectionHeader('热门标签'),
+                        const SizedBox(height: 12),
+                        if (tags.isEmpty)
+                          Text(
+                            '还没有可用标签',
+                            style: TextStyle(color: Colors.black.withOpacity(0.4)),
+                          )
+                        else
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: tags.take(10).map((tag) {
+                              return _buildOutlineChip(
+                                '#${tag.name}',
+                                suffix: '${tag.postCount}',
+                                onTap: () => _submit(tag.name),
+                              );
+                            }).toList(),
+                          ),
+                        const SizedBox(height: 28),
+                        _buildSectionHeader(keyword.isEmpty ? 'MuseLens 热门榜' : '搜索结果'),
+                        const SizedBox(height: 12),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: Colors.black.withOpacity(0.05)),
+                          ),
+                          child: filtered.isEmpty
+                              ? Padding(
+                                  padding: const EdgeInsets.all(18),
+                                  child: Text(
+                                    '没有找到与“$keyword”相关的标签',
+                                    style: TextStyle(
+                                      color: Colors.black.withOpacity(0.48),
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                )
+                              : Column(
+                                  children: filtered.asMap().entries.map((entry) {
+                                    return _buildTrendingRow(entry.key + 1, entry.value);
+                                  }).toList(),
+                                ),
+                        ),
+                      ],
                     ),
-
-                    const SizedBox(height: 32),
-
-                    // 2.2 猜你想搜
-                    _buildSectionHeader("猜你想搜"),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: _guessTags
-                          .map((tag) => _buildGuessChip(tag))
-                          .toList(),
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      '标签加载失败：$error',
+                      style: TextStyle(color: Colors.black.withOpacity(0.5)),
+                      textAlign: TextAlign.center,
                     ),
-
-                    const SizedBox(height: 32),
-
-                    // 2.3 热搜榜
-                    _buildSectionHeader("MuseLens 热搜榜"),
-                    const SizedBox(height: 12),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        children: _trendingList.map((item) {
-                          return _buildTrendingRow(item);
-                        }).toList(),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -109,60 +134,49 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  // --- 组件构建方法 ---
-
-  Widget _buildSearchBar(BuildContext context) {
-    return Container(
+  Widget _buildSearchBar() {
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          // 返回按钮
           GestureDetector(
             onTap: () => Navigator.pop(context),
             child: const Icon(Icons.arrow_back, color: Colors.black87, size: 24),
           ),
           const SizedBox(width: 16),
-
-          // 搜索框
           Expanded(
             child: Container(
-              height: 40,
+              height: 42,
               decoration: BoxDecoration(
-                color: Colors.grey[200],
-                borderRadius: BorderRadius.circular(20),
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(999),
               ),
               child: TextField(
                 controller: _searchController,
-                style: const TextStyle(color: Colors.black87, fontSize: 14),
+                onChanged: (_) => setState(() {}),
+                onSubmitted: _submit,
                 cursorColor: AppTheme.electricIndigo,
+                style: const TextStyle(color: Colors.black87, fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: "搜索灵感...",
-                  hintStyle: TextStyle(
-                    color: Colors.black38,
-                    fontSize: 14,
-                  ),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: Colors.white.withOpacity(0.3),
-                    size: 20,
-                  ),
+                  hintText: '搜索标签，如 夜景 / 人像',
+                  hintStyle: TextStyle(color: Colors.black.withOpacity(0.35)),
+                  prefixIcon: const Icon(Icons.search, color: Colors.black45, size: 20),
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    vertical: 10,
-                  ), // 垂直居中
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 16),
-
-          // 搜索按钮
-          Text(
-            "搜索",
-            style: const TextStyle(
-              color: AppTheme.electricIndigo,
-              fontWeight: FontWeight.bold,
-              fontSize: 15,
+          const SizedBox(width: 14),
+          GestureDetector(
+            onTap: () => _submit(_searchController.text),
+            child: const Text(
+              '搜索',
+              style: TextStyle(
+                color: AppTheme.electricIndigo,
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+              ),
             ),
           ),
         ],
@@ -170,7 +184,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildSectionHeader(String title, {bool showDelete = false}) {
+  Widget _buildSectionHeader(String title, {bool showClear = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -178,112 +192,142 @@ class _SearchScreenState extends State<SearchScreen> {
           title,
           style: const TextStyle(
             color: Colors.black87,
-            fontSize: 16, // 标准字号
+            fontSize: 16,
             fontWeight: FontWeight.bold,
           ),
         ),
-        if (showDelete)
-          Icon(
-            Icons.delete_outline,
-            color: Colors.black45,
-            size: 18,
+        if (showClear)
+          GestureDetector(
+            onTap: () => setState(_history.clear),
+            child: const Icon(Icons.delete_outline, color: Colors.black45, size: 18),
           ),
       ],
     );
   }
 
-  // 历史标签 (深灰背景)
-  Widget _buildHistoryChip(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(color: Colors.black87, fontSize: 13),
-      ),
-    );
-  }
-
-  // 猜你想搜标签 (紫色描边)
-  Widget _buildGuessChip(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.electricIndigo.withOpacity(0.5)),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(color: AppTheme.electricIndigo, fontSize: 13),
-      ),
-    );
-  }
-
-  // 热搜行
-  Widget _buildTrendingRow(Map<String, dynamic> item) {
-    final int rank = item['rank'];
-    Color rankColor;
-    if (rank == 1)
-      rankColor = const Color(0xFFFFD700); // Gold
-    else if (rank == 2)
-      rankColor = const Color(0xFFC0C0C0); // Silver
-    else if (rank == 3)
-      rankColor = const Color(0xFFCD7F32); // Bronze
-    else
-      rankColor = Colors.black38;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: rank < 5
-                ? Colors.black.withOpacity(0.05)
-                : Colors.transparent,
-            width: 0.5,
-          ),
+  Widget _buildChip(String label, {required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(color: Colors.black87, fontSize: 13),
         ),
       ),
-      child: Row(
-        children: [
-          // 排名
-          SizedBox(
-            width: 24,
-            child: Text(
-              "$rank",
-              style: TextStyle(
-                color: rankColor,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                fontStyle: FontStyle.italic,
+    );
+  }
+
+  Widget _buildOutlineChip(
+    String label, {
+    String? suffix,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: AppTheme.electricIndigo.withOpacity(0.35)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(color: AppTheme.electricIndigo, fontSize: 13),
+            ),
+            if (suffix != null) ...[
+              const SizedBox(width: 6),
+              Text(
+                suffix,
+                style: const TextStyle(color: Colors.black45, fontSize: 11),
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-
-          // 标题
-          Expanded(
-            child: Text(
-              item['title'],
-              style: const TextStyle(color: Colors.black87, fontSize: 14),
-            ),
-          ),
-
-          // Hot 图标
-          if (item['isHot']) ...[
-            const SizedBox(width: 8),
-            const Icon(
-              Icons.local_fire_department,
-              color: Color(0xFFFF4757),
-              size: 16,
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
+  }
+
+  Widget _buildTrendingRow(int rank, CommunityTag tag) {
+    final color = switch (rank) {
+      1 => const Color(0xFFFFA502),
+      2 => const Color(0xFF9AA0A6),
+      3 => const Color(0xFFCD7F32),
+      _ => Colors.black38,
+    };
+
+    return InkWell(
+      onTap: () => _submit(tag.name),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: Colors.black.withOpacity(0.05)),
+          ),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 24,
+              child: Text(
+                '$rank',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '#${tag.name}',
+                    style: const TextStyle(color: Colors.black87, fontSize: 14),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${tag.postCount} 条帖子',
+                    style: TextStyle(color: Colors.black.withOpacity(0.42), fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            if (rank <= 2)
+              const Icon(
+                Icons.local_fire_department,
+                color: Color(0xFFFF4757),
+                size: 16,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _submit(String value) {
+    final keyword = value.trim().replaceFirst('#', '');
+    if (keyword.isEmpty) {
+      Navigator.pop(context, '');
+      return;
+    }
+    setState(() {
+      _history.remove(keyword);
+      _history.insert(0, keyword);
+      if (_history.length > 8) {
+        _history.removeLast();
+      }
+    });
+    Navigator.pop(context, keyword);
   }
 }

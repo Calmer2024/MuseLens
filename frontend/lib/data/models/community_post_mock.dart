@@ -17,6 +17,13 @@ class CommunityPostMock {
     required this.aspectRatio,
   });
 
+  String get description => title;
+  String get authorAvatar => authorAvatarUrl;
+  String get authorAvatarUrlOrFallback => authorAvatarUrl;
+  String get likeCount => likes;
+  int get commentCount => 12;
+  List<String> get galleryImages => [imageUrl];
+
   static List<CommunityPostMock> getMockPosts() {
     return [
       CommunityPostMock(
@@ -75,4 +82,6 @@ class CommunityPostMock {
       ),
     ];
   }
+
+  static List<CommunityPostMock> getPosts() => getMockPosts();
 }

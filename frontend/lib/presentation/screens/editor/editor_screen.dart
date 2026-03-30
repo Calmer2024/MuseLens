@@ -3,9 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../core/constants/api_constants.dart';
 import '../../../core/theme/app_theme.dart';
 
 import '../../widgets/editor/editor_header.dart';

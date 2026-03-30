@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/app_theme.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/lens/lens_library_screen.dart';
-import '../screens/community/community_screen.dart';
+import '../screens/community/community_hub_screen.dart';
 import '../screens/profile/profile_screen.dart';
 
 class MainWrapper extends StatefulWidget {
@@ -18,7 +17,7 @@ class _MainWrapperState extends State<MainWrapper> {
   final List<Widget> _pages = [
     const HomeScreen(),
     const LensLibraryScreen(),
-    const CommunityScreen(),
+    const CommunityHubScreen(),
     const ProfileScreen(),
   ];
 

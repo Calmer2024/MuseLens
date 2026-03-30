@@ -19,7 +19,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nicknameController;
   late TextEditingController _bioController;
-  
+
   String? _avatarPath;
   String? _bannerPath;
   bool _isLoading = false;
@@ -67,12 +67,18 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library_rounded, color: AppTheme.electricIndigo),
+              leading: const Icon(
+                Icons.photo_library_rounded,
+                color: AppTheme.electricIndigo,
+              ),
               title: const Text('从相册选择'),
               onTap: () => Navigator.pop(context, ImageSource.gallery),
             ),
             ListTile(
-              leading: const Icon(Icons.camera_alt_rounded, color: AppTheme.electricIndigo),
+              leading: const Icon(
+                Icons.camera_alt_rounded,
+                color: AppTheme.electricIndigo,
+              ),
               title: const Text('拍照'),
               onTap: () => Navigator.pop(context, ImageSource.camera),
             ),
@@ -91,8 +97,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       );
 
       if (image != null) {
-         // 注意：我们这里是在模拟文件上传！
-         // 将本地文件路径 file:///... 保存，用于前端直接渲染。
+        // 注意：我们这里是在模拟文件上传！
+        // 将本地文件路径 file:///... 保存，用于前端直接渲染。
         setState(() {
           if (isAvatar) {
             _avatarPath = 'file://${image.path}';
@@ -103,9 +109,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('选择图片失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('选择图片失败: $e')));
       }
     }
   }
@@ -169,9 +175,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   ImageProvider _getImageProvider(String? path, {bool isAvatar = false}) {
     if (path == null || path.isEmpty) {
-      if (isAvatar) return const AssetImage('assets/images/profile.jpg');
+      if (isAvatar) return const AssetImage('assets/images/profile.png');
       // 空白占位会用别的方式处理
-      return const AssetImage('assets/images/profile.jpg');
+      return const AssetImage('assets/images/profile.png');
     }
 
     if (path.startsWith('http')) {
@@ -195,8 +201,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         scrolledUnderElevation: 0,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back_ios_rounded,
-              color: Colors.black87, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_rounded,
+            color: Colors.black87,
+            size: 20,
+          ),
         ),
         title: Text(
           context.tr('edit_profile'),
@@ -250,7 +259,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       color: Colors.grey.shade100,
                       image: _bannerPath != null && _bannerPath!.isNotEmpty
                           ? DecorationImage(
-                              image: _getImageProvider(_bannerPath, isAvatar: false),
+                              image: _getImageProvider(
+                                _bannerPath,
+                                isAvatar: false,
+                              ),
                               fit: BoxFit.cover,
                             )
                           : null,
@@ -266,9 +278,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             ),
                           ),
                         // 半透明遮罩
-                        Container(
-                          color: Colors.black.withOpacity(0.2),
-                        ),
+                        Container(color: Colors.black.withOpacity(0.2)),
                         // 照相机图标
                         const Center(
                           child: Icon(
@@ -310,7 +320,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             CircleAvatar(
                               radius: 46,
                               backgroundColor: Colors.grey.shade200,
-                              backgroundImage: _getImageProvider(_avatarPath, isAvatar: true),
+                              backgroundImage: _getImageProvider(
+                                _avatarPath,
+                                isAvatar: true,
+                              ),
                             ),
                             // 头像暗色遮罩
                             Container(
@@ -334,7 +347,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 70),
 
             // 表单区域
@@ -404,8 +417,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         ),
         filled: true,
         fillColor: Colors.grey.shade50,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: Colors.black.withOpacity(0.08)),
@@ -416,8 +431,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide:
-              const BorderSide(color: AppTheme.electricIndigo, width: 1.5),
+          borderSide: const BorderSide(
+            color: AppTheme.electricIndigo,
+            width: 1.5,
+          ),
         ),
       ),
     );

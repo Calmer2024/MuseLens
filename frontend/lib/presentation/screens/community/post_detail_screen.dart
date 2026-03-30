@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
-import 'community_screen.dart'; // 引入 CommunityPostMock
+import '../../../data/models/community_post_mock.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final CommunityPostMock post;

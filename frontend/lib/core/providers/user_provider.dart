@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/user_model.dart';
 import '../../data/models/user_summary_model.dart';
-import '../../data/models/providers/services/user_api_service.dart';
 import 'auth_provider.dart';
 
 /// 获取指定用户详情

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // 用于 ImageFilter
 import '../../../core/theme/app_theme.dart';
+import '../../../data/models/community_post_mock.dart';
 import '../../../data/models/lens_template_mock.dart';
 import '../lens/lens_detail_screen.dart'; // Lens 详情页
-import 'community_screen.dart'; // 引用 CommunityPostMock
 import 'post_detail_screen.dart'; // 帖子详情页
 
 // 消息类型枚举

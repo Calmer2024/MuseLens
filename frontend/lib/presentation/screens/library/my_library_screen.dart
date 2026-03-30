@@ -1,215 +1,124 @@
 import 'package:flutter/material.dart';
-import 'dart:ui'; // 用于 ImageFilter
-import '../../../core/theme/app_theme.dart';
-import '../../../data/models/lens_template_mock.dart';
-import '../../widgets/lens/lens_market_card.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
-class MyLibraryScreen extends StatefulWidget {
+import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/market_provider.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../data/models/market_models.dart';
+import '../auth/login_screen.dart';
+import '../lens/market_lens_detail_screen.dart';
+import '../lens/market_lens_editor_screen.dart';
+import '../../widgets/lens/market_lens_card.dart';
+
+class MyLibraryScreen extends ConsumerStatefulWidget {
   const MyLibraryScreen({super.key});
 
   @override
-  State<MyLibraryScreen> createState() => _MyLibraryScreenState();
+  ConsumerState<MyLibraryScreen> createState() => _MyLibraryScreenState();
 }
 
-class _MyLibraryScreenState extends State<MyLibraryScreen> {
-  // 控制 Saved / Created 切换 (0 = Saved, 1 = Created)
-  int _selectedIndex = 0;
+class _MyLibraryScreenState extends ConsumerState<MyLibraryScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  int _tabIndex = 0;
 
-  // 模拟数据
-  final List<LensTemplateMock> _savedTemplates = LensTemplateMock.getTemplates()
-      .sublist(0, 6);
-  final List<LensTemplateMock> _createdTemplates =
-      LensTemplateMock.getTemplates().sublist(6, 9);
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final currentTemplates = _selectedIndex == 0
-        ? _savedTemplates
-        : _createdTemplates;
-
-    // 瀑布流逻辑
-    final leftColumn = <LensTemplateMock>[];
-    final rightColumn = <LensTemplateMock>[];
-    for (var i = 0; i < currentTemplates.length; i++) {
-      if (i % 2 == 0)
-        leftColumn.add(currentTemplates[i]);
-      else
-        rightColumn.add(currentTemplates[i]);
-    }
+    final currentUser = ref.watch(authProvider);
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: Colors.white,
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            // --- 1. 固定头部区域 ---
-            Container(
-              color: AppTheme.background,
-              padding: const EdgeInsets.only(bottom: 10),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 1.1 导航栏
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 20,
+                  Row(
+                    children: [
+                      _buildCircleButton(
+                        icon: Icons.arrow_back_rounded,
+                        onTap: () => Navigator.of(context).pop(),
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Text(
+                          '我的透镜',
+                          style: TextStyle(
+                            fontSize: 30,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                      _buildCircleButton(
+                        icon: Icons.add_rounded,
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        onTap: () => _openEditor(currentUser != null),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    currentUser == null
+                        ? '登录后查看你的安装、收藏和已发布透镜'
+                        : '管理你安装、收藏以及发布到市场的全部透镜',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.black.withOpacity(0.46),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.04),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // 左侧：返回 + 标题
-                        Row(
-                          children: [
-                            GestureDetector(
-                              onTap: () => Navigator.pop(context),
-                              child: const Icon(
-                                Icons.arrow_back,
-                                color: Colors.white,
-                                size: 24,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            const Text(
-                              "My Library",
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                        // 右侧：设置 + 新建
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.settings_outlined,
-                              color: Colors.white,
-                              size: 24,
-                            ),
-                            const SizedBox(width: 20),
-                            Icon(
-                              Icons.add,
-                              color: AppTheme.electricIndigo,
-                              size: 28,
-                            ),
-                          ],
-                        ),
+                        _buildTabButton(0, '已安装'),
+                        _buildTabButton(1, '已收藏'),
+                        _buildTabButton(2, '我发布的'),
                       ],
                     ),
                   ),
-
-                  // 1.2 分段控制器
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Container(
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E1E1E),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.1),
-                        ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _searchController,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      hintText: '搜索名称、作者、分类',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      filled: true,
+                      fillColor: Colors.white,
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide(color: Colors.black.withOpacity(0.08)),
                       ),
-                      child: Row(
-                        children: [
-                          _buildSegmentButton(0, "Saved"),
-                          _buildSegmentButton(1, "Created"),
-                        ],
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: const BorderSide(color: AppTheme.electricIndigo),
                       ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // 1.3 搜索栏
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Container(
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E1E1E),
-                        borderRadius: BorderRadius.circular(23),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.1),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const SizedBox(width: 16),
-                          Icon(
-                            Icons.search,
-                            color: Colors.white.withOpacity(0.3),
-                            size: 20,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              "Search my collection...",
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.3),
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // 1.4 文件夹分组
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      children: [
-                        _buildCollectionCard(
-                          Icons.layers,
-                          "All Lenses",
-                          isActive: true,
-                        ),
-                        _buildCollectionCard(Icons.folder_open, "Portraits"),
-                        _buildCollectionCard(Icons.folder_open, "Scenery"),
-                        _buildAddGroupCard(),
-                      ],
                     ),
                   ),
                 ],
               ),
             ),
-
-            // --- 2. 滚动内容区域 ---
             Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        children: leftColumn
-                            .map((t) => _buildLibraryCard(t))
-                            .toList(),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        children: rightColumn
-                            .map((t) => _buildLibraryCard(t))
-                            .toList(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              child: currentUser == null
+                  ? _buildGuestState()
+                  : _buildMarketCollection(),
             ),
           ],
         ),
@@ -217,107 +126,48 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
     );
   }
 
-  // --- 组件构建方法 ---
-
-  Widget _buildSegmentButton(int index, String text) {
-    final bool isSelected = _selectedIndex == index;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _selectedIndex = index),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: isSelected ? AppTheme.electricIndigo : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            text,
-            style: TextStyle(
-              color: isSelected ? Colors.white : Colors.white.withOpacity(0.5),
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCollectionCard(
-    IconData icon,
-    String label, {
-    bool isActive = false,
-  }) {
-    return Container(
-      width: 80,
-      height: 80,
-      margin: const EdgeInsets.only(right: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isActive
-              ? AppTheme.electricIndigo
-              : Colors.white.withOpacity(0.1),
-          width: isActive ? 1.5 : 1,
-        ),
-        boxShadow: isActive
-            ? [
-                BoxShadow(
-                  color: AppTheme.electricIndigo.withOpacity(0.2),
-                  blurRadius: 8,
-                ),
-              ]
-            : [],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            color: isActive
-                ? AppTheme.electricIndigo
-                : Colors.white.withOpacity(0.6),
-            size: 28,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              color: isActive ? Colors.white : Colors.white.withOpacity(0.6),
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAddGroupCard() {
-    return Container(
-      width: 80,
-      height: 80,
-      decoration: BoxDecoration(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-      ),
-      child: CustomPaint(
-        painter: _DashedBorderPainter(),
+  Widget _buildGuestState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.add, color: AppTheme.electricIndigo, size: 28),
+            Icon(
+              Icons.lock_outline_rounded,
+              size: 58,
+              color: Colors.black.withOpacity(0.16),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              '登录后即可同步透镜库',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
             const SizedBox(height: 8),
             Text(
-              "New Group",
+              '安装、收藏和你发布到市场的透镜都会汇总在这里。',
+              textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
-                fontSize: 10,
+                color: Colors.black.withOpacity(0.46),
+                height: 1.45,
               ),
+            ),
+            const SizedBox(height: 18),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('去登录'),
             ),
           ],
         ),
@@ -325,163 +175,225 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
     );
   }
 
-  // --- 核心修改：库专用卡片 ---
-  Widget _buildLibraryCard(LensTemplateMock template) {
-    return Stack(
-      children: [
-        // 1. 基础卡片
-        LensMarketCard(template: template),
+  Widget _buildMarketCollection() {
+    final asyncValue = switch (_tabIndex) {
+      0 => ref.watch(marketInstalledLensesProvider),
+      1 => ref.watch(marketFavoriteLensesProvider),
+      _ => ref.watch(marketAuthoredLensesProvider),
+    };
 
-        // 2. 左上角：Downloaded 状态 (解决遮挡问题，移到顶部)
-        Positioned(
-          top: 12,
-          left: 12,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.6), // 深色背景衬托
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppTheme.electricIndigo.withOpacity(0.5),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.check_circle,
-                  size: 10,
-                  color: AppTheme.electricIndigo,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  "Downloaded",
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+    return asyncValue.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => _buildFeedbackState(
+        icon: Icons.error_outline_rounded,
+        title: '透镜库加载失败',
+        content: '$error',
+        actionLabel: '重试',
+        onAction: _refreshProviders,
+      ),
+      data: (lenses) {
+        final filtered = _filterByKeyword(lenses);
+        if (filtered.isEmpty) {
+          return _buildFeedbackState(
+            icon: Icons.auto_awesome_mosaic_outlined,
+            title: _tabIndex == 2 ? '还没有发布透镜' : '这里还是空的',
+            content: _tabIndex == 2
+                ? '创建一个市场透镜后，就会显示在这里。'
+                : '试试去市场安装或收藏一些透镜吧。',
+            actionLabel: _tabIndex == 2 ? '发布透镜' : null,
+            onAction: _tabIndex == 2 ? () => _openEditor(true) : null,
+          );
+        }
 
-        // 3. 右上角：弹出菜单 (置顶/删除)
-        Positioned(
-          top: 6,
-          right: 6,
-          child: Theme(
-            data: Theme.of(context).copyWith(
-              // 自定义菜单样式
-              cardColor: const Color(0xFF2A2A2A),
-              popupMenuTheme: PopupMenuThemeData(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                color: const Color(0xFF2A2A2A),
-                textStyle: const TextStyle(color: Colors.white),
-              ),
-            ),
-            child: PopupMenuButton<String>(
-              offset: const Offset(0, 40), // 菜单向下偏移一点
-              icon: ClipOval(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    color: Colors.black.withOpacity(0.4),
-                    child: const Icon(
-                      Icons.more_horiz,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ),
-              ),
-              onSelected: (String value) {
-                // TODO: 处理点击事件
-                if (value == 'pin') {
-                  print("Pin to top");
-                } else if (value == 'delete') {
-                  print("Delete template");
-                }
-              },
-              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                const PopupMenuItem<String>(
-                  value: 'pin',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.push_pin_outlined,
-                        color: Colors.white70,
-                        size: 18,
-                      ),
-                      SizedBox(width: 12),
-                      Text("Pin to Top", style: TextStyle(fontSize: 14)),
-                    ],
-                  ),
-                ),
-                const PopupMenuDivider(height: 1),
-                const PopupMenuItem<String>(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.delete_outline,
-                        color: Colors.redAccent,
-                        size: 18,
-                      ),
-                      SizedBox(width: 12),
-                      Text(
-                        "Delete",
-                        style: TextStyle(fontSize: 14, color: Colors.redAccent),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
+        return MasonryGridView.count(
+          physics: const BouncingScrollPhysics(),
+          crossAxisCount: 2,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+          itemCount: filtered.length,
+          itemBuilder: (context, index) {
+            final lens = filtered[index];
+            return MarketLensCard(
+              lens: lens,
+              bannerText: _tabBannerText,
+              bannerIcon: _tabBannerIcon,
+              onTap: () => _openDetail(lens),
+            );
+          },
+        );
+      },
     );
   }
-}
 
-class _DashedBorderPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(0.3)
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-
-    final path = Path()
-      ..addRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(0, 0, size.width, size.height),
-          const Radius.circular(16),
-        ),
-      );
-
-    Path dashPath = Path();
-    double dashWidth = 5.0;
-    double dashSpace = 5.0;
-    double distance = 0.0;
-    for (PathMetric pathMetric in path.computeMetrics()) {
-      while (distance < pathMetric.length) {
-        dashPath.addPath(
-          pathMetric.extractPath(distance, distance + dashWidth),
-          Offset.zero,
-        );
-        distance += dashWidth + dashSpace;
-      }
+  List<MarketLensView> _filterByKeyword(List<MarketLensView> lenses) {
+    final keyword = _searchController.text.trim().toLowerCase();
+    if (keyword.isEmpty) {
+      return lenses;
     }
-    canvas.drawPath(dashPath, paint);
+    return lenses.where((lens) {
+      final text = [
+        lens.lens.name,
+        lens.lens.description,
+        lens.lens.category ?? '',
+        lens.author.displayName,
+      ].join(' ').toLowerCase();
+      return text.contains(keyword);
+    }).toList();
   }
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  Widget _buildTabButton(int index, String label) {
+    final selected = _tabIndex == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _tabIndex = index;
+          });
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: selected ? Colors.black : Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: selected ? Colors.white : Colors.black87,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCircleButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    Color backgroundColor = Colors.white,
+    Color foregroundColor = Colors.black87,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.black.withOpacity(0.06)),
+        ),
+        child: Icon(icon, color: foregroundColor),
+      ),
+    );
+  }
+
+  Widget _buildFeedbackState({
+    required IconData icon,
+    required String title,
+    required String content,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 56, color: Colors.black.withOpacity(0.18)),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.black87,
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              content,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.black.withOpacity(0.46),
+                height: 1.45,
+              ),
+            ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: onAction,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text(actionLabel),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String get _tabBannerText => switch (_tabIndex) {
+        0 => '已安装',
+        1 => '已收藏',
+        _ => '已发布',
+      };
+
+  IconData get _tabBannerIcon => switch (_tabIndex) {
+        0 => Icons.download_done_rounded,
+        1 => Icons.favorite_rounded,
+        _ => Icons.publish_rounded,
+      };
+
+  Future<void> _openDetail(MarketLensView lens) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MarketLensDetailScreen(lensId: lens.lens.lensId),
+      ),
+    );
+    _refreshProviders();
+  }
+
+  Future<void> _openEditor(bool isLoggedIn) async {
+    if (!isLoggedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请先登录后再发布透镜')),
+      );
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+      return;
+    }
+
+    final result = await Navigator.of(context).push<int>(
+      MaterialPageRoute(builder: (_) => const MarketLensEditorScreen()),
+    );
+    if (result != null) {
+      _refreshProviders();
+      if (!mounted) {
+        return;
+      }
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => MarketLensDetailScreen(lensId: result),
+        ),
+      );
+      _refreshProviders();
+    }
+  }
+
+  void _refreshProviders() {
+    ref.invalidate(marketInstalledLensesProvider);
+    ref.invalidate(marketFavoriteLensesProvider);
+    ref.invalidate(marketAuthoredLensesProvider);
+    ref.invalidate(marketLensListProvider);
+  }
 }
