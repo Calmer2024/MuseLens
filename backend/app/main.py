@@ -12,6 +12,7 @@ from app.api.v1.endpoints import asset_tree as asset_tree_endpoint
 from app.api.v1.endpoints import users as users_endpoint
 from app.api.v1.endpoints import community as community_endpoint
 from app.api.v1.endpoints import market as market_endpoint
+from app.api.v1.endpoints import chat as chat_endpoint
 
 # 数据库与注册表
 from app.core.database import init_db, SessionLocal
@@ -82,6 +83,7 @@ app.include_router(asset_tree_endpoint.router, prefix="/api/v1/asset-tree", tags
 app.include_router(users_endpoint.router,      prefix="/api/v1/users",      tags=["users"])
 app.include_router(community_endpoint.router,  prefix="/api/v1/community",  tags=["community"])
 app.include_router(market_endpoint.router,     prefix="/api/v1/market",     tags=["market"])
+app.include_router(chat_endpoint.router,       prefix="/api/v1/chat",       tags=["chat"])
 
 # --- 3. 根路由（健康检查）---
 @app.get("/")

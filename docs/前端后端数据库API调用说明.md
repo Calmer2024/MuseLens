@@ -9,6 +9,7 @@
 - 用户管理
 - 社区
 - 透镜市场
+- 好友聊天
 - 资产树
 - 运行时 Lens 注册表
 
@@ -775,7 +776,300 @@ GET /api/v1/market/users/{user_id}/favorites
 
 ---
 
-## 六、资产树接口
+## 六、好友聊天接口
+
+统一前缀：
+
+```text
+/api/v1/chat
+```
+
+### 1. 业务前置条件
+
+- 当前只支持一对一私聊
+- 只有互相关注的双方才能创建私聊会话
+- 如果历史会话已经存在，但双方后来不再互关，则仍可读取历史消息，但发送新消息会被拒绝
+
+### 2. 获取可私聊好友列表
+
+接口：
+
+```text
+GET /api/v1/chat/friends/{user_id}
+```
+
+说明：
+
+- 返回当前用户“互相关注”的好友列表
+- 如果和某个好友已经建立过私聊，会额外返回 `conversation_id`
+
+返回示例：
+
+```json
+[
+  {
+    "user_id": 2,
+    "username": "bob",
+    "nickname": "Bob",
+    "avatar_url": "https://example.com/bob.png",
+    "is_verified": false,
+    "conversation_id": 12,
+    "last_message_at": "2026-03-30T12:00:00Z"
+  }
+]
+```
+
+### 3. 创建或打开好友私聊
+
+接口：
+
+```text
+POST /api/v1/chat/conversations/direct
+```
+
+请求体：
+
+```json
+{
+  "user_id": 1,
+  "friend_user_id": 2
+}
+```
+
+说明：
+
+- 如果双方第一次私聊，会创建新会话，返回 `created=true`
+- 如果历史会话已存在，则直接返回原会话，`created=false`
+
+成功返回：
+
+```json
+{
+  "created": true,
+  "conversation": {
+    "conversation_id": 12,
+    "participant_user_ids": [1, 2],
+    "peer_user": {
+      "user_id": 2,
+      "username": "bob",
+      "nickname": "Bob",
+      "avatar_url": null,
+      "is_verified": false
+    },
+    "last_message": null,
+    "last_message_at": null,
+    "unread_count": 0,
+    "created_at": "2026-03-30T12:00:00Z",
+    "updated_at": "2026-03-30T12:00:00Z"
+  }
+}
+```
+
+常见错误：
+
+- `400`：双方未互相关注
+- `400`：不能给自己发起私聊
+- `404`：用户不存在
+
+### 4. 获取会话列表
+
+接口：
+
+```text
+GET /api/v1/chat/conversations?user_id=1
+```
+
+说明：
+
+- 返回当前用户参与的所有私聊会话
+- `peer_user` 是“对方用户”的摘要
+- `last_message` 是最后一条消息的预览
+- `unread_count` 是当前用户未读消息数
+
+### 5. 获取会话详情
+
+接口：
+
+```text
+GET /api/v1/chat/conversations/{conversation_id}?user_id=1
+```
+
+说明：
+
+- 用于聊天页顶部加载会话摘要、对方用户信息、未读数
+- 只有会话参与者本人可以访问
+
+### 6. 获取会话消息列表
+
+接口：
+
+```text
+GET /api/v1/chat/conversations/{conversation_id}/messages
+```
+
+查询参数：
+
+- `user_id`：当前用户 ID，必传
+- `limit`：单次拉取消息数，默认 `50`，最大 `100`
+- `before_message_id`：向上翻页时传入，只获取比它更早的消息
+
+示例：
+
+```text
+GET /api/v1/chat/conversations/12/messages?user_id=1&limit=20
+GET /api/v1/chat/conversations/12/messages?user_id=1&limit=20&before_message_id=88
+```
+
+返回示例：
+
+```json
+{
+  "conversation_id": 12,
+  "messages": [
+    {
+      "message_id": 101,
+      "conversation_id": 12,
+      "sender_id": 1,
+      "message_type": "text",
+      "content": "你好",
+      "share": null,
+      "created_at": "2026-03-30T12:01:00Z"
+    }
+  ],
+  "has_more": false
+}
+```
+
+### 7. 发送纯文本消息
+
+接口：
+
+```text
+POST /api/v1/chat/conversations/{conversation_id}/messages
+```
+
+请求体：
+
+```json
+{
+  "sender_id": 1,
+  "content": "你好，这是一条纯文本消息"
+}
+```
+
+### 8. 发送帖子分享消息
+
+接口：
+
+```text
+POST /api/v1/chat/conversations/{conversation_id}/messages
+```
+
+请求体：
+
+```json
+{
+  "sender_id": 1,
+  "content": "给你看看这条帖子",
+  "share": {
+    "share_type": "post",
+    "post_id": 3
+  }
+}
+```
+
+说明：
+
+- `content` 可选，可以只发分享卡片不带文字
+- 帖子分享会在消息里自动生成卡片快照
+- 如果帖子是私密帖，当前只允许作者本人分享
+
+### 9. 发送预设分享消息
+
+接口：
+
+```text
+POST /api/v1/chat/conversations/{conversation_id}/messages
+```
+
+方式一：分享透镜市场预设
+
+```json
+{
+  "sender_id": 1,
+  "content": "这个预设你可以试试",
+  "share": {
+    "share_type": "preset",
+    "market_lens_id": 2
+  }
+}
+```
+
+方式二：分享资产树节点预设
+
+```json
+{
+  "sender_id": 1,
+  "content": "",
+  "share": {
+    "share_type": "preset",
+    "asset_node_id": "550e8400-e29b-41d4-a716-446655440000"
+  }
+}
+```
+
+说明：
+
+- `share_type=preset` 时，`market_lens_id` 和 `asset_node_id` 二选一，且只能传一个
+- 后端会把预设信息转成统一的分享卡片结构，前端不需要再额外拼字段
+
+### 10. 标记会话已读
+
+接口：
+
+```text
+POST /api/v1/chat/conversations/{conversation_id}/read
+```
+
+请求体：
+
+```json
+{
+  "user_id": 1,
+  "last_read_message_id": 101
+}
+```
+
+说明：
+
+- `last_read_message_id` 可选
+- 如果不传，默认会把该会话当前最新消息标记为已读
+
+### 11. 聊天消息结构说明
+
+聊天消息里的几个关键字段：
+
+- `message_type`
+  - `text`：纯文本消息
+  - `share`：纯分享消息
+  - `text_share`：文字 + 分享卡片
+- `share.share_type`
+  - `post`：帖子分享
+  - `preset`：预设分享
+- `share.share_source_type`
+  - `community_post`：来自社区帖子
+  - `market_lens`：来自透镜市场预设
+  - `asset_node`：来自资产树节点预设
+
+前端渲染时建议优先判断：
+
+1. `share` 是否为 `null`
+2. 若不为 `null`，根据 `share_type` 决定渲染“帖子卡片”还是“预设卡片”
+3. 再根据 `share_source_type` 补充跳转逻辑
+
+---
+
+## 七、资产树接口
 
 统一前缀：
 
@@ -1077,7 +1371,7 @@ DELETE /api/v1/asset-tree/tags/{tag_id}
 
 ---
 
-## 七、运行时 Lens 注册表接口
+## 八、运行时 Lens 注册表接口
 
 统一前缀：
 
@@ -1189,7 +1483,7 @@ POST /api/v1/lenses/reload
 
 ---
 
-## 八、推荐前端调用流程
+## 九、推荐前端调用流程
 
 ### 1. 用户与社区的基础流程
 
@@ -1210,7 +1504,18 @@ POST /api/v1/lenses/reload
 4. 收藏时调用 `POST /favorite`
 5. 评价时调用 `POST /reviews`
 
-### 3. 编辑器项目与资产树流程
+### 3. 好友聊天与私聊分享流程
+
+推荐顺序：
+
+1. 先通过关注接口让双方成为互关关系
+2. 调用 `GET /api/v1/chat/friends/{user_id}` 获取可私聊好友
+3. 点击某个好友时，调用 `POST /api/v1/chat/conversations/direct`
+4. 聊天页进入后，调用 `GET /messages` 拉取历史消息
+5. 发送纯文本、帖子分享或预设分享时，统一调用 `POST /messages`
+6. 页面停留或退出前调用 `POST /read` 更新已读状态
+
+### 4. 编辑器项目与资产树流程
 
 推荐顺序：
 
@@ -1221,7 +1526,7 @@ POST /api/v1/lenses/reload
 5. 点击旧节点时调用 `current-node`
 6. 需要回溯链路时调用 `ancestors`
 
-### 4. 内部 Lens 管理台流程
+### 5. 内部 Lens 管理台流程
 
 推荐顺序：
 
@@ -1232,7 +1537,7 @@ POST /api/v1/lenses/reload
 
 ---
 
-## 九、前端调用时的注意事项
+## 十、前端调用时的注意事项
 
 ### 1. 市场透镜和运行时 Lens 是两套体系
 
@@ -1252,30 +1557,52 @@ POST /api/v1/lenses/reload
 
 前端请不要等待后端自动识别用户身份。
 
-### 3. 资产树模块大量使用 UUID 字符串
+### 3. 好友聊天要求双方互关
+
+前端不要直接假设“关注了对方”就一定能发私信。
+
+真正可私聊的条件是：
+
+- A 关注 B
+- B 也关注 A
+
+建议聊天入口直接使用：
+
+- `GET /api/v1/chat/friends/{user_id}`
+
+而不是自己在前端拼互关逻辑。
+
+### 4. 聊天分享消息有统一卡片结构
+
+无论分享的是帖子还是预设，后端都会返回统一的 `share` 对象。
+
+前端请不要再自行二次请求去拼“标题、封面、作者”这些基础字段，优先直接使用消息里的 `share` 快照渲染。
+
+### 5. 资产树模块大量使用 UUID 字符串
 
 前端在状态管理中不要把这些 ID 当整数处理。
 
-### 4. DELETE 请求有 body
+### 6. DELETE 请求有 body
 
 如果使用 `fetch`、`axios`、`Dio`，要确认：
 
 - DELETE 请求是否支持传 JSON body
 - 若不支持，需单独配置
 
-### 5. 帖子详情接口会增加浏览数
+### 7. 帖子详情接口会增加浏览数
 
 前端如果只是静默刷新帖子内容，请注意它会增加 `view_count`。
 
 ---
 
-## 十、建议的前端封装方式
+## 十一、建议的前端封装方式
 
 前端建议按模块封装 API：
 
 - `userApi`
 - `communityApi`
 - `marketApi`
+- `chatApi`
 - `assetTreeApi`
 - `lensRegistryApi`
 
@@ -1288,26 +1615,28 @@ POST /api/v1/lenses/reload
 
 ---
 
-## 十一、建议的联调优先级
+## 十二、建议的联调优先级
 
 如果前端要开始联调，推荐顺序如下：
 
 1. 用户注册 / 登录 / 获取用户详情
 2. 社区发帖 / 拉帖子列表 / 评论 / 点赞
-3. 透镜市场列表 / 详情 / 安装 / 收藏 / 评价
-4. 资产树项目创建 / 根节点 / 子节点 / 树结构展示
-5. 最后再考虑运行时 Lens 管理台
+3. 好友互关 / 打开私聊 / 发文本消息 / 分享帖子或预设
+4. 透镜市场列表 / 详情 / 安装 / 收藏 / 评价
+5. 资产树项目创建 / 根节点 / 子节点 / 树结构展示
+6. 最后再考虑运行时 Lens 管理台
 
 这样可以先把用户可感知路径打通。
 
 ---
 
-## 十二、结论
+## 十三、结论
 
 当前后端数据库相关 API 已经具备前端联调条件，前端开发时最重要的几件事是：
 
 - 明确区分整数 ID 与 UUID 字符串 ID
 - 明确区分市场透镜和运行时 Lens
+- 明确聊天功能要求双方互关
 - 当前阶段所有用户行为都要显式传 `user_id`
 - DELETE 请求里有些接口必须带 body
 
@@ -1315,6 +1644,7 @@ POST /api/v1/lenses/reload
 
 - 用户页
 - 社区页
+- 好友聊天页
 - 透镜市场页
 - 编辑器历史树页
 - 内部透镜管理页

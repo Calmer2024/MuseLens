@@ -313,3 +313,135 @@ def test_postgres_user_community_market_roundtrip(client, postgres_test_db):
     installed_resp = client.get(f"/api/v1/market/users/{user['user_id']}/installed")
     assert installed_resp.status_code == 200
     assert installed_resp.json()[0]["lens_key"] == "lens_pg_market_v1"
+
+
+@pytest.mark.integration
+def test_postgres_chat_roundtrip(client, postgres_test_db):
+    alice_resp = client.post(
+        "/api/v1/users/register",
+        json={
+            "username": "pg_chat_alice",
+            "password": "pass123456",
+            "nickname": "聊天用户甲",
+            "email": "pg_chat_alice@example.com",
+            "bio": "用于聊天链路测试",
+        },
+    )
+    assert alice_resp.status_code == 200
+    alice = alice_resp.json()
+
+    bob_resp = client.post(
+        "/api/v1/users/register",
+        json={
+            "username": "pg_chat_bob",
+            "password": "pass123456",
+            "nickname": "聊天用户乙",
+            "email": "pg_chat_bob@example.com",
+            "bio": "用于聊天链路测试",
+        },
+    )
+    assert bob_resp.status_code == 200
+    bob = bob_resp.json()
+
+    assert client.post(
+        f"/api/v1/users/{bob['user_id']}/follow",
+        json={"follower_id": alice["user_id"]},
+    ).status_code == 200
+    assert client.post(
+        f"/api/v1/users/{alice['user_id']}/follow",
+        json={"follower_id": bob["user_id"]},
+    ).status_code == 200
+
+    open_resp = client.post(
+        "/api/v1/chat/conversations/direct",
+        json={"user_id": alice["user_id"], "friend_user_id": bob["user_id"]},
+    )
+    assert open_resp.status_code == 200
+    conversation = open_resp.json()["conversation"]
+    conversation_id = conversation["conversation_id"]
+
+    post_resp = client.post(
+        "/api/v1/community/posts",
+        json={
+            "user_id": alice["user_id"],
+            "title": "PostgreSQL 聊天分享帖子",
+            "content": "这是一条给聊天模块做集成测试的帖子",
+            "images": [],
+            "tag_names": ["postgres", "chat"],
+        },
+    )
+    assert post_resp.status_code == 201
+    post = post_resp.json()
+
+    lens_resp = client.post(
+        "/api/v1/market/lenses",
+        json={
+            "lens_key": "lens_pg_chat_share",
+            "name": "PostgreSQL 聊天预设",
+            "description": "用于聊天模块分享测试",
+            "author_id": bob["user_id"],
+            "category": "chat",
+            "price": "0.00",
+            "is_official": False,
+            "status": "active",
+        },
+    )
+    assert lens_resp.status_code == 201
+    lens = lens_resp.json()
+
+    text_resp = client.post(
+        f"/api/v1/chat/conversations/{conversation_id}/messages",
+        json={"sender_id": alice["user_id"], "content": "PostgreSQL 文本消息"},
+    )
+    assert text_resp.status_code == 201
+
+    share_post_resp = client.post(
+        f"/api/v1/chat/conversations/{conversation_id}/messages",
+        json={
+            "sender_id": alice["user_id"],
+            "content": "分享帖子给你",
+            "share": {"share_type": "post", "post_id": post["post_id"]},
+        },
+    )
+    assert share_post_resp.status_code == 201
+
+    share_preset_resp = client.post(
+        f"/api/v1/chat/conversations/{conversation_id}/messages",
+        json={
+            "sender_id": bob["user_id"],
+            "content": "",
+            "share": {"share_type": "preset", "market_lens_id": lens["lens_id"]},
+        },
+    )
+    assert share_preset_resp.status_code == 201
+    assert share_preset_resp.json()["share"]["share_source_type"] == "market_lens"
+
+    messages_resp = client.get(
+        f"/api/v1/chat/conversations/{conversation_id}/messages",
+        params={"user_id": alice["user_id"], "limit": 20},
+    )
+    assert messages_resp.status_code == 200
+    messages = messages_resp.json()["messages"]
+    assert len(messages) == 3
+    assert messages[1]["share"]["share_type"] == "post"
+    assert messages[2]["share"]["share_type"] == "preset"
+
+    detail_resp = client.get(
+        f"/api/v1/chat/conversations/{conversation_id}",
+        params={"user_id": alice["user_id"]},
+    )
+    assert detail_resp.status_code == 200
+    assert detail_resp.json()["unread_count"] == 1
+
+    read_resp = client.post(
+        f"/api/v1/chat/conversations/{conversation_id}/read",
+        json={"user_id": alice["user_id"]},
+    )
+    assert read_resp.status_code == 200
+
+    detail_after_resp = client.get(
+        f"/api/v1/chat/conversations/{conversation_id}",
+        params={"user_id": alice["user_id"]},
+    )
+    assert detail_after_resp.status_code == 200
+    assert detail_after_resp.json()["unread_count"] == 0
