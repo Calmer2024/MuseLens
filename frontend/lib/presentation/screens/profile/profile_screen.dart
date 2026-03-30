@@ -195,7 +195,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             bottom: false,
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              physics: const BouncingScrollPhysics(),
+              physics: const ClampingScrollPhysics(),
               child: Column(
                 children: [
                   const SizedBox(height: 30), // 保留适度留白
@@ -228,6 +228,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         followersAsync.value?.length ?? liveUser.followerCount;
     final followingCount =
         followingAsync.value?.length ?? liveUser.followingCount;
+    final totalLikes = liveUserAsync.value?.totalLikes ?? user.totalLikes;
 
     return Column(
       children: [
@@ -359,7 +360,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildStatItem(
-              '${liveUser.totalLikes}',
+              '$totalLikes',
               context.tr('likes'),
               onTap: null,
             ),

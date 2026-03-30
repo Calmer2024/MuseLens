@@ -39,9 +39,12 @@ class _FollowActionButtonState extends ConsumerState<FollowActionButton> {
 
     final isFollowingAsync = ref.watch(userIsFollowingProvider(widget.targetUserId));
     final isFollowing = isFollowingAsync.value ?? false;
-    final label = isFollowing ? context.tr('unfollow') : context.tr('follow');
-    final backgroundColor = isFollowing ? Colors.white : AppTheme.electricIndigo;
-    final textColor = isFollowing ? AppTheme.electricIndigo : Colors.white;
+    final label = isFollowing ? context.tr('following_state') : context.tr('follow');
+    final backgroundColor = Colors.white;
+    final textColor = isFollowing ? Colors.black87 : AppTheme.electricIndigo;
+    final borderColor = isFollowing
+        ? const Color(0xFFD9D9DE)
+        : AppTheme.electricIndigo;
 
     return GestureDetector(
       onTap: _submitting ? null : () => _handleTap(currentUser, isFollowing),
@@ -55,17 +58,9 @@ class _FollowActionButtonState extends ConsumerState<FollowActionButton> {
           color: backgroundColor,
           borderRadius: BorderRadius.circular(widget.compact ? 16 : 22),
           border: Border.all(
-            color: AppTheme.electricIndigo.withValues(alpha: isFollowing ? 0.55 : 0.12),
+            color: borderColor,
           ),
-          boxShadow: isFollowing
-              ? const []
-              : [
-                  BoxShadow(
-                    color: AppTheme.electricIndigo.withValues(alpha: 0.24),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+          boxShadow: const [],
         ),
         child: _submitting
             ? SizedBox(
@@ -79,14 +74,6 @@ class _FollowActionButtonState extends ConsumerState<FollowActionButton> {
             : Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (!isFollowing) ...[
-                    Icon(
-                      Icons.add_rounded,
-                      size: widget.compact ? 14 : 16,
-                      color: textColor,
-                    ),
-                    SizedBox(width: widget.compact ? 2 : 4),
-                  ],
                   Text(
                     label,
                     style: TextStyle(

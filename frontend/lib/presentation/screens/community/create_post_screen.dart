@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/community_provider.dart';
+import '../../../core/providers/user_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/local_media_store.dart';
 import '../../../data/models/community_models.dart';
@@ -441,7 +442,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       await repository.createPost(input, actingUserId: user.userId);
 
       ref.invalidate(communityTagsProvider);
-      ref.invalidate(communityPostsProvider(const CommunityPostQuery()));
+      ref.invalidate(communityPostsProvider);
+      ref.invalidate(communityFavoritePostsProvider);
+      ref.invalidate(userDetailProvider(user.userId));
+      await ref.read(authProvider.notifier).refreshUser();
 
       if (!mounted) return;
       ScaffoldMessenger.of(

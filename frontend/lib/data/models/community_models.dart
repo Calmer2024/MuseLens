@@ -389,6 +389,16 @@ class CommunityPostDetailData {
     required this.post,
     required this.comments,
   });
+
+  CommunityPostDetailData copyWith({
+    CommunityPostView? post,
+    List<CommunityCommentView>? comments,
+  }) {
+    return CommunityPostDetailData(
+      post: post ?? this.post,
+      comments: comments ?? this.comments,
+    );
+  }
 }
 
 @immutable

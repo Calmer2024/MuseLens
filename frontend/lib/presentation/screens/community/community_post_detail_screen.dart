@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,12 +31,27 @@ class _CommunityPostDetailScreenState
   final _commentController = TextEditingController();
   final _pageController = PageController();
 
+  CommunityPostDetailData? _detailState;
   int _currentImage = 0;
   bool _submittingComment = false;
   bool _updatingPostAction = false;
   bool _deletingPost = false;
   final Set<int> _updatingComments = <int>{};
+  final Set<int> _animatedCommentIds = <int>{};
   CommunityCommentView? _replyTarget;
+
+  @override
+  void didUpdateWidget(covariant CommunityPostDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.postId != widget.postId) {
+      _detailState = null;
+      _replyTarget = null;
+      _currentImage = 0;
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(0);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -47,11 +64,24 @@ class _CommunityPostDetailScreenState
   Widget build(BuildContext context) {
     final detailAsync = ref.watch(communityPostDetailProvider(widget.postId));
     final currentUser = ref.watch(authProvider);
+    ref.listen<AsyncValue<CommunityPostDetailData>>(
+      communityPostDetailProvider(widget.postId),
+      (_, next) {
+        final latest = next.asData?.value;
+        if (latest == null || !mounted) {
+          return;
+        }
+        setState(() {
+          _detailState = latest;
+        });
+      },
+    );
+    final detail = _detailState ?? detailAsync.asData?.value;
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: detailAsync.when(
-        data: (detail) => RefreshIndicator(
+      body: detail != null
+          ? RefreshIndicator(
           color: AppTheme.electricIndigo,
           onRefresh: _refreshDetail,
           child: CustomScrollView(
@@ -249,15 +279,29 @@ class _CommunityPostDetailScreenState
                     itemCount: detail.comments.length,
                     itemBuilder: (context, index) {
                       final comment = detail.comments[index];
+                      final isAnimated = _animatedCommentIds.contains(
+                        comment.comment.commentId,
+                      );
                       return Padding(
                         padding: EdgeInsets.only(
                           bottom: index == detail.comments.length - 1 ? 0 : 18,
                         ),
-                        child: _CommentTile(
-                          comment: comment,
-                          loadingIds: _updatingComments,
-                          onReply: () => setState(() => _replyTarget = comment),
-                          onToggleLike: _toggleCommentLike,
+                        child: AnimatedSlide(
+                          duration: const Duration(milliseconds: 320),
+                          curve: Curves.easeOutCubic,
+                          offset: isAnimated ? const Offset(0, 0.16) : Offset.zero,
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 280),
+                            curve: Curves.easeOut,
+                            opacity: isAnimated ? 0.45 : 1,
+                            child: _CommentTile(
+                              comment: comment,
+                              loadingIds: _updatingComments,
+                              animatedIds: _animatedCommentIds,
+                              onReply: () => setState(() => _replyTarget = comment),
+                              onToggleLike: _toggleCommentLike,
+                            ),
+                          ),
                         ),
                       );
                     },
@@ -265,19 +309,19 @@ class _CommunityPostDetailScreenState
                 ),
             ],
           ),
-        ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
+        )
+          : detailAsync.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Text(
-              '帖子加载失败：$error',
+              '帖子加载失败：${detailAsync.asError?.error}',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.black.withOpacity(0.5)),
             ),
           ),
         ),
-      ),
       bottomNavigationBar: _buildComposer(),
     );
   }
@@ -551,6 +595,18 @@ class _CommunityPostDetailScreenState
     final user = await _requireLogin();
     if (user == null) return;
 
+    final targetLiked = !post.isLiked;
+    _updateLocalDetail((detail) {
+      final delta = targetLiked ? 1 : -1;
+      return detail.copyWith(
+        post: detail.post.copyWith(
+          isLiked: targetLiked,
+          post: detail.post.post.copyWith(
+            likeCount: (detail.post.post.likeCount + delta).clamp(0, 1 << 31),
+          ),
+        ),
+      );
+    });
     setState(() => _updatingPostAction = true);
     try {
       await ref
@@ -558,10 +614,26 @@ class _CommunityPostDetailScreenState
           .setPostLiked(
             postId: post.post.postId,
             userId: user.userId,
-            liked: !post.isLiked,
+            liked: targetLiked,
           );
-      await _refreshAfterMutation(user.userId);
+      unawaited(
+        _refreshAfterMutation(
+          user.userId,
+          affectedUserIds: {post.author.userId},
+        ),
+      );
     } catch (error) {
+      _updateLocalDetail((detail) {
+        final delta = targetLiked ? -1 : 1;
+        return detail.copyWith(
+          post: detail.post.copyWith(
+            isLiked: post.isLiked,
+            post: detail.post.post.copyWith(
+              likeCount: (detail.post.post.likeCount + delta).clamp(0, 1 << 31),
+            ),
+          ),
+        );
+      });
       _showError(error);
     } finally {
       if (mounted) {
@@ -574,6 +646,12 @@ class _CommunityPostDetailScreenState
     final user = await _requireLogin();
     if (user == null) return;
 
+    final targetFavorited = !post.isFavorited;
+    _updateLocalDetail((detail) {
+      return detail.copyWith(
+        post: detail.post.copyWith(isFavorited: targetFavorited),
+      );
+    });
     setState(() => _updatingPostAction = true);
     try {
       await ref
@@ -581,10 +659,18 @@ class _CommunityPostDetailScreenState
           .setPostFavorited(
             postId: post.post.postId,
             userId: user.userId,
-            favorited: !post.isFavorited,
+            favorited: targetFavorited,
           );
-      await _refreshAfterMutation(user.userId);
+      unawaited(
+        _refreshAfterMutation(
+          user.userId,
+          affectedUserIds: {post.author.userId},
+        ),
+      );
     } catch (error) {
+      _updateLocalDetail((detail) {
+        return detail.copyWith(post: detail.post.copyWith(isFavorited: post.isFavorited));
+      });
       _showError(error);
     } finally {
       if (mounted) {
@@ -597,6 +683,19 @@ class _CommunityPostDetailScreenState
     final user = await _requireLogin();
     if (user == null) return;
 
+    final targetLiked = !comment.isLiked;
+    _updateLocalComment(
+      comment.comment.commentId,
+      (current) => current.copyWith(
+        isLiked: targetLiked,
+        comment: current.comment.copyWith(
+          likeCount: (current.comment.likeCount + (targetLiked ? 1 : -1)).clamp(
+            0,
+            1 << 31,
+          ),
+        ),
+      ),
+    );
     setState(() => _updatingComments.add(comment.comment.commentId));
     try {
       await ref
@@ -604,10 +703,27 @@ class _CommunityPostDetailScreenState
           .setCommentLiked(
             commentId: comment.comment.commentId,
             userId: user.userId,
-            liked: !comment.isLiked,
+            liked: targetLiked,
           );
-      await _refreshAfterMutation(user.userId);
+      unawaited(
+        _refreshAfterMutation(
+          user.userId,
+          affectedUserIds: {comment.author.userId},
+        ),
+      );
     } catch (error) {
+      _updateLocalComment(
+        comment.comment.commentId,
+        (current) => current.copyWith(
+          isLiked: comment.isLiked,
+          comment: current.comment.copyWith(
+            likeCount: (current.comment.likeCount + (targetLiked ? -1 : 1)).clamp(
+              0,
+              1 << 31,
+            ),
+          ),
+        ),
+      );
       _showError(error);
     } finally {
       if (mounted) {
@@ -627,7 +743,7 @@ class _CommunityPostDetailScreenState
 
     setState(() => _submittingComment = true);
     try {
-      await ref
+      final createdComment = await ref
           .read(communityRepositoryProvider)
           .createComment(
             postId: widget.postId,
@@ -635,9 +751,22 @@ class _CommunityPostDetailScreenState
             content: text,
             parentId: _replyTarget?.comment.commentId,
           );
+      final createdView = CommunityCommentView(
+        comment: createdComment,
+        author: CommunityAuthor.fromUser(user),
+        isLiked: false,
+        replies: const [],
+      );
+      _insertLocalComment(createdView);
       _commentController.clear();
       setState(() => _replyTarget = null);
-      await _refreshAfterMutation(user.userId);
+      _animateCommentIn(createdComment.commentId);
+      unawaited(
+        _refreshAfterMutation(
+          user.userId,
+          affectedUserIds: {user.userId},
+        ),
+      );
     } catch (error) {
       _showError(error);
     } finally {
@@ -697,16 +826,23 @@ class _CommunityPostDetailScreenState
 
   Future<void> _refreshDetail() async {
     ref.invalidate(communityPostDetailProvider(widget.postId));
-    await ref.read(communityPostDetailProvider(widget.postId).future);
+    final refreshed = await ref.read(communityPostDetailProvider(widget.postId).future);
+    if (!mounted) return;
+    setState(() {
+      _detailState = refreshed;
+    });
   }
 
-  Future<void> _refreshAfterMutation(int userId) async {
-    ref.invalidate(communityPostDetailProvider(widget.postId));
+  Future<void> _refreshAfterMutation(
+    int userId, {
+    Set<int> affectedUserIds = const <int>{},
+  }) async {
     ref.invalidate(communityFavoritePostsProvider);
     ref.invalidate(communityPostsProvider);
-    ref.invalidate(userDetailProvider(userId));
+    for (final affectedUserId in {...affectedUserIds, userId}) {
+      ref.invalidate(userDetailProvider(affectedUserId));
+    }
     await ref.read(authProvider.notifier).refreshUser();
-    await ref.read(communityPostDetailProvider(widget.postId).future);
   }
 
   Future<void> _refreshAfterDelete(int userId) async {
@@ -771,6 +907,99 @@ class _CommunityPostDetailScreenState
         post.coverAspectRatio ??
         1.0;
   }
+
+  void _updateLocalDetail(
+    CommunityPostDetailData Function(CommunityPostDetailData detail) updater,
+  ) {
+    if (_detailState == null || !mounted) {
+      return;
+    }
+    setState(() {
+      _detailState = updater(_detailState!);
+    });
+  }
+
+  void _updateLocalComment(
+    int commentId,
+    CommunityCommentView Function(CommunityCommentView current) updater,
+  ) {
+    _updateLocalDetail((detail) {
+      return detail.copyWith(
+        comments: detail.comments
+            .map((comment) => _mapCommentTree(comment, commentId, updater))
+            .toList(),
+      );
+    });
+  }
+
+  CommunityCommentView _mapCommentTree(
+    CommunityCommentView current,
+    int commentId,
+    CommunityCommentView Function(CommunityCommentView current) updater,
+  ) {
+    if (current.comment.commentId == commentId) {
+      return updater(current);
+    }
+
+    if (current.replies.isEmpty) {
+      return current;
+    }
+
+    return current.copyWith(
+      replies: current.replies
+          .map((reply) => _mapCommentTree(reply, commentId, updater))
+          .toList(),
+    );
+  }
+
+  void _insertLocalComment(CommunityCommentView comment) {
+    _updateLocalDetail((detail) {
+      final updatedPost = detail.post.copyWith(
+        post: detail.post.post.copyWith(
+          commentCount: detail.post.post.commentCount + 1,
+        ),
+      );
+      if (comment.comment.parentId == null) {
+        return detail.copyWith(
+          post: updatedPost,
+          comments: [comment, ...detail.comments],
+        );
+      }
+
+      final rootCommentId = comment.comment.rootId ?? comment.comment.parentId;
+      final updatedComments = detail.comments.map((item) {
+        if (item.comment.commentId != rootCommentId) {
+          return item;
+        }
+        return item.copyWith(
+          comment: item.comment.copyWith(
+            replyCount: item.comment.replyCount + 1,
+          ),
+          replies: [comment, ...item.replies],
+        );
+      }).toList();
+
+      return detail.copyWith(
+        post: updatedPost,
+        comments: updatedComments,
+      );
+    });
+  }
+
+  void _animateCommentIn(int commentId) {
+    if (!mounted) {
+      return;
+    }
+    setState(() => _animatedCommentIds.add(commentId));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future<void>.delayed(const Duration(milliseconds: 24), () {
+        if (!mounted) {
+          return;
+        }
+        setState(() => _animatedCommentIds.remove(commentId));
+      });
+    });
+  }
 }
 
 class _StatPill extends StatelessWidget {
@@ -824,12 +1053,14 @@ class _CommentTile extends StatelessWidget {
   const _CommentTile({
     required this.comment,
     required this.loadingIds,
+    required this.animatedIds,
     required this.onReply,
     required this.onToggleLike,
   });
 
   final CommunityCommentView comment;
   final Set<int> loadingIds;
+  final Set<int> animatedIds;
   final VoidCallback onReply;
   final ValueChanged<CommunityCommentView> onToggleLike;
 
@@ -841,6 +1072,7 @@ class _CommentTile extends StatelessWidget {
         _CommentBubble(
           comment: comment,
           isLoading: loadingIds.contains(comment.comment.commentId),
+          isAnimated: animatedIds.contains(comment.comment.commentId),
           onReply: comment.comment.level == 1 ? onReply : null,
           onToggleLike: () => onToggleLike(comment),
         ),
@@ -854,6 +1086,7 @@ class _CommentTile extends StatelessWidget {
                   child: _CommentBubble(
                     comment: reply,
                     isLoading: loadingIds.contains(reply.comment.commentId),
+                    isAnimated: animatedIds.contains(reply.comment.commentId),
                     onToggleLike: () => onToggleLike(reply),
                   ),
                 );
@@ -869,118 +1102,131 @@ class _CommentBubble extends StatelessWidget {
   const _CommentBubble({
     required this.comment,
     required this.isLoading,
+    required this.isAnimated,
     required this.onToggleLike,
     this.onReply,
   });
 
   final CommunityCommentView comment;
   final bool isLoading;
+  final bool isAnimated;
   final VoidCallback onToggleLike;
   final VoidCallback? onReply;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        CircleAvatar(
-          radius: 16,
-          backgroundColor: Colors.grey.shade200,
-          backgroundImage: resolveAdaptiveImageProvider(
-            comment.author.avatarUrl,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: isAnimated
+            ? AppTheme.electricIndigo.withOpacity(0.06)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: Colors.grey.shade200,
+            backgroundImage: resolveAdaptiveImageProvider(
+              comment.author.avatarUrl,
+            ),
+            child:
+                comment.author.avatarUrl == null ||
+                    comment.author.avatarUrl!.trim().isEmpty
+                ? const Icon(Icons.person, size: 16, color: Colors.black38)
+                : null,
           ),
-          child:
-              comment.author.avatarUrl == null ||
-                  comment.author.avatarUrl!.trim().isEmpty
-              ? const Icon(Icons.person, size: 16, color: Colors.black38)
-              : null,
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                comment.author.displayName,
-                style: TextStyle(
-                  color: Colors.black.withOpacity(0.56),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                comment.comment.content,
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontSize: 14,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Text(
-                    '${comment.comment.createdAt.month}-${comment.comment.createdAt.day}',
-                    style: TextStyle(
-                      color: Colors.black.withOpacity(0.38),
-                      fontSize: 11,
-                    ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  comment.author.displayName,
+                  style: TextStyle(
+                    color: Colors.black.withOpacity(0.56),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
-                  if (onReply != null) ...[
-                    const SizedBox(width: 14),
-                    GestureDetector(
-                      onTap: onReply,
-                      child: const Text(
-                        '回复',
-                        style: TextStyle(
-                          color: AppTheme.electricIndigo,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  comment.comment.content,
+                  style: const TextStyle(
+                    color: Colors.black87,
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Text(
+                      '${comment.comment.createdAt.month}-${comment.comment.createdAt.day}',
+                      style: TextStyle(
+                        color: Colors.black.withOpacity(0.38),
+                        fontSize: 11,
                       ),
                     ),
+                    if (onReply != null) ...[
+                      const SizedBox(width: 14),
+                      GestureDetector(
+                        onTap: onReply,
+                        child: const Text(
+                          '回复',
+                          style: TextStyle(
+                            color: AppTheme.electricIndigo,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 10),
-        InkWell(
-          onTap: isLoading ? null : onToggleLike,
-          borderRadius: BorderRadius.circular(999),
-          child: Padding(
-            padding: const EdgeInsets.all(6),
-            child: Column(
-              children: [
-                if (isLoading)
-                  const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else
-                  Icon(
-                    comment.isLiked ? Icons.favorite : Icons.favorite_border,
-                    size: 16,
-                    color: comment.isLiked
-                        ? AppTheme.electricIndigo
-                        : Colors.black38,
-                  ),
-                const SizedBox(height: 2),
-                Text(
-                  '${comment.comment.likeCount}',
-                  style: TextStyle(
-                    color: Colors.black.withOpacity(0.4),
-                    fontSize: 10,
-                  ),
                 ),
               ],
             ),
           ),
-        ),
-      ],
+          const SizedBox(width: 10),
+          InkWell(
+            onTap: isLoading ? null : onToggleLike,
+            borderRadius: BorderRadius.circular(999),
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Column(
+                children: [
+                  if (isLoading)
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    Icon(
+                      comment.isLiked ? Icons.favorite : Icons.favorite_border,
+                      size: 16,
+                      color: comment.isLiked
+                          ? AppTheme.electricIndigo
+                          : Colors.black38,
+                    ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${comment.comment.likeCount}',
+                    style: TextStyle(
+                      color: Colors.black.withOpacity(0.4),
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
