@@ -1,0 +1,2 @@
+# 开发与测试（容器构建时会一并安装，便于 docker compose exec 内跑 pytest）
+pytest>=8.0

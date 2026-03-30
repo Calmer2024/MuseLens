@@ -167,3 +167,60 @@ class RouterRouteRequest(BaseModel):
         description="若本轮是回答追问，则填入：问题ID->答案。非空时将走 answer 流程。",
     )
 
+
+class RouterRouteAndRunRequest(RouterRouteRequest):
+    """用于测试 Router 编排闭环的请求体。"""
+
+    execute_when_ready: bool = Field(
+        default=True,
+        description="当 Router 返回 ready 且带 blueprint 时，是否立即执行生图。",
+    )
+
+
+class RouterRouteAndRunResponse(RouterResponse):
+    """在 RouterResponse 基础上附带执行结果。"""
+
+    executed: bool = Field(default=False, description="本次请求是否实际触发了 blueprint 执行。")
+    execution_context: Dict[str, str] = Field(
+        default_factory=dict,
+        description="编译执行后返回的完整上下文字典。",
+    )
+    result_filename: Optional[str] = Field(
+        default=None,
+        description="推断出的最终结果文件名。",
+    )
+    result_url: Optional[str] = Field(
+        default=None,
+        description="若可推断结果文件，则提供便于预览的 URL。",
+    )
+    execution_error: Optional[str] = Field(
+        default=None,
+        description="执行阶段的错误信息；编排成功但执行失败时使用。",
+    )
+    step_results: List["RouterStepResult"] = Field(
+        default_factory=list,
+        description="按 blueprint 步骤顺序整理的逐步执行结果，便于前端展示每个透镜产物。",
+    )
+
+
+class RouterStepOutput(BaseModel):
+    """单个步骤某个输出槽位的可展示结果。"""
+
+    output_name: str = Field(..., description="输出槽位名，例如 result_image / mask_result")
+    filename: str = Field(..., description="ComfyUI 产出的文件名")
+    url: Optional[str] = Field(default=None, description="前端可直接预览的 URL")
+
+
+class RouterStepResult(BaseModel):
+    """单个透镜步骤的执行结果。"""
+
+    step_id: str = Field(..., description="步骤 ID")
+    lens_id: str = Field(..., description="执行的透镜 ID")
+    outputs: List[RouterStepOutput] = Field(
+        default_factory=list,
+        description="该步骤所有已捕获的输出结果。",
+    )
+
+
+RouterRouteAndRunResponse.model_rebuild()
+

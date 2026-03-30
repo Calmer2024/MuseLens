@@ -1,0 +1,56 @@
+{
+  "lens_id": "lens_flux_two_reference",
+  "layer": "A2",
+  "description": "A2 双参考约束重绘：输入原图与两张参考资产，在重绘时同时锁定多种结构或语义约束。",
+  "workflow_file": "lens_flux_two_reference.json",
+  "inputs": [
+    {
+      "name": "base_image",
+      "type": "image",
+      "mapping": { "node_id": "13", "field_name": "image" }
+    },
+    {
+      "name": "ref_image_1",
+      "type": "image",
+      "mapping": { "node_id": "12", "field_name": "image" }
+    },
+    {
+      "name": "ref_image_2",
+      "type": "image",
+      "mapping": { "node_id": "24", "field_name": "image" }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result_image",
+      "type": "image",
+      "mapping": { "node_id": "1", "field_name": "images" }
+    }
+  ],
+  "params": [
+    {
+      "name": "prompt",
+      "type": "text",
+      "description": "描述在双重参考约束下希望得到的最终画面方向。",
+      "mapping": { "node_id": "21", "field_name": "text" }
+    },
+    {
+      "name": "steps",
+      "type": "int",
+      "description": "控制采样步数。",
+      "mapping": { "node_id": "10", "field_name": "steps" }
+    },
+    {
+      "name": "cfg",
+      "type": "float",
+      "description": "控制提示词引导强度。",
+      "mapping": { "node_id": "3", "field_name": "cfg" }
+    },
+    {
+      "name": "noise_seed",
+      "type": "int",
+      "description": "控制随机种子，用于复现或探索不同细节解。",
+      "mapping": { "node_id": "2", "field_name": "noise_seed" }
+    }
+  ]
+}

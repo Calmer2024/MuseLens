@@ -1,0 +1,21 @@
+{
+  "lens_id": "lens_pose_extract",
+  "layer": "A1",
+  "description": "A1 姿态骨骼提取：从输入图像中提取人物骨架与关节点信息，输出 pose map 用于后续动作约束。",
+  "workflow_file": "lens_pose_extract.json",
+  "inputs": [
+    {
+      "name": "base_image",
+      "type": "image",
+      "mapping": { "node_id": "1", "field_name": "image" }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "pose_map",
+      "type": "image",
+      "mapping": { "node_id": "3", "field_name": "images" }
+    }
+  ],
+  "params": []
+}

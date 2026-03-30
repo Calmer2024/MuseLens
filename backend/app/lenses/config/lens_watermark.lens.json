@@ -1,0 +1,64 @@
+{
+  "lens_id": "lens_watermark",
+  "layer": "A5",
+  "description": "A5 水印与版权保护：在最终图像上叠加签名、品牌名或版权说明，完成可交付成片的标识保护。",
+  "workflow_file": "lens_watermark.json",
+  "inputs": [
+    {
+      "name": "base_image",
+      "type": "image",
+      "mapping": { "node_id": "1", "field_name": "image" }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result_image",
+      "type": "image",
+      "mapping": { "node_id": "95", "field_name": "images" }
+    }
+  ],
+  "params": [
+    {
+      "name": "text",
+      "type": "text",
+      "description": "水印文本内容，例如签名、品牌名或版权说明。",
+      "mapping": { "node_id": "94", "field_name": "text" }
+    },
+    {
+      "name": "font_name",
+      "type": "text",
+      "description": "要使用的字体文件名。",
+      "mapping": { "node_id": "94", "field_name": "font_name" }
+    },
+    {
+      "name": "font_size",
+      "type": "int",
+      "description": "水印字号大小。",
+      "mapping": { "node_id": "94", "field_name": "font_size" }
+    },
+    {
+      "name": "font_color_hex",
+      "type": "text",
+      "description": "水印颜色的十六进制值。",
+      "mapping": { "node_id": "94", "field_name": "font_color_hex" }
+    },
+    {
+      "name": "align",
+      "type": "text",
+      "description": "水印在画面中的垂直对齐位置。",
+      "mapping": { "node_id": "94", "field_name": "align" }
+    },
+    {
+      "name": "justify",
+      "type": "text",
+      "description": "水印在画面中的水平对齐方式。",
+      "mapping": { "node_id": "94", "field_name": "justify" }
+    },
+    {
+      "name": "margins",
+      "type": "int",
+      "description": "水印距离边缘的留白像素。",
+      "mapping": { "node_id": "94", "field_name": "margins" }
+    }
+  ]
+}

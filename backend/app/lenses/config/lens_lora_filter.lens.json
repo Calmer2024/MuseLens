@@ -1,0 +1,70 @@
+{
+  "lens_id": "lens_lora_filter",
+  "layer": "A4",
+  "description": "A4 LoRA 滤镜：使用深度约束保护原图结构，通过指定 LoRA 模型对画面材质、笔触、色彩和氛围进行风格覆盖。",
+  "workflow_file": "lens_lora_filter.json",
+  "inputs": [
+    {
+      "name": "base_image",
+      "type": "image",
+      "mapping": { "node_id": "22", "field_name": "image" }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result_image",
+      "type": "image",
+      "mapping": { "node_id": "29", "field_name": "images" }
+    }
+  ],
+  "params": [
+    {
+      "name": "lora_name",
+      "type": "text",
+      "description": "选择要使用的 LoRA 滤镜模型名称。",
+      "mapping": { "node_id": "34", "field_name": "lora_name" }
+    },
+    {
+      "name": "prompt",
+      "type": "text",
+      "description": "补充描述滤镜化重绘的材质、笔触、色彩与氛围。",
+      "mapping": { "node_id": "20", "field_name": "text" }
+    },
+    {
+      "name": "strength_model",
+      "type": "float",
+      "description": "控制 LoRA 对模型侧的影响强度。",
+      "mapping": { "node_id": "34", "field_name": "strength_model" }
+    },
+    {
+      "name": "strength_clip",
+      "type": "float",
+      "description": "控制 LoRA 对文本编码侧的影响强度。",
+      "mapping": { "node_id": "34", "field_name": "strength_clip" }
+    },
+    {
+      "name": "denoise",
+      "type": "float",
+      "description": "控制滤镜化重绘幅度。",
+      "mapping": { "node_id": "27", "field_name": "denoise" }
+    },
+    {
+      "name": "steps",
+      "type": "int",
+      "description": "控制采样步数。",
+      "mapping": { "node_id": "27", "field_name": "steps" }
+    },
+    {
+      "name": "cfg",
+      "type": "float",
+      "description": "控制文本与条件对结果的引导强度。",
+      "mapping": { "node_id": "27", "field_name": "cfg" }
+    },
+    {
+      "name": "seed",
+      "type": "int",
+      "description": "控制随机种子。",
+      "mapping": { "node_id": "27", "field_name": "seed" }
+    }
+  ]
+}

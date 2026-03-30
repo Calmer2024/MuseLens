@@ -1,0 +1,51 @@
+{
+  "lens_id": "lens_relighting",
+  "layer": "A3",
+  "description": "A3 全局光影重构：结合原图与深度图，通过 FLUX.2 重写画面的主光方向、环境光和色温关系。",
+  "workflow_file": "lens_relighting.json",
+  "inputs": [
+    {
+      "name": "base_image",
+      "type": "image",
+      "mapping": { "node_id": "1", "field_name": "image" }
+    },
+    {
+      "name": "depth_map",
+      "type": "depth_map",
+      "mapping": { "node_id": "20", "field_name": "image" }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result_image",
+      "type": "image",
+      "mapping": { "node_id": "15", "field_name": "images" }
+    }
+  ],
+  "params": [
+    {
+      "name": "prompt",
+      "type": "text",
+      "description": "描述希望施加的全局光影变化，例如主光方向、色温、氛围和时间段。",
+      "mapping": { "node_id": "10", "field_name": "text" }
+    },
+    {
+      "name": "steps",
+      "type": "int",
+      "description": "控制重构光影时的采样步数。",
+      "mapping": { "node_id": "29", "field_name": "steps" }
+    },
+    {
+      "name": "cfg",
+      "type": "float",
+      "description": "控制光影提示词对结果的引导强度。",
+      "mapping": { "node_id": "26", "field_name": "cfg" }
+    },
+    {
+      "name": "noise_seed",
+      "type": "int",
+      "description": "控制随机种子，用于复现或探索不同光影细节。",
+      "mapping": { "node_id": "25", "field_name": "noise_seed" }
+    }
+  ]
+}

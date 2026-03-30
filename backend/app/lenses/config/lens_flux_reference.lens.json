@@ -1,0 +1,51 @@
+{
+  "lens_id": "lens_flux_reference",
+  "layer": "A2",
+  "description": "A2 单参考约束重绘：输入原图与一张参考资产，在 FLUX.2 重绘时锁定额外结构或物理特征。",
+  "workflow_file": "lens_flux_reference.json",
+  "inputs": [
+    {
+      "name": "base_image",
+      "type": "image",
+      "mapping": { "node_id": "76", "field_name": "image" }
+    },
+    {
+      "name": "ref_image_1",
+      "type": "image",
+      "mapping": { "node_id": "127", "field_name": "image" }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result_image",
+      "type": "image",
+      "mapping": { "node_id": "9", "field_name": "images" }
+    }
+  ],
+  "params": [
+    {
+      "name": "prompt",
+      "type": "text",
+      "description": "描述希望在保留参考约束前提下实现的重绘方向。",
+      "mapping": { "node_id": "108", "field_name": "text" }
+    },
+    {
+      "name": "steps",
+      "type": "int",
+      "description": "控制采样步数。",
+      "mapping": { "node_id": "101", "field_name": "steps" }
+    },
+    {
+      "name": "cfg",
+      "type": "float",
+      "description": "控制提示词的引导强度。",
+      "mapping": { "node_id": "102", "field_name": "cfg" }
+    },
+    {
+      "name": "noise_seed",
+      "type": "int",
+      "description": "控制随机种子，用于复现或生成不同细节结果。",
+      "mapping": { "node_id": "105", "field_name": "noise_seed" }
+    }
+  ]
+}
