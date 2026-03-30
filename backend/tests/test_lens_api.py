@@ -249,3 +249,92 @@ def test_reload_registry_via_api(client, temp_workflow_file, test_db):
     assert "已重载" in data["detail"]
     assert data["lens_ids"] == ["lens_api_reload_test"]
     assert "lens_api_reload_test" in registry.LENS_REGISTRY
+
+
+def test_run_lens_directly_returns_result(client, temp_workflow_file, monkeypatch):
+    payload = {
+        "lens_id": "lens_api_run_direct",
+        "layer": "A2",
+        "description": "直连执行测试",
+        "workflow_file_path": temp_workflow_file,
+        "inputs": [
+            {"name": "base_image", "type": "image", "mapping": {"node_id": "1", "field_name": "image"}}
+        ],
+        "outputs": [
+            {"name": "result_image", "type": "image", "mapping": {"node_id": "1", "field_name": "images"}}
+        ],
+        "params": [
+            {"name": "prompt", "type": "text", "description": "提示词", "mapping": {"node_id": "2", "field_name": "text"}}
+        ],
+    }
+    assert client.post("/api/v1/lenses/register", json=payload).status_code == 200
+
+    import app.api.v1.endpoints.lenses as lenses_endpoint
+
+    async def _fake_execute(blueprint):
+        assert blueprint.steps[0].lens_id == "lens_api_run_direct"
+        assert blueprint.steps[0].params["prompt"] == "make it brighter"
+        assert blueprint.initial_inputs["base_image"] == "upload.png"
+        return {
+            "base_image": "upload.png",
+            "step_1_direct_lens.result_image": "direct_result.png",
+        }
+
+    monkeypatch.setattr(lenses_endpoint.compiler, "execute_blueprint", _fake_execute)
+
+    resp = client.post(
+        "/api/v1/lenses/run",
+        json={
+            "lens_id": "lens_api_run_direct",
+            "assets": {"base_image": "upload.png"},
+            "params": {"prompt": "make it brighter"},
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["lens_id"] == "lens_api_run_direct"
+    assert body["executed"] is True
+    assert body["execution_started"] is True
+    assert body["result_filename"] == "direct_result.png"
+    assert body["result_url"] == "http://127.0.0.1:8188/view?filename=direct_result.png&type=output"
+    assert body["blueprint"]["steps"][0]["lens_id"] == "lens_api_run_direct"
+    assert body["step_results"][0]["step_id"] == "step_1_direct_lens"
+    assert body["step_results"][0]["outputs"][0]["filename"] == "direct_result.png"
+
+
+def test_run_lens_directly_returns_error_when_assets_missing(client, temp_workflow_file):
+    payload = {
+        "lens_id": "lens_api_run_missing_asset",
+        "layer": "A2",
+        "description": "缺失资产测试",
+        "workflow_file_path": temp_workflow_file,
+        "inputs": [
+            {"name": "base_image", "type": "image", "mapping": {"node_id": "1", "field_name": "image"}}
+        ],
+        "outputs": [
+            {"name": "result_image", "type": "image", "mapping": {"node_id": "1", "field_name": "images"}}
+        ],
+        "params": [],
+    }
+    assert client.post("/api/v1/lenses/register", json=payload).status_code == 200
+
+    resp = client.post(
+        "/api/v1/lenses/run",
+        json={
+            "lens_id": "lens_api_run_missing_asset",
+            "assets": {},
+            "params": {},
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["executed"] is False
+    assert "缺少必须的输入资产" in body["execution_error"]
+
+
+def test_new_lens_stream_id_endpoint(client):
+    resp = client.get("/api/v1/lenses/stream/new")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert isinstance(body["stream_id"], str)
+    assert len(body["stream_id"]) >= 8

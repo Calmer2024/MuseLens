@@ -30,6 +30,10 @@
 
 - `GET /api/v1/router/stream/new`
   由后端生成一个新的 `stream_id`，前端如果不想自己生成 UUID，可以先调这个接口。
+- `POST /api/v1/lenses/run`
+  透镜直连执行接口。适合前端已明确选择某个透镜，并且用户已经手动填写好该透镜所需参数与资产，不需要 LLM 参与。
+- `GET /api/v1/lenses/stream/new`
+  为透镜直连执行模式生成 `stream_id`。
 
 旧接口 `/compile_or_ask`、`/answer` 仅做兼容，不建议前端新接入时再使用。
 
@@ -670,7 +674,126 @@ Router 返回的 `status` 只有三种：
 
 ---
 
-## 10. 前端实现建议
+## 10. 透镜直连执行接口
+
+适用于：
+
+- 前端已经让用户手动选择了某个透镜
+- 前端表单已经根据透镜 schema 收集好了该透镜所需 `params`
+- 用户也已经选好了该透镜需要的输入图片或其他资产
+- 不需要 Router 检索、追问或 LLM 编排
+
+### 10.1 接口
+
+`POST /api/v1/lenses/run`
+
+### 10.2 请求体
+
+```json
+{
+  "lens_id": "lens_flux_edit",
+  "assets": {
+    "base_image": "upload.png"
+  },
+  "params": {
+    "prompt": "golden sunset lighting from the upper right"
+  },
+  "async_execution": false,
+  "stream_id": null
+}
+```
+
+字段说明：
+
+- `lens_id`
+  要执行的透镜 ID
+- `assets`
+  前端直接填写的输入资产映射，键必须对应透镜 input 名称
+- `params`
+  前端直接填写的参数映射，键必须对应透镜 param 名称
+- `async_execution`
+  是否异步流式执行
+- `stream_id`
+  若使用异步流式执行，则传入流式通道 ID
+
+### 10.3 同步响应示例
+
+```json
+{
+  "lens_id": "lens_flux_edit",
+  "blueprint": {
+    "initial_inputs": {
+      "base_image": "upload.png"
+    },
+    "steps": [
+      {
+        "step_id": "step_1_direct_lens",
+        "lens_id": "lens_flux_edit",
+        "input_links": {
+          "base_image": "$base_image"
+        },
+        "params": {
+          "prompt": "golden sunset lighting from the upper right"
+        }
+      }
+    ]
+  },
+  "executed": true,
+  "execution_started": true,
+  "stream_id": null,
+  "execution_context": {
+    "base_image": "upload.png",
+    "step_1_direct_lens.result_image": "Flux2-Klein-4b-base_00031_.png"
+  },
+  "result_filename": "Flux2-Klein-4b-base_00031_.png",
+  "result_url": "http://127.0.0.1:8188/view?filename=Flux2-Klein-4b-base_00031_.png&type=output",
+  "execution_error": null,
+  "step_results": [
+    {
+      "step_id": "step_1_direct_lens",
+      "lens_id": "lens_flux_edit",
+      "outputs": [
+        {
+          "output_name": "result_image",
+          "filename": "Flux2-Klein-4b-base_00031_.png",
+          "url": "http://127.0.0.1:8188/view?filename=Flux2-Klein-4b-base_00031_.png&type=output"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### 10.4 异步流式执行
+
+透镜直连执行也复用同一套 WebSocket：
+
+- `WS /api/v1/router/ws/run/{stream_id}`
+
+推荐流程：
+
+1. 先调用 `GET /api/v1/lenses/stream/new` 获取 `stream_id`
+2. 连接 `WS /api/v1/router/ws/run/{stream_id}`
+3. 调 `POST /api/v1/lenses/run`
+4. 传：
+   - `async_execution=true`
+   - `stream_id`
+5. 后续同样接收：
+   - `blueprint_ready`
+   - `execution_started`
+   - `step_started`
+   - `step_completed`
+   - `execution_completed` 或 `execution_failed`
+
+### 10.5 适合的前端场景
+
+- 透镜市场详情页中，用户点“直接试用当前透镜”
+- 高级模式下，用户手动搭配参数而不走自然语言
+- 某些固定工作流面板，前端本身就知道该用哪个 Lens
+
+---
+
+## 11. 前端实现建议
 
 - 将 `session_id` 保存在当前编辑会话中，直到本轮任务结束
 - 每轮追问都复用同一个 `session_id`
@@ -680,10 +803,11 @@ Router 返回的 `status` 只有三种：
 - 展示步骤产物时优先使用 WebSocket 的 `step_completed` 和最终 `execution_completed.step_results`
 - 如果只想拿最终图，使用 `result_url`
 - 如果想做“高级模式”，可同时把 `blueprint` 展示给用户查看
+- 如果前端已经明确选定某个透镜并采集好表单参数，优先使用 `/api/v1/lenses/run`
 
 ---
 
-## 11. 当前已知边界
+## 12. 当前已知边界
 
 - 当前接口已支持“追问 -> 回答 -> 重新编排 -> 执行”
 - 当前接口已支持实时返回每个透镜步骤的开始状态和中间结果图
