@@ -1,13 +1,9 @@
-import 'dart:async';
 import 'dart:io';
-import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/local_media_store.dart';
@@ -27,37 +23,30 @@ class EditorScreen extends ConsumerStatefulWidget {
   const EditorScreen({
     super.key,
     required this.selectedImage,
-    this.autoStartSimulation = false,
+    this.initialPrompt,
   });
 
   final File selectedImage;
-  final bool autoStartSimulation;
+  final String? initialPrompt;
 
   @override
   ConsumerState<EditorScreen> createState() => _EditorScreenState();
 }
 
-class _EditorScreenState extends ConsumerState<EditorScreen>
-    with SingleTickerProviderStateMixin {
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+class _EditorScreenState extends ConsumerState<EditorScreen> {
   final TextEditingController _promptController = TextEditingController();
 
-  late final AnimationController _flipController;
-  late final Animation<double> _flipAnimation;
-
-  bool _isFlipped = false;
   bool _isGenerating = false;
   bool _isBootstrapping = true;
   bool _isLoadingProject = false;
 
-  Uint8List? _resultImage;
   String? _displayedImagePath;
   String? _initialImagePath;
   String? _projectError;
 
   ToolType _activeTool = ToolType.none;
   double _cropAspectRatio = -1;
-  String _activeAdjustParam = 'Exposure';
+  String _activeAdjustParam = '曝光';
   double _adjustValue = 0.0;
   String? _selectedLensId;
 
@@ -71,20 +60,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   @override
   void initState() {
     super.initState();
-    _flipController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _flipAnimation = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _flipController, curve: Curves.easeInOutBack),
-    );
+    final initialPrompt = widget.initialPrompt?.trim();
+    if (initialPrompt != null && initialPrompt.isNotEmpty) {
+      _promptController.text = initialPrompt;
+    }
     Future<void>.microtask(_bootstrapInitialProject);
   }
 
   @override
   void dispose() {
     _promptController.dispose();
-    _flipController.dispose();
     super.dispose();
   }
 
@@ -95,10 +80,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     });
 
     try {
-      await _createProjectFromFile(
-        widget.selectedImage,
-        runAutoSimulation: widget.autoStartSimulation,
-      );
+      await _createProjectFromFile(widget.selectedImage);
     } catch (error) {
       _showError(error, '初始化资产树项目失败');
       if (!mounted) return;
@@ -110,10 +92,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
   }
 
-  Future<void> _createProjectFromFile(
-    File source, {
-    bool runAutoSimulation = false,
-  }) async {
+  Future<void> _createProjectFromFile(File source) async {
     final repository = ref.read(assetTreeRepositoryProvider);
     final storedPath = await LocalMediaStore.persistFile(
       source,
@@ -125,7 +104,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final project = await repository.createProject(
       CreateAssetTreeProjectInput(
         name: _buildDefaultProjectName(),
-        description: '从编辑器创建的修图资产树项目',
+        description: '编辑器项目',
       ),
     );
     final rootNode = await repository.addRootNode(
@@ -135,9 +114,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     _initialImagePath = storedPath;
     await _loadProject(project.projectId, preferredNodeId: rootNode.nodeId);
-    if (runAutoSimulation && mounted) {
-      unawaited(_runSimulationSequence());
-    }
   }
 
   Future<void> _createProjectFromCurrentFrame() async {
@@ -151,8 +127,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final repository = ref.read(assetTreeRepositoryProvider);
     final project = await repository.createProject(
       CreateAssetTreeProjectInput(
-        name: '${_project?.displayName ?? '新项目'} 副本',
-        description: '从当前画面另存的新项目',
+        name: '${_project?.displayName ?? '编辑项目'} 副本',
+        description: '由当前画面保存',
       ),
     );
     await repository.addRootNode(
@@ -187,8 +163,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         _project = tree.project;
         _tree = tree;
         _currentNodeId = nodeId;
-        _displayedImagePath =
-            node?.imageUrl ?? tree.project.coverUrl ?? _initialImagePath;
+        _displayedImagePath = _normalizeProjectImagePath(
+          node?.imageUrl ?? tree.project.coverUrl ?? _initialImagePath,
+        );
         _projectError = null;
       });
 
@@ -222,73 +199,25 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     } catch (_) {}
   }
 
-  Future<void> _runSimulationSequence() async {
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-    if (!mounted) return;
-    setState(() => _activeTool = ToolType.lens);
-
-    await _generateNode(
-      lensId: 'lens_face_beauty',
-      lensName: '美颜',
-      resultImagePath: 'assets/images/simulation/beauty.png',
-      tagLabel: '美颜',
-      prompt: '提升人物面部质感',
-    );
-    await _generateNode(
-      lensId: 'lens_background',
-      lensName: '背景替换',
-      resultImagePath: 'assets/images/simulation/scenery.png',
-      tagLabel: '背景替换',
-      prompt: '把背景替换成海边黄昏',
-    );
-    await _generateNode(
-      lensId: 'lens_relight',
-      lensName: '光影重塑',
-      resultImagePath: 'assets/images/simulation/lighting.png',
-      tagLabel: '光影重塑',
-      prompt: '补充夕阳暖光',
-    );
-  }
-
   Future<void> _handleUserCommand(String text) async {
     final prompt = text.trim();
     FocusScope.of(context).unfocus();
-    _promptController.clear();
     if (prompt.isEmpty) return;
 
-    if (prompt.contains('背景') || prompt.contains('埃菲尔')) {
-      await _generateNode(
-        lensId: 'lens_background',
-        lensName: '背景替换',
-        resultImagePath: 'assets/images/simulation/branch2.png',
-        tagLabel: '埃菲尔背景',
-        prompt: prompt,
-      );
+    final project = _project;
+    final currentNodeId = _currentNodeId;
+    final currentPath = _normalizeProjectImagePath(
+      _displayedImagePath ?? _initialImagePath,
+    );
+    if (project == null || currentNodeId == null || currentPath == null) {
+      _showError(StateError('当前没有可编辑的画面'), '当前没有可编辑的画面');
       return;
     }
 
-    await _generateNode(
-      lensId: _selectedLensId ?? 'lens_relight',
-      lensName: 'AI 调整',
-      resultImagePath: 'assets/images/simulation/branch1.png',
-      tagLabel: '指令调整',
-      prompt: prompt,
-    );
-  }
-
-  Future<void> _generateNode({
-    required String lensId,
-    required String lensName,
-    required String resultImagePath,
-    required String tagLabel,
-    required String prompt,
-  }) async {
-    final project = _project;
-    final currentNodeId = _currentNodeId;
-    if (project == null || currentNodeId == null) return;
-
     setState(() {
       _isGenerating = true;
+      _promptController.clear();
+      final lensId = _selectedLensId ?? 'ai_prompt';
       if (!_appliedLensIds.contains(lensId)) {
         _appliedLensIds = [..._appliedLensIds, lensId];
       }
@@ -301,40 +230,35 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             projectId: project.projectId,
             input: CreateAssetTreeChildNodeInput(
               parentNodeId: currentNodeId,
-              imageUrl: resultImagePath,
-              thumbnailUrl: resultImagePath,
-              lensId: lensId,
-              lensName: lensName,
+              imageUrl: currentPath,
+              thumbnailUrl: currentPath,
+              lensId: _selectedLensId ?? 'ai_prompt',
+              lensName: _selectedLensName(),
               userPrompt: prompt,
-              parameters: {'prompt': prompt},
-              generationParams: {'prompt': prompt},
-              museDna: {
-                'steps': [
-                  {'lens_id': lensId, 'prompt': prompt},
-                ],
+              parameters: {
+                'prompt': prompt,
+                'tool': _activeTool.name,
               },
-              status: 'generating',
-              metadata: const {'source': 'generation'},
+              generationParams: {
+                'prompt': prompt,
+                'tool': _activeTool.name,
+                'adjust_value': _adjustValue,
+              },
+              metadata: const {'source': 'prompt_record'},
+              status: 'completed',
             ),
           );
-      await _loadProject(project.projectId, preferredNodeId: created.node.nodeId);
-      await Future<void>.delayed(const Duration(seconds: 2));
-      await repository.updateNodeStatus(
-        nodeId: created.node.nodeId,
-        input: UpdateAssetTreeNodeStatusInput(
-          status: 'completed',
-          imageUrl: resultImagePath,
-          thumbnailUrl: resultImagePath,
-          executionTimeMs: 2000,
-        ),
-      );
       await repository.addNodeTag(
         nodeId: created.node.nodeId,
-        input: AddAssetTreeTagInput(label: tagLabel),
+        input: AddAssetTreeTagInput(label: _buildPromptTag(prompt)),
       );
       await _loadProject(project.projectId, preferredNodeId: created.node.nodeId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('本次修图指令已记录到资产树')),
+      );
     } catch (error) {
-      _showError(error, '生成节点失败');
+      _showError(error, '记录修图指令失败');
     } finally {
       if (mounted) {
         setState(() => _isGenerating = false);
@@ -390,11 +314,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     setState(() {
       _currentNodeId = nodeId;
-      _displayedImagePath = node.imageUrl;
-      _resultImage = null;
+      _displayedImagePath = _normalizeProjectImagePath(node.imageUrl);
     });
-    if (_isFlipped) _toggleFlip();
-    unawaited(_syncWorkflow(nodeId));
+    await _syncWorkflow(nodeId);
 
     try {
       await ref.read(assetTreeRepositoryProvider).switchCurrentNode(
@@ -421,6 +343,182 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         onSelectNode: _selectNode,
         onRefreshProject: () => _loadProject(project.projectId),
       ),
+    );
+  }
+
+  Future<void> _showAssetTreeManager() async {
+    final project = _project;
+    if (project == null || !mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return DefaultTabController(
+          length: 2,
+          child: FractionallySizedBox(
+            heightFactor: 0.88,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFF0A0A0E),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 10),
+                  Container(
+                    width: 46,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 16, 10, 10),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            '资产树管理',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          icon: const Icon(Icons.close_rounded),
+                          color: Colors.white70,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF17171D),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const TabBar(
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      indicator: BoxDecoration(
+                        color: AppTheme.electricIndigo,
+                        borderRadius: BorderRadius.all(Radius.circular(16)),
+                      ),
+                      labelColor: Colors.white,
+                      unselectedLabelColor: Colors.white70,
+                      dividerColor: Colors.transparent,
+                      tabs: [
+                        Tab(text: '版本树'),
+                        Tab(text: '项目'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          child: Column(
+                            children: [
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF14141A),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.08),
+                                  ),
+                                ),
+                                child: Wrap(
+                                  spacing: 10,
+                                  runSpacing: 10,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                      width: 220,
+                                      child: Text(
+                                        '轻点版本切换当前画面，长按节点查看标签、祖先路径和删除等管理操作。',
+                                        style: TextStyle(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.65,
+                                          ),
+                                          fontSize: 13,
+                                          height: 1.45,
+                                        ),
+                                      ),
+                                    ),
+                                    FilledButton(
+                                      onPressed: _handleSave,
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: AppTheme.electricIndigo,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                      child: const Text('保存版本'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Expanded(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF101015),
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.08),
+                                    ),
+                                  ),
+                                  child: _tree == null
+                                      ? const Center(
+                                          child: CircularProgressIndicator(
+                                            color: AppTheme.electricIndigo,
+                                          ),
+                                        )
+                                      : Padding(
+                                          padding: const EdgeInsets.all(8),
+                                          child: ImageHistoryTree(
+                                            tree: _tree!,
+                                            currentNodeId: _currentNodeId,
+                                            onNodeSelected: (nodeId) async {
+                                              await _selectNode(nodeId);
+                                            },
+                                            onNodeLongPress: _openNodeSheet,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          child: ChatHistoryDrawer(
+                            currentProjectId: _project?.projectId,
+                            onOpenProject: (projectId) async {
+                              await _loadProject(projectId);
+                              if (sheetContext.mounted) {
+                                Navigator.of(sheetContext).pop();
+                              }
+                            },
+                            onCreateProjectFromCurrentFrame: _createProjectFromCurrentFrame,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -458,10 +556,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     return normalized.substring(dotIndex + 1).toLowerCase();
   }
 
-  String _buildDefaultProjectName() {
-    final now = DateTime.now();
-    return '修图项目 ${now.month}/${now.day} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-  }
+  String _buildDefaultProjectName() => '编辑项目';
 
   String? _normalizeProjectImagePath(String? path) {
     final trimmed = path?.trim() ?? '';
@@ -477,20 +572,70 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     return trimmed;
   }
 
-  void _toggleFlip() {
-    if (_isFlipped) {
-      _flipController.reverse();
-    } else {
-      _flipController.forward();
-    }
-    setState(() => _isFlipped = !_isFlipped);
+  String _selectedLensName() {
+    return switch (_selectedLensId) {
+      'lens_matting' => '智能抠图',
+      'lens_crop' => '智能裁剪',
+      'lens_upscale' => '超清修复',
+      'lens_face_beauty' => '人像美化',
+      'lens_replace' => '涂抹消除',
+      'lens_background' => '背景替换',
+      'lens_relight' => '光影重塑',
+      'lens_color_grade' => '氛围调色',
+      _ => 'AI 修图',
+    };
+  }
+
+  String _buildPromptTag(String prompt) {
+    final clean = prompt.replaceAll('\n', ' ').trim();
+    if (clean.length <= 8) return clean;
+    return '${clean.substring(0, 8)}...';
+  }
+
+  void _showHelp() {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF14141A),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          title: const Text(
+            '修图提示',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Text(
+            '1. 先在底部选择一个 AI 模板或工具。\n'
+            '2. 再输入更具体的修图描述。\n'
+            '3. 每次保存或发送指令后，都会记录到资产树里。',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.72),
+              height: 1.6,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('知道了'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showExportHint() {
+    final currentPath = _normalizeProjectImagePath(_displayedImagePath);
+    final message = currentPath == null ? '当前没有可导出的画面' : '导出入口已预留，当前画面已就绪';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     if (_projectError != null && _tree == null && !_isBootstrapping) {
       return Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFF050507),
         body: SafeArea(
           child: Center(
             child: Padding(
@@ -501,22 +646,22 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   Icon(
                     Icons.error_outline_rounded,
                     size: 54,
-                    color: Colors.black.withValues(alpha: 0.18),
+                    color: Colors.white.withValues(alpha: 0.18),
                   ),
                   const SizedBox(height: 14),
                   Text(
                     _projectError!,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.black87,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
                       fontSize: 15,
                       height: 1.5,
                     ),
                   ),
                   const SizedBox(height: 18),
-                  ElevatedButton(
+                  FilledButton(
                     onPressed: _bootstrapInitialProject,
-                    style: ElevatedButton.styleFrom(
+                    style: FilledButton.styleFrom(
                       backgroundColor: AppTheme.electricIndigo,
                       foregroundColor: Colors.white,
                     ),
@@ -530,173 +675,68 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       );
     }
 
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: Colors.white,
-      resizeToAvoidBottomInset: false,
-      drawer: ChatHistoryDrawer(
-        currentProjectId: _project?.projectId,
-        onOpenProject: _loadProject,
-        onCreateProjectFromCurrentFrame: _createProjectFromCurrentFrame,
-      ),
-      body: SafeArea(
-        child: GestureDetector(
-          onLongPress: _toggleFlip,
-          child: AnimatedBuilder(
-            animation: _flipAnimation,
-            builder: (context, child) {
-              final angle = _flipAnimation.value * math.pi;
-              final transform = Matrix4.identity()
-                ..setEntry(3, 2, 0.001)
-                ..rotateY(angle);
-              return Transform(
-                transform: transform,
-                alignment: Alignment.center,
-                child: _flipAnimation.value < 0.5
-                    ? _buildFrontSide()
-                    : Transform(
-                        transform: Matrix4.identity()..rotateY(math.pi),
-                        alignment: Alignment.center,
-                        child: _buildBackSide(),
-                      ),
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFrontSide() {
     final busy = _isBootstrapping || _isLoadingProject || _isGenerating;
-    return Column(
-      children: [
-        EditorHeader(
-          onBack: () => Navigator.pop(context),
-          onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
-          onUndo: () {},
-          onRedo: () {},
-          onSave: _handleSave,
-          onExport: () {},
-        ),
-        if (_project != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 0, 18, 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _project!.displayName,
-                    style: const TextStyle(
-                      color: Colors.black87,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                Text(
-                  '${_project!.nodeCount} 个版本',
-                  style: TextStyle(
-                    color: Colors.black.withValues(alpha: 0.42),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        Expanded(
-          child: EditorCanvas(
-            originalImage: widget.selectedImage,
-            currentImagePath: _displayedImagePath,
-            resultImage: _resultImage,
-            isGenerating: busy,
-            activeTool: _activeTool,
-            onFlipHorizontal: () {},
-            onMirror: () {},
-          ),
-        ),
-        EditorToolsPanel(
-          activeTool: _activeTool,
-          promptController: _promptController,
-          isGenerating: busy,
-          appliedLensIds: _appliedLensIds,
-          activeHighlightId: _activeHighlightId,
-          onToolChanged: (tool) => setState(
-            () => _activeTool = tool == _activeTool ? ToolType.none : tool,
-          ),
-          onSendPrompt: () => _handleUserCommand(_promptController.text),
-          onClosePanel: () => setState(() => _activeTool = ToolType.none),
-          cropAspectRatio: _cropAspectRatio,
-          onCropRatioChanged: (ratio) =>
-              setState(() => _cropAspectRatio = ratio),
-          activeAdjustParam: _activeAdjustParam,
-          adjustValue: _adjustValue,
-          onAdjustParamChanged: (param) => setState(() {
-            _activeAdjustParam = param;
-            _adjustValue = 0;
-          }),
-          onAdjustValueChanged: (value) => setState(() => _adjustValue = value),
-          selectedLensId: _selectedLensId,
-          onLensSelected: (id) => setState(() => _selectedLensId = id),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildBackSide() {
-    return Container(
-      color: Colors.white,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _project?.displayName ?? '历史版本',
-                        style: GoogleFonts.orbitron(
-                          textStyle: const TextStyle(
-                            color: Colors.black87,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '轻点切换版本，长按节点查看详情。',
-                        style: TextStyle(
-                          color: Colors.black.withValues(alpha: 0.48),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.black87),
-                  onPressed: _toggleFlip,
-                ),
-              ],
-            ),
+    return Scaffold(
+      backgroundColor: const Color(0xFF050507),
+      resizeToAvoidBottomInset: false,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF1A1324), Color(0xFF060609), Color(0xFF060609)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: [0, 0.24, 1],
           ),
-          const Divider(color: Colors.black12),
-          Expanded(
-            child: _tree == null
-                ? const Center(child: CircularProgressIndicator())
-                : ImageHistoryTree(
-                    tree: _tree!,
-                    currentNodeId: _currentNodeId,
-                    onNodeSelected: _selectNode,
-                    onNodeLongPress: _openNodeSheet,
-                  ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              EditorHeader(
+                onBack: () => Navigator.pop(context),
+                onHelp: _showHelp,
+                onOpenAssetTree: _showAssetTreeManager,
+                onSave: _handleSave,
+                onExport: _showExportHint,
+              ),
+              Expanded(
+                child: EditorCanvas(
+                  originalImage: widget.selectedImage,
+                  currentImagePath: _displayedImagePath,
+                  isGenerating: busy,
+                  activeTool: _activeTool,
+                  onFlipHorizontal: () {},
+                  onMirror: () {},
+                ),
+              ),
+              EditorToolsPanel(
+                activeTool: _activeTool,
+                promptController: _promptController,
+                isGenerating: busy,
+                appliedLensIds: _appliedLensIds,
+                activeHighlightId: _activeHighlightId,
+                onToolChanged: (tool) => setState(() {
+                  _activeTool = _activeTool == tool ? ToolType.none : tool;
+                }),
+                onSendPrompt: () => _handleUserCommand(_promptController.text),
+                onClosePanel: () => setState(() => _activeTool = ToolType.none),
+                cropAspectRatio: _cropAspectRatio,
+                onCropRatioChanged: (ratio) =>
+                    setState(() => _cropAspectRatio = ratio),
+                activeAdjustParam: _activeAdjustParam,
+                adjustValue: _adjustValue,
+                onAdjustParamChanged: (param) => setState(() {
+                  _activeAdjustParam = param;
+                  _adjustValue = 0;
+                }),
+                onAdjustValueChanged: (value) =>
+                    setState(() => _adjustValue = value),
+                selectedLensId: _selectedLensId,
+                onLensSelected: (id) => setState(() => _selectedLensId = id),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

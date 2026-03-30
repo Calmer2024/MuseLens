@@ -29,44 +29,101 @@ class EditorCanvas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.black12),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              _buildImageContent(),
-              if (activeTool == ToolType.crop)
-                Positioned(
-                  top: 16,
-                  right: 16,
-                  child: Row(
-                    children: [
-                      _buildControl(Icons.flip, onFlipHorizontal),
-                      const SizedBox(width: 8),
-                      _buildControl(Icons.swap_horiz, onMirror),
-                    ],
-                  ),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF060609),
+        borderRadius: BorderRadius.circular(34),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.42),
+            blurRadius: 32,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(34),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF14141A), Color(0xFF050507)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 ),
-              if (isGenerating)
-                Container(
-                  color: Colors.white70,
-                  child: const Center(
-                    child: CircularProgressIndicator(
-                      color: AppTheme.electricIndigo,
+              ),
+            ),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+                child: _buildImageContent(),
+              ),
+            ),
+            const _CanvasShading(),
+            if (activeTool == ToolType.crop)
+              Positioned(
+                right: 16,
+                bottom: 18,
+                child: Row(
+                  children: [
+                    _CanvasActionButton(
+                      icon: Icons.flip,
+                      onTap: onFlipHorizontal,
+                    ),
+                    const SizedBox(width: 8),
+                    _CanvasActionButton(
+                      icon: Icons.swap_horiz_rounded,
+                      onTap: onMirror,
+                    ),
+                  ],
+                ),
+              ),
+            if (isGenerating)
+              Container(
+                color: Colors.black.withValues(alpha: 0.28),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF14141A),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.08),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: AppTheme.electricIndigo,
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          '正在记录本次编辑',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );
@@ -82,17 +139,6 @@ class EditorCanvas extends StatelessWidget {
         fit: BoxFit.contain,
         placeholder: const _CanvasFallback(),
         errorWidget: const _CanvasFallback(),
-        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-          if (wasSynchronouslyLoaded) {
-            return child;
-          }
-          return AnimatedOpacity(
-            opacity: frame == null ? 0 : 1,
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeOutCubic,
-            child: child,
-          );
-        },
       );
     }
     if (originalImage != null) {
@@ -100,18 +146,34 @@ class EditorCanvas extends StatelessWidget {
     }
     return const _CanvasFallback();
   }
+}
 
-  Widget _buildControl(IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.black12),
+class _CanvasActionButton extends StatelessWidget {
+  const _CanvasActionButton({
+    required this.icon,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.42),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Icon(icon, color: Colors.white, size: 20),
         ),
-        child: Icon(icon, color: Colors.black87, size: 20),
       ),
     );
   }
@@ -123,12 +185,52 @@ class _CanvasFallback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.grey.shade100,
       alignment: Alignment.center,
-      child: const Icon(
-        Icons.image_outlined,
-        size: 42,
-        color: AppTheme.electricIndigo,
+      decoration: BoxDecoration(
+        color: const Color(0xFF101015),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: const Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.image_outlined,
+            size: 44,
+            color: AppTheme.electricIndigo,
+          ),
+          SizedBox(height: 10),
+          Text(
+            '等待画面载入',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CanvasShading extends StatelessWidget {
+  const _CanvasShading();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.black.withValues(alpha: 0.16),
+              Colors.transparent,
+              Colors.black.withValues(alpha: 0.18),
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0, 0.24, 1],
+          ),
+        ),
       ),
     );
   }

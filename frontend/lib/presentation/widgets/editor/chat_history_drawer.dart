@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/providers/asset_tree_provider.dart';
 import '../../../core/theme/app_theme.dart';
@@ -25,122 +24,122 @@ class ChatHistoryDrawer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final projectsAsync = ref.watch(assetTreeProjectsProvider);
 
-    return Drawer(
-      backgroundColor: Colors.white,
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      children: [
+        Row(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '项目资产树',
-                          style: GoogleFonts.orbitron(
-                            textStyle: const TextStyle(
-                              color: Colors.black87,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => ref.invalidate(assetTreeProjectsProvider),
-                        icon: const Icon(Icons.refresh_rounded),
-                        color: Colors.black54,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    '在这里切换历史项目、重命名项目，或者把当前画面另存为一个新项目。',
-                    style: TextStyle(
-                      color: Colors.black.withValues(alpha: 0.54),
-                      fontSize: 12,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _createProjectFromCurrentFrame(context, ref),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.electricIndigo,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      icon: const Icon(Icons.add_photo_alternate_outlined),
-                      label: const Text('当前画面另存为项目'),
-                    ),
-                  ),
-                ],
+            const Expanded(
+              child: Text(
+                '项目管理',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
-            const Divider(color: Colors.black12),
-            Expanded(
-              child: projectsAsync.when(
-                data: (projects) {
-                  if (projects.isEmpty) {
-                    return _DrawerEmptyState(
-                      onCreatePressed: () => _createProjectFromCurrentFrame(
-                        context,
-                        ref,
-                      ),
-                    );
-                  }
+            IconButton(
+              onPressed: () => ref.invalidate(assetTreeProjectsProvider),
+              icon: const Icon(Icons.refresh_rounded),
+              color: Colors.white70,
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF14141A),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SizedBox(
+                width: 220,
+                child: Text(
+                  '把当前画面另存为一个新的项目分支。',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.65),
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+              FilledButton.tonal(
+                onPressed: () => _createProjectFromCurrentFrame(context, ref),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.electricIndigo,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                ),
+                child: const Text('新建项目'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Expanded(
+          child: projectsAsync.when(
+            data: (projects) {
+              if (projects.isEmpty) {
+                return _DrawerEmptyState(
+                  onCreatePressed: () => _createProjectFromCurrentFrame(
+                    context,
+                    ref,
+                  ),
+                );
+              }
 
-                  return ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                    itemCount: projects.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final project = projects[index];
-                      final isCurrent = project.projectId == currentProjectId;
-                      return _ProjectCard(
-                        project: project,
-                        isCurrent: isCurrent,
-                        onTap: () => _openProject(context, project.projectId),
-                        onRename: () => _renameProject(context, ref, project),
-                        onDelete: isCurrent
-                            ? null
-                            : () => _deleteProject(context, ref, project),
-                      );
-                    },
+              return ListView.separated(
+                padding: EdgeInsets.zero,
+                itemCount: projects.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final project = projects[index];
+                  return _ProjectCard(
+                    project: project,
+                    isCurrent: project.projectId == currentProjectId,
+                    onTap: () => _openProject(project.projectId),
+                    onRename: () => _renameProject(context, ref, project),
+                    onDelete: project.projectId == currentProjectId
+                        ? null
+                        : () => _deleteProject(context, ref, project),
                   );
                 },
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, _) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      '项目列表加载失败：$error',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.black54),
-                    ),
+              );
+            },
+            loading: () => const Center(
+              child: CircularProgressIndicator(color: AppTheme.electricIndigo),
+            ),
+            error: (error, _) => Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  '项目列表加载失败：$error',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.66),
+                    height: 1.5,
                   ),
                 ),
               ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
-  Future<void> _openProject(BuildContext context, String projectId) async {
+  Future<void> _openProject(String projectId) async {
     await onOpenProject(projectId);
-    if (!context.mounted) return;
-    Navigator.of(context).pop();
   }
 
   Future<void> _createProjectFromCurrentFrame(
@@ -154,7 +153,6 @@ class ChatHistoryDrawer extends ConsumerWidget {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('已创建新项目')));
-      Navigator.of(context).pop();
     } catch (error) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -170,28 +168,33 @@ class ChatHistoryDrawer extends ConsumerWidget {
   ) async {
     final nameController = TextEditingController(text: project.name);
     final descriptionController = TextEditingController(text: project.description);
-
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
+          backgroundColor: const Color(0xFF14141A),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(22),
           ),
-          title: const Text('编辑项目'),
+          title: const Text(
+            '编辑项目',
+            style: TextStyle(color: Colors.white),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameController,
-                decoration: const InputDecoration(labelText: '项目名称'),
+                style: const TextStyle(color: Colors.white),
+                decoration: _inputDecoration('项目名称'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: descriptionController,
                 minLines: 2,
                 maxLines: 4,
-                decoration: const InputDecoration(labelText: '项目描述'),
+                style: const TextStyle(color: Colors.white),
+                decoration: _inputDecoration('项目描述'),
               ),
             ],
           ),
@@ -215,8 +218,8 @@ class ChatHistoryDrawer extends ConsumerWidget {
       await ref.read(assetTreeRepositoryProvider).updateProject(
             projectId: project.projectId,
             input: UpdateAssetTreeProjectInput(
-              name: nameController.text,
-              description: descriptionController.text,
+              name: nameController.text.trim(),
+              description: descriptionController.text.trim(),
             ),
           );
       ref.invalidate(assetTreeProjectsProvider);
@@ -225,7 +228,7 @@ class ChatHistoryDrawer extends ConsumerWidget {
       if (!context.mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('项目信息已更新')));
+      ).showSnackBar(const SnackBar(content: Text('项目已更新')));
     } catch (error) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -243,11 +246,21 @@ class ChatHistoryDrawer extends ConsumerWidget {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
+          backgroundColor: const Color(0xFF14141A),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(22),
           ),
-          title: const Text('删除项目'),
-          content: Text('确认删除“${project.displayName}”？项目下的全部历史节点都会一起移除。'),
+          title: const Text(
+            '删除项目',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Text(
+            '确认删除“${project.displayName}”？项目下的全部版本都会一起移除。',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.72),
+              height: 1.45,
+            ),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -296,6 +309,19 @@ class ChatHistoryDrawer extends ConsumerWidget {
     }
     return fallback;
   }
+
+  InputDecoration _inputDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.62)),
+      filled: true,
+      fillColor: const Color(0xFF1D1D25),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide.none,
+      ),
+    );
+  }
 }
 
 class _ProjectCard extends StatelessWidget {
@@ -320,44 +346,33 @@ class _ProjectCard extends StatelessWidget {
         : '${project.nodeCount} 个版本 · ${project.branchCount} 个分支';
 
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(22),
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(22),
         child: Ink(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
+            color: const Color(0xFF111117),
             borderRadius: BorderRadius.circular(22),
             border: Border.all(
               color: isCurrent
                   ? AppTheme.electricIndigo
-                  : Colors.black.withValues(alpha: 0.06),
-              width: isCurrent ? 1.4 : 1,
+                  : Colors.white.withValues(alpha: 0.08),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 14,
-                offset: const Offset(0, 8),
-              ),
-            ],
           ),
           child: Row(
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  width: 70,
-                  height: 84,
-                  color: const Color(0xFFF2EEFF),
+                child: SizedBox(
+                  width: 60,
+                  height: 74,
                   child: project.coverUrl != null &&
                           project.coverUrl!.trim().isNotEmpty
                       ? buildAdaptiveImage(
                           project.coverUrl,
                           fit: BoxFit.cover,
-                          width: 70,
-                          height: 84,
                           errorWidget: const _ProjectCoverFallback(),
                         )
                       : const _ProjectCoverFallback(),
@@ -376,7 +391,7 @@ class _ProjectCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: Colors.black87,
+                              color: Colors.white,
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
                             ),
@@ -390,14 +405,14 @@ class _ProjectCard extends StatelessWidget {
                             ),
                             decoration: BoxDecoration(
                               color: AppTheme.electricIndigo.withValues(
-                                alpha: 0.08,
+                                alpha: 0.18,
                               ),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: const Text(
                               '当前',
                               style: TextStyle(
-                                color: AppTheme.electricIndigo,
+                                color: Colors.white,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -408,15 +423,15 @@ class _ProjectCard extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(
                       subtitle,
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: Colors.black.withValues(alpha: 0.56),
+                        color: Colors.white.withValues(alpha: 0.56),
                         fontSize: 12,
                         height: 1.45,
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         _CountPill(
@@ -430,6 +445,7 @@ class _ProjectCard extends StatelessWidget {
                         ),
                         const Spacer(),
                         PopupMenuButton<String>(
+                          color: const Color(0xFF202028),
                           onSelected: (value) {
                             if (value == 'rename') {
                               onRename();
@@ -453,7 +469,7 @@ class _ProjectCard extends StatelessWidget {
                           ],
                           child: Icon(
                             Icons.more_horiz_rounded,
-                            color: Colors.black.withValues(alpha: 0.45),
+                            color: Colors.white.withValues(alpha: 0.6),
                           ),
                         ),
                       ],
@@ -483,18 +499,18 @@ class _CountPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFFF6F4FD),
+        color: AppTheme.electricIndigo.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: AppTheme.electricIndigo),
+          Icon(icon, size: 13, color: Colors.white),
           const SizedBox(width: 4),
           Text(
             label,
             style: const TextStyle(
-              color: AppTheme.electricIndigo,
+              color: Colors.white,
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
@@ -510,8 +526,10 @@ class _ProjectCoverFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Icon(
+    return Container(
+      color: const Color(0xFF1A1A21),
+      alignment: Alignment.center,
+      child: const Icon(
         Icons.auto_awesome_motion_rounded,
         color: AppTheme.electricIndigo,
         size: 24,
@@ -536,32 +554,35 @@ class _DrawerEmptyState extends StatelessWidget {
             Icon(
               Icons.account_tree_outlined,
               size: 54,
-              color: Colors.black.withValues(alpha: 0.16),
+              color: Colors.white.withValues(alpha: 0.18),
             ),
             const SizedBox(height: 14),
             const Text(
-              '还没有资产树项目',
+              '还没有项目',
               style: TextStyle(
-                color: Colors.black87,
+                color: Colors.white,
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              '先在编辑器里导入一张图，或者把当前画面另存为一个新的项目。',
+              '先把当前画面保存成项目，资产树就会开始记录你的修图版本。',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.black.withValues(alpha: 0.5),
+                color: Colors.white.withValues(alpha: 0.54),
                 fontSize: 13,
                 height: 1.5,
               ),
             ),
             const SizedBox(height: 16),
-            OutlinedButton.icon(
+            FilledButton(
               onPressed: onCreatePressed,
-              icon: const Icon(Icons.add),
-              label: const Text('创建项目'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.electricIndigo,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('创建项目'),
             ),
           ],
         ),

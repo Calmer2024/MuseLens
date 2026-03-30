@@ -1,30 +1,18 @@
-import 'package:flutter/material.dart';
 import 'dart:io';
-import 'dart:async';
-import 'package:flutter_animate/flutter_animate.dart';
+
+import 'package:flutter/material.dart';
+
 import '../../../core/theme/app_theme.dart';
+import '../../widgets/shared/adaptive_media.dart';
 import '../editor/editor_screen.dart';
 
-// 消息模型
-class ConsultantMessage {
-  final bool isAi;
-  final String content;
-  final bool isTyping;
-
-  ConsultantMessage({
-    required this.isAi,
-    required this.content,
-    this.isTyping = false,
-  });
-}
-
 class ConsultantScreen extends StatefulWidget {
-  final String selectedImagePath;
-
   const ConsultantScreen({
     super.key,
-    this.selectedImagePath = "assets/images/home_hero.jpg",
+    required this.selectedImagePath,
   });
+
+  final String selectedImagePath;
 
   @override
   State<ConsultantScreen> createState() => _ConsultantScreenState();
@@ -32,525 +20,258 @@ class ConsultantScreen extends StatefulWidget {
 
 class _ConsultantScreenState extends State<ConsultantScreen> {
   final TextEditingController _textController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
-
-  final List<ConsultantMessage> _messages = [];
 
   @override
-  void initState() {
-    super.initState();
-    _startConversationDemo();
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
   }
 
-  // --- 全自动对话演示流程 ---
-  Future<void> _startConversationDemo() async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
-    _addMessage(
-      ConsultantMessage(
-        isAi: true,
-        content:
-            "已收到您的照片。这是一张非常唯美的人像，光线柔和，草地背景也很自然。\n\n您希望将场景转换为【海边黄昏】，并对人物进行【美化】，是吗？",
+  void _openEditor() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditorScreen(
+          selectedImage: File(widget.selectedImagePath),
+          initialPrompt: _textController.text.trim(),
+        ),
       ),
     );
-
-    await Future.delayed(const Duration(milliseconds: 1500));
-    if (!mounted) return;
-    _addMessage(
-      ConsultantMessage(
-        isAi: false,
-        content: "是的，背景换成那种金色的沙滩和大海，夕阳的光打在身上。人脸稍微精致一点，但不要太假。",
-      ),
-    );
-
-    await _simulateAiThinking();
-    if (!mounted) return;
-    _addMessage(
-      ConsultantMessage(
-        isAi: true,
-        content:
-            "明白了。方案如下：\n1. 场景重构：将草地背景替换为【日落海滩】，调整环境光为暖色调的【夕阳余晖】。\n2. 人物美化：保留皮肤质感的同时进行微磨皮，提亮眼神，优化五官立体感。\n\n您觉得这个方向如何？",
-      ),
-    );
-
-    await Future.delayed(const Duration(milliseconds: 2000));
-    if (!mounted) return;
-    _addMessage(
-      ConsultantMessage(
-        isAi: false,
-        content: "听起来不错。对了，衣服能不能也稍微调整一下？让它看起来更飘逸一点，符合海边的感觉。",
-      ),
-    );
-
-    await _simulateAiThinking();
-    if (!mounted) return;
-    _addMessage(
-      ConsultantMessage(
-        isAi: true,
-        content:
-            "没问题。已追加【服饰优化】节点，将增强薄纱袖口的飘逸感，使其与海风环境更融合。\n\n一切准备就绪，请点击下方按钮开始生成。",
-      ),
-    );
-  }
-
-  Future<void> _simulateAiThinking() async {
-    if (!mounted) return;
-    setState(() {
-      _messages.add(ConsultantMessage(isAi: true, content: "", isTyping: true));
-    });
-    _scrollToBottom();
-
-    await Future.delayed(const Duration(milliseconds: 1500));
-
-    if (!mounted) return;
-    setState(() {
-      _messages.removeLast();
-    });
-  }
-
-  void _addMessage(ConsultantMessage msg) {
-    setState(() {
-      _messages.add(msg);
-    });
-    _scrollToBottom();
-  }
-
-  void _scrollToBottom() {
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeOutCubic,
-        );
-      }
-    });
-  }
-
-  void _handleUserSend() {
-    if (_textController.text.isNotEmpty) {
-      _addMessage(
-        ConsultantMessage(isAi: false, content: _textController.text),
-      );
-      _textController.clear();
-      Future.delayed(const Duration(seconds: 1), () {
-        if (mounted)
-          _simulateAiThinking().then((_) {
-            _addMessage(ConsultantMessage(isAi: true, content: "好的，已记录您的新需求。"));
-          });
-      });
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      resizeToAvoidBottomInset: true,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            _buildProjectContextPanel(),
-            Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 20,
-                ),
-                itemCount: _messages.length,
-                itemBuilder: (context, index) {
-                  return _buildMessageBubble(_messages[index]);
-                },
-              ),
-            ),
-            _buildBottomArea(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.black12)),
-      ),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: const Icon(Icons.arrow_back, color: Colors.black87),
+      backgroundColor: const Color(0xFF050507),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF1A1324), Color(0xFF08080B), Color(0xFF050507)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
-          const SizedBox(width: 16),
-          const Expanded(
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  "修图顾问",
-                  style: TextStyle(
-                    color: Colors.black87,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  "AI分析进行中...",
-                  style: TextStyle(
-                    color: AppTheme.electricIndigo,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.more_horiz, color: Colors.black87),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProjectContextPanel() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        border: Border(
-          bottom: BorderSide(color: Colors.black.withOpacity(0.05)),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 80,
-            height: 100,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.black12),
-              color: Colors.black,
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(11),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  widget.selectedImagePath.startsWith('assets')
-                      ? Image.asset(widget.selectedImagePath, fit: BoxFit.cover)
-                      : Image.file(
-                          File(widget.selectedImagePath),
-                          fit: BoxFit.cover,
-                        ),
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      color: Colors.black.withOpacity(0.6),
-                      child: const Center(
-                        child: Text(
-                          "原图",
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      '修图意图',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "当前项目",
-                  style: TextStyle(
-                    color: Colors.black87,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _buildTag("人像"),
-                    _buildTag("自然"),
-                    _buildTag("柔光"),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  "AI正在建立对话上下文...",
-                  style: TextStyle(
-                    color: Colors.black54,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTag(String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppTheme.electricIndigo.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppTheme.electricIndigo.withOpacity(0.3)),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: AppTheme.electricIndigo,
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMessageBubble(ConsultantMessage msg) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Row(
-        mainAxisAlignment: msg.isAi
-            ? MainAxisAlignment.start
-            : MainAxisAlignment.end,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (msg.isAi) ...[
-            Container(
-              margin: const EdgeInsets.only(right: 12),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey[200],
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.auto_awesome,
-                color: AppTheme.electricIndigo,
-                size: 16,
-              ),
-            ),
-          ],
-          Flexible(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: msg.isAi
-                        ? Colors.grey[100]
-                        : AppTheme.electricIndigo,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(20),
-                      topRight: const Radius.circular(20),
-                      bottomLeft: Radius.circular(msg.isAi ? 4 : 20),
-                      bottomRight: Radius.circular(msg.isAi ? 20 : 4),
-                    ),
-                  ),
-                  child: msg.isTyping
-                      ? const TypingIndicator()
-                      : Text(
-                          msg.content,
-                          style: TextStyle(
-                            color: msg.isAi ? Colors.black87 : Colors.white,
-                            fontSize: 15,
-                            height: 1.5,
+                const SizedBox(height: 18),
+                Expanded(
+                  child: ListView(
+                    children: [
+                      _PreviewCard(imagePath: widget.selectedImagePath),
+                      const SizedBox(height: 18),
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF101015),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.08),
                           ),
                         ),
-                ),
-              )
-              .animate()
-              .fadeIn(duration: 400.ms)
-              .slideY(begin: 0.1, end: 0, curve: Curves.easeOut),
-          if (!msg.isAi) const SizedBox(width: 4),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomArea() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 🔥 核心修改：点击 Confirm 跳转到 Editor 并开启自动模拟
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => EditorScreen(
-                    selectedImage: File(widget.selectedImagePath),
-                    autoStartSimulation: true, // 开启自动模拟
-                  ),
-                ),
-              );
-            },
-            child: Container(
-              width: double.infinity,
-              height: 50,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppTheme.electricIndigo, Color(0xFF584CF4)],
-                ),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.electricIndigo.withOpacity(0.4),
-                    blurRadius: 15,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.check_circle_outline,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    "确认需求",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  height: 48,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: Colors.black12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.mic,
-                        color: AppTheme.electricIndigo,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: _textController,
-                          style: const TextStyle(color: Colors.black87),
-                          decoration: InputDecoration(
-                            hintText: "输入您的需求...",
-                            hintStyle: TextStyle(
-                              color: Colors.black38,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '描述你想要的效果',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                            border: InputBorder.none,
-                            isDense: true,
-                          ),
-                          onSubmitted: (_) => _handleUserSend(),
+                            const SizedBox(height: 8),
+                            Text(
+                              '不再自动生成 mock 对话。你可以直接输入修图目标，然后进入黑色编辑界面继续处理。',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.62),
+                                fontSize: 13,
+                                height: 1.55,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: [
+                                _IntentChip(
+                                  label: '人像更通透',
+                                  onTap: () => _textController.text = '人像更通透，肤色自然一些',
+                                ),
+                                _IntentChip(
+                                  label: '背景更干净',
+                                  onTap: () => _textController.text = '背景更干净，杂物尽量淡化',
+                                ),
+                                _IntentChip(
+                                  label: '夕阳氛围',
+                                  onTap: () => _textController.text = '整体调成偏紫色的夕阳氛围',
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
+                            TextField(
+                              controller: _textController,
+                              maxLines: 6,
+                              minLines: 5,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: InputDecoration(
+                                hintText: '例如：保留人物清晰度，让天空更蓝一点，整体冷调偏紫色。',
+                                hintStyle: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.28),
+                                ),
+                                filled: true,
+                                fillColor: const Color(0xFF17171D),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppTheme.electricIndigo,
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  icon: const Icon(
-                    Icons.send_rounded,
-                    color: Colors.white,
-                    size: 20,
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: _openEditor,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppTheme.electricIndigo,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
+                    child: const Text(
+                      '进入修图',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
-                  onPressed: _handleUserSend,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class TypingIndicator extends StatelessWidget {
-  const TypingIndicator({super.key});
+class _PreviewCard extends StatelessWidget {
+  const _PreviewCard({required this.imagePath});
+
+  final String imagePath;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 40,
-      height: 20,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: List.generate(3, (index) {
-          return Container(
-                width: 6,
-                height: 6,
-                decoration: const BoxDecoration(
-                  color: AppTheme.electricIndigo,
-                  shape: BoxShape.circle,
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF101015),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '当前图片',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: AspectRatio(
+                aspectRatio: 0.9,
+                child: buildAdaptiveImage(
+                  imagePath,
+                  fit: BoxFit.cover,
+                  errorWidget: Container(
+                    color: const Color(0xFF17171D),
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.image_outlined,
+                      color: AppTheme.electricIndigo,
+                      size: 36,
+                    ),
+                  ),
                 ),
-              )
-              .animate(onPlay: (controller) => controller.repeat(reverse: true))
-              .scale(
-                delay: (index * 200).ms,
-                duration: 600.ms,
-                begin: const Offset(0.5, 0.5),
-                end: const Offset(1.2, 1.2),
-              );
-        }),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IntentChip extends StatelessWidget {
+  const _IntentChip({
+    required this.label,
+    required this.onTap,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppTheme.electricIndigo.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: AppTheme.electricIndigo.withValues(alpha: 0.32),
+            ),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
       ),
     );
   }

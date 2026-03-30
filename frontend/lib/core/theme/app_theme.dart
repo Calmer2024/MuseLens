@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // 1. 提取原型图颜色
@@ -21,7 +20,7 @@ class AppTheme {
       brightness: Brightness.light,
       scaffoldBackgroundColor: Colors.white, // 设置为主配色白色
       primaryColor: primaryPurple,
-      textTheme: GoogleFonts.poppinsTextTheme(ThemeData.light().textTheme),
+      textTheme: ThemeData.light().textTheme,
       colorScheme: const ColorScheme.light(
         primary: primaryPurple,
         surface: Colors.white,

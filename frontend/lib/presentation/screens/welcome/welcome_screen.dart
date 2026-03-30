@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:google_fonts/google_fonts.dart'; // 引入谷歌字体库
 import '../../../core/theme/app_theme.dart';
 import '../../navigation/main_wrapper.dart';
 
@@ -57,7 +56,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.electricIndigo.withOpacity(0.4),
+                            color: AppTheme.electricIndigo.withValues(alpha: 0.4),
                             blurRadius: 30,
                             spreadRadius: -5,
                           ),
@@ -84,14 +83,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 // 1.2 Title (使用更有设计感的字体)
                 Text(
                       "MuseLens",
-                      style: GoogleFonts.orbitron(
-                        // 使用 Orbitron 字体增强科技感
-                        textStyle: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 36, // 字号放大
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.5,
-                        ),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 36,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.5,
                       ),
                     )
                     .animate()
@@ -113,14 +109,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   children: [
                     Text(
                       "AI Powered",
-                      style: GoogleFonts.montserrat(
-                        // 副标题用干净的无衬线体
-                        textStyle: TextStyle(
-                          color: Colors.white.withOpacity(0.6),
-                          fontSize: 12,
-                          letterSpacing: 3.0, // 极宽字间距
-                          fontWeight: FontWeight.w400,
-                        ),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        fontSize: 12,
+                        letterSpacing: 3.0,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                     Padding(
@@ -129,22 +122,18 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         width: 3,
                         height: 3,
                         decoration: BoxDecoration(
-                          color: AppTheme.electricIndigo.withOpacity(
-                            0.8,
-                          ), // 紫色小圆点
+                          color: AppTheme.electricIndigo.withValues(alpha: 0.8),
                           shape: BoxShape.circle,
                         ),
                       ),
                     ),
                     Text(
                       "Awaken Your Muse",
-                      style: GoogleFonts.montserrat(
-                        textStyle: TextStyle(
-                          color: Colors.white.withOpacity(0.6),
-                          fontSize: 12,
-                          letterSpacing: 3.0,
-                          fontWeight: FontWeight.w400,
-                        ),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        fontSize: 12,
+                        letterSpacing: 3.0,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ],
@@ -159,12 +148,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               padding: const EdgeInsets.only(bottom: 40.0),
               child: Text(
                 "© 2026 MuseLens Inc.",
-                style: GoogleFonts.robotoMono(
-                  // 底部用等宽字体增加极客感
-                  textStyle: TextStyle(
-                    color: Colors.white.withOpacity(0.2),
-                    fontSize: 10,
-                  ),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  fontSize: 10,
                 ),
               ),
             ).animate().fadeIn(delay: 1000.ms),
