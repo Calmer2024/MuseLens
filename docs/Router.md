@@ -6,6 +6,8 @@ Router层设计
 - 对外只做“编排决策”（返回蓝图或追问），不直接执行 ComfyUI。
 对应入口：POST /api/v1/router/route（backend/app/api/v1/endpoints/router.py）。
 
+前端如果要直接接入接口，可优先查看《[Router前端接口对接文档](./Router前端接口对接文档.md)》。
+
 0.1 近期主要更新（本轮对话落地）
 - 新增闭环调试入口 `/api/v1/router/route_and_run`：先走 Router 编排，再在 `ready` 时直接执行；返回里补充了 `executed`、`execution_context`、`result_filename`、`result_url`、`execution_error`，便于联调 Planner -> Compiler -> ComfyUI 全链路。
 - Retrieval 做了“依赖扩展”增强：不再只按用户任务检索主 Lens，也会把主 Lens 所需的上游资产提供者一并召回，例如 `sam2_matting -> flux_inpaint`、`depth_extract -> relighting`、`pose/depth/canny -> flux_reference` 这类链路。`ref_image_*` 也不再一律被当作必须由用户上传。

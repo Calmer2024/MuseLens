@@ -197,4 +197,30 @@ class RouterRouteAndRunResponse(RouterResponse):
         default=None,
         description="执行阶段的错误信息；编排成功但执行失败时使用。",
     )
+    step_results: List["RouterStepResult"] = Field(
+        default_factory=list,
+        description="按 blueprint 步骤顺序整理的逐步执行结果，便于前端展示每个透镜产物。",
+    )
+
+
+class RouterStepOutput(BaseModel):
+    """单个步骤某个输出槽位的可展示结果。"""
+
+    output_name: str = Field(..., description="输出槽位名，例如 result_image / mask_result")
+    filename: str = Field(..., description="ComfyUI 产出的文件名")
+    url: Optional[str] = Field(default=None, description="前端可直接预览的 URL")
+
+
+class RouterStepResult(BaseModel):
+    """单个透镜步骤的执行结果。"""
+
+    step_id: str = Field(..., description="步骤 ID")
+    lens_id: str = Field(..., description="执行的透镜 ID")
+    outputs: List[RouterStepOutput] = Field(
+        default_factory=list,
+        description="该步骤所有已捕获的输出结果。",
+    )
+
+
+RouterRouteAndRunResponse.model_rebuild()
 

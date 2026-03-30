@@ -522,6 +522,7 @@ def test_route_and_run_endpoint_returns_questions_without_execution(
     assert body["execution_context"] == {}
     assert body["result_filename"] is None
     assert body["execution_error"] is None
+    assert body["step_results"] == []
     assert body["questions"][0]["id"] == f"{lens_id}.prompt"
 
 
@@ -571,6 +572,7 @@ def test_route_and_run_endpoint_executes_ready_blueprint(client, test_db, workfl
         captured["blueprint"] = blueprint.model_dump()
         return {
             "user_base_image": "upload.png",
+            "s1.mask_result": "mask.png",
             "s1.result_image": "result.png",
         }
 
@@ -593,5 +595,24 @@ def test_route_and_run_endpoint_executes_ready_blueprint(client, test_db, workfl
     assert body["result_url"] == "http://127.0.0.1:8188/view?filename=result.png&type=output"
     assert body["execution_error"] is None
     assert body["execution_context"]["s1.result_image"] == "result.png"
+    assert body["execution_context"]["s1.mask_result"] == "mask.png"
+    assert body["step_results"] == [
+        {
+            "step_id": "s1",
+            "lens_id": lens_id,
+            "outputs": [
+                {
+                    "output_name": "result_image",
+                    "filename": "result.png",
+                    "url": "http://127.0.0.1:8188/view?filename=result.png&type=output",
+                },
+                {
+                    "output_name": "mask_result",
+                    "filename": "mask.png",
+                    "url": "http://127.0.0.1:8188/view?filename=mask.png&type=output",
+                },
+            ],
+        }
+    ]
     assert captured["blueprint"]["steps"][0]["lens_id"] == lens_id
 

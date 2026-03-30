@@ -1,7 +1,10 @@
+import os
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.lenses.registry import get_lens
 from app.schemas.router import (
     RouterAnswerRequest,
     RouterCompileRequest,
@@ -51,6 +54,7 @@ async def route_and_run(
             "result_filename": None,
             "result_url": None,
             "execution_error": None,
+            "step_results": [],
         }
     )
 
@@ -74,6 +78,7 @@ async def route_and_run(
                 "execution_context": final_context,
                 "result_filename": result_filename,
                 "result_url": _build_result_url(result_filename) if result_filename else None,
+                "step_results": _build_step_results(routed.blueprint, final_context),
             }
         )
         if not result_filename:
@@ -131,5 +136,58 @@ def _infer_result_filename(blueprint, execution_context: dict[str, str]) -> str 
 
 
 def _build_result_url(filename: str) -> str:
-    return f"http://127.0.0.1:8188/view?filename={filename}&type=output"
+    base_url = (os.getenv("COMFYUI_VIEW_BASE_URL") or "http://127.0.0.1:8188").rstrip("/")
+    return f"{base_url}/view?filename={filename}&type=output"
+
+
+def _build_step_results(blueprint, execution_context: dict[str, str]) -> list[dict]:
+    step_results: list[dict] = []
+
+    for step in blueprint.steps:
+        outputs: list[dict] = []
+        try:
+            lens_template = get_lens(step.lens_id)
+            output_names = [asset.name for asset in lens_template.outputs]
+        except Exception:
+            output_names = []
+
+        seen_output_names: set[str] = set()
+        for output_name in output_names:
+            key = f"{step.step_id}.{output_name}"
+            filename = execution_context.get(key)
+            if not filename:
+                continue
+            seen_output_names.add(output_name)
+            outputs.append(
+                {
+                    "output_name": output_name,
+                    "filename": filename,
+                    "url": _build_result_url(filename),
+                }
+            )
+
+        step_prefix = f"{step.step_id}."
+        for key, filename in execution_context.items():
+            if not key.startswith(step_prefix):
+                continue
+            output_name = key[len(step_prefix):]
+            if output_name in seen_output_names or not filename:
+                continue
+            outputs.append(
+                {
+                    "output_name": output_name,
+                    "filename": filename,
+                    "url": _build_result_url(filename),
+                }
+            )
+
+        step_results.append(
+            {
+                "step_id": step.step_id,
+                "lens_id": step.lens_id,
+                "outputs": outputs,
+            }
+        )
+
+    return step_results
 
