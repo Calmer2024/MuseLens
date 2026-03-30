@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 # 定义类型注解，这是一个回调函数，接受 (step_id, 当前已有的全部上下文资产)，返回空协程
 ProgressCallback = Callable[[str, Dict[str, str]], Awaitable[None]]
+StepStartedCallback = Callable[[str, str, int, int], Awaitable[None]]
 
 class MuseDNACompiler:
     """
@@ -134,8 +135,9 @@ class MuseDNACompiler:
              
         return workflow
 
-    async def execute_blueprint(self, blueprint: DAGBlueprint, 
-                                progress_callback: ProgressCallback = None) -> Dict[str, str]:
+    async def execute_blueprint(self, blueprint: DAGBlueprint,
+                                progress_callback: ProgressCallback = None,
+                                step_started_callback: StepStartedCallback = None) -> Dict[str, str]:
         """
         异步非阻塞执行完整的蓝图引擎。
         """
@@ -151,8 +153,16 @@ class MuseDNACompiler:
         runner = AsyncComfyRunner()
         try:
              # 遍历图节点 (预设为已经过拓扑排序)
-             for step in blueprint.steps:
+             total_steps = len(blueprint.steps)
+             for idx, step in enumerate(blueprint.steps, start=1):
                   logger.info(f"[Compiler] Executing step: {step.step_id} (Lens: {step.lens_id})")
+                  if step_started_callback:
+                       await step_started_callback(
+                           step.step_id,
+                           step.lens_id,
+                           idx,
+                           total_steps,
+                       )
                   
                   # 1. 读取透镜字典
                   lens_template = get_lens(step.lens_id)
