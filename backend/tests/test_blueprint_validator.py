@@ -94,3 +94,34 @@ def test_validator_reports_missing_asset_ref(db, workflow_file):
     errors = blueprint_validator.validate(db, blueprint)
     assert any(e.code == "MISSING_ASSET_REF" for e in errors)
 
+
+def test_validator_reports_missing_required_input_slot(db, workflow_file):
+    data = {
+        "lens_id": "lens_val_ref",
+        "layer": "A2",
+        "description": "",
+        "workflow_file_path": workflow_file,
+        "inputs": [
+            {"name": "base_image", "type": "image", "mapping": {"node_id": "1", "field_name": "image"}},
+            {"name": "ref_image_1", "type": "image", "mapping": {"node_id": "1", "field_name": "image"}},
+        ],
+        "outputs": [{"name": "result_image", "type": "image", "mapping": {"node_id": "1", "field_name": "images"}}],
+        "params": [{"name": "prompt", "type": "text", "description": "", "mapping": {"node_id": "1", "field_name": "text"}}],
+    }
+    registry.register_lens(db, data)
+
+    blueprint = DAGBlueprint(
+        initial_inputs={"user_base_image": "x.png"},
+        steps=[
+            DAGStep(
+                step_id="s1",
+                lens_id="lens_val_ref",
+                input_links={"base_image": "$user_base_image"},
+                params={"prompt": "replace background"},
+            )
+        ],
+    )
+
+    errors = blueprint_validator.validate(db, blueprint)
+    assert any(e.code == "MISSING_REQUIRED_INPUT" for e in errors)
+

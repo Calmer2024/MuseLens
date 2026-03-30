@@ -13,6 +13,7 @@ import asyncio
 import os
 import copy
 import logging
+import shutil
 from typing import Callable, Awaitable, Dict, Any
 
 from app.schemas.lens import DAGBlueprint, LensTemplate
@@ -49,7 +50,12 @@ class MuseDNACompiler:
         self.input_dir = input_dir
         self.output_dir = output_dir
 
-    def _resolve_asset(self, link_value: str, context: Dict[str, str]) -> str:
+    def _resolve_asset(
+        self,
+        link_value: str,
+        context: Dict[str, str],
+        asset_locations: Dict[str, Dict[str, Any]],
+    ) -> Dict[str, Any]:
         """
         [资产解析 (Asset Resolution)]
         解析 input_links 中的引用，如果它是变量（如 '$step_1.core_mask'），
@@ -60,14 +66,45 @@ class MuseDNACompiler:
              var_name = link_value[1:]
              logger.info(f"[Compiler] Resolving asset link: {link_value} -> reading context key '{var_name}'")
              if var_name not in context:
-                 raise RuntimeError(f"变量引用 {link_value} 在当前上下文中未找到 (可用: {list(context.keys())})")
+                  raise RuntimeError(f"变量引用 {link_value} 在当前上下文中未找到 (可用: {list(context.keys())})")
              actual_path = context[var_name]
-             logger.info(f"[Compiler] Resolved asset: {link_value} -> {actual_path}")
-             return actual_path
-        
+             info = asset_locations.get(var_name, {"filename": actual_path, "subfolder": "", "type": "output"})
+             logger.info(f"[Compiler] Resolved asset: {link_value} -> {info}")
+             return info
+         
         # 非变量时（例如纯静态文件的名称），直接当作真实文件名处理
         logger.info(f"[Compiler] Static asset provided: {link_value}")
-        return link_value
+        return {"filename": link_value, "subfolder": "", "type": "input"}
+
+    def _ensure_asset_in_input_dir(self, asset_info: Dict[str, Any]) -> str:
+        filename = str(asset_info.get("filename") or "")
+        if not filename:
+            raise RuntimeError(f"资产信息缺少 filename: {asset_info}")
+
+        dst_input = os.path.join(self.input_dir, filename)
+        if os.path.exists(dst_input):
+            return filename
+
+        subfolder = str(asset_info.get("subfolder") or "")
+        src_folder = self.output_dir
+        if subfolder:
+            src_folder = os.path.join(src_folder, subfolder)
+        src_output = os.path.join(src_folder, filename)
+
+        if os.path.exists(src_output):
+            shutil.copy2(src_output, dst_input)
+            logger.info(
+                f"[Compiler/Mover] Copied generated output {src_output} to downstream input {dst_input}."
+            )
+            return filename
+
+        if asset_info.get("type") == "input":
+            return filename
+
+        raise RuntimeError(
+            f"Downstream asset not found in ComfyUI input/output dirs: filename={filename}, "
+            f"subfolder={subfolder!r}, expected_input={dst_input}, expected_output={src_output}"
+        )
 
     def _inject_dependencies(self, template: LensTemplate, 
                              resolved_assets: Dict[str, str], 
@@ -104,6 +141,11 @@ class MuseDNACompiler:
         """
         # 初始化黑板上下文
         context = {**blueprint.initial_inputs}
+        asset_locations: Dict[str, Dict[str, Any]] = {
+            key: {"filename": value, "subfolder": "", "type": "input"}
+            for key, value in blueprint.initial_inputs.items()
+            if isinstance(value, str)
+        }
         logger.info(f"[Compiler] Blueprint Started. Initial context: {context}")
         
         runner = AsyncComfyRunner()
@@ -119,21 +161,8 @@ class MuseDNACompiler:
                   resolved_assets = {}
                   for asset_name, link_value in step.input_links.items():
                        # 对于这个 step 来说，asset_name (如 'base_image') 需要被装载真实路径 
-                       actual_filename = self._resolve_asset(link_value, context)
-                       # 假设这个 actual_filename 目前躺在 context 中或是初始化传进来的。
-                       # 理论上如果是上一步生成的，它现在在 ComfyUI 的 output 目录下，我们需要将其搬到 input 目录
-                       # !这里直接调用 python 的 io 做搬运!
-                       dst_input = os.path.join(self.input_dir, actual_filename)
-                       if not os.path.exists(dst_input):
-                           src_output = os.path.join(self.output_dir, actual_filename)
-                           if os.path.exists(src_output):
-                               import shutil
-                               shutil.copy2(src_output, dst_input)
-                               logger.info(f"[Compiler/Mover] Copied generated output {actual_filename} to input dir for downstream consumption.")
-                           else:
-                               # 这说明它是从外面初次传的，那么我们在 API 端点应该已经处理好它的物理上传了。
-                               pass
-                               
+                       actual_asset = self._resolve_asset(link_value, context, asset_locations)
+                       actual_filename = self._ensure_asset_in_input_dir(actual_asset)
                        resolved_assets[asset_name] = actual_filename
                   
                   # 3. 生成运行时 workflow json
@@ -144,7 +173,12 @@ class MuseDNACompiler:
                   )
                   
                   # 4. 提交给 ComfyUI 异步跑
-                  prompt_id = await runner.queue_prompt(injected_workflow)
+                  try:
+                      prompt_id = await runner.queue_prompt(injected_workflow)
+                  except Exception as exc:
+                      raise RuntimeError(
+                          f"Step {step.step_id} ({step.lens_id}) failed to queue in ComfyUI: {exc}"
+                      ) from exc
                   logger.info(f"[{step.step_id}] sent to queue, id={prompt_id}. Waiting for completion...")
                   
                   # 5. 阻塞当步，直至本步渲染结束
@@ -153,9 +187,11 @@ class MuseDNACompiler:
                   # 6. 从输出收集结果，回填上下文黑板
                   step_outputs = {}
                   for output_asset in lens_template.outputs:
-                        file_name = await runner.get_output_filename(prompt_id, output_asset.mapping.node_id)
+                        image_info = await runner.get_output_image_info(prompt_id, output_asset.mapping.node_id)
+                        file_name = str(image_info["filename"])
                         var_key = f"{step.step_id}.{output_asset.name}"
                         context[var_key] = file_name
+                        asset_locations[var_key] = image_info
                         step_outputs[output_asset.name] = file_name
                         logger.info(f"[Compiler] Captured output {output_asset.name} as {file_name} -> storing to context key '{var_key}'")
                   

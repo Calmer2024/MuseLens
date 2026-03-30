@@ -45,7 +45,13 @@ class AsyncComfyRunner:
         """异步排队提交任务"""
         payload = {"prompt": workflow_json, "client_id": self.client_id}
         response = await self.http_client.post(f"{SERVER_ADDRESS}/prompt", json=payload)
-        response.raise_for_status()
+        if response.is_error:
+            detail = response.text.strip()
+            if len(detail) > 2000:
+                detail = detail[:2000] + "...(truncated)"
+            raise RuntimeError(
+                f"ComfyUI /prompt returned {response.status_code}: {detail}"
+            )
         return response.json()["prompt_id"]
 
     async def get_history(self, prompt_id: str) -> dict:
@@ -81,9 +87,9 @@ class AsyncComfyRunner:
                         if data['node'] is None and data.get('prompt_id') == prompt_id:
                             return
 
-    async def get_output_filename(self, prompt_id: str, output_node_id: str) -> str:
+    async def get_output_image_info(self, prompt_id: str, output_node_id: str) -> dict:
         """
-        从历史记录中抽取出指定的 SaveImage 节点生成的文件名。
+        从历史记录中抽取出指定输出节点生成的图片元数据。
         """
         history = await self.get_history(prompt_id)
         if prompt_id not in history:
@@ -92,9 +98,15 @@ class AsyncComfyRunner:
         node_output = history[prompt_id]["outputs"].get(output_node_id)
         if not node_output or "images" not in node_output or len(node_output["images"]) == 0:
              raise RuntimeError(f"节点 {output_node_id} 未产出任何 image 输出")
-             
-        # {"filename": "...", "subfolder": "", "type": "output"}
-        return node_output["images"][0]["filename"]
+
+        image_info = node_output["images"][0]
+        if not isinstance(image_info, dict) or "filename" not in image_info:
+            raise RuntimeError(f"节点 {output_node_id} 的图片输出格式非法: {image_info}")
+        return image_info
+
+    async def get_output_filename(self, prompt_id: str, output_node_id: str) -> str:
+        image_info = await self.get_output_image_info(prompt_id, output_node_id)
+        return str(image_info["filename"])
 
     async def close(self):
         """关闭底层 HTTP Client"""

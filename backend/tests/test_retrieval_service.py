@@ -118,3 +118,99 @@ def test_retrieve_by_lens_ids(db):
     assert items[0].lens_id == lens_id
     assert items[0].score == 0.5
     assert items[0].params and items[0].params[0].name == "prompt"
+
+
+def test_retrieve_expands_mask_dependency_candidates(db):
+    db.add_all(
+        [
+            LensRecord(
+                lens_id="lens_flux_inpaint",
+                layer="A2",
+                description="局部遮罩重绘",
+                workflow_file_path="dummy.json",
+                inputs=[
+                    {"name": "base_image", "type": "image"},
+                    {"name": "mask", "type": "mask"},
+                ],
+                outputs=[{"name": "result_image", "type": "image"}],
+                params=[
+                    {
+                        "name": "prompt",
+                        "type": "text",
+                        "description": "局部替换提示词",
+                        "required": True,
+                        "mapping": {},
+                    }
+                ],
+            ),
+            LensRecord(
+                lens_id="lens_sam2_matting",
+                layer="A1",
+                description="文本分割并输出遮罩",
+                workflow_file_path="dummy.json",
+                inputs=[{"name": "base_image", "type": "image"}],
+                outputs=[{"name": "mask_result", "type": "image"}],
+                params=[
+                    {
+                        "name": "prompt",
+                        "type": "text",
+                        "description": "分割目标",
+                        "required": True,
+                        "mapping": {},
+                    }
+                ],
+            ),
+        ]
+    )
+    db.commit()
+
+    service = RetrievalService(_FakeRAGClient("lens_flux_inpaint"))
+    items = service.retrieve(db, task_desc="把图中的女人替换成一只猪", top_k=3)
+    lens_ids = [item.lens_id for item in items]
+
+    assert lens_ids[0] == "lens_flux_inpaint"
+    assert "lens_sam2_matting" in lens_ids
+
+
+def test_retrieve_expands_depth_dependency_candidates(db):
+    db.add_all(
+        [
+            LensRecord(
+                lens_id="lens_relighting",
+                layer="A3",
+                description="全局光影重构",
+                workflow_file_path="dummy.json",
+                inputs=[
+                    {"name": "base_image", "type": "image"},
+                    {"name": "depth_map", "type": "depth_map"},
+                ],
+                outputs=[{"name": "result_image", "type": "image"}],
+                params=[
+                    {
+                        "name": "prompt",
+                        "type": "text",
+                        "description": "光影描述",
+                        "required": True,
+                        "mapping": {},
+                    }
+                ],
+            ),
+            LensRecord(
+                lens_id="lens_depth_extract",
+                layer="A1",
+                description="深度提取",
+                workflow_file_path="dummy.json",
+                inputs=[{"name": "base_image", "type": "image"}],
+                outputs=[{"name": "depth_map", "type": "depth_map"}],
+                params=[],
+            ),
+        ]
+    )
+    db.commit()
+
+    service = RetrievalService(_FakeRAGClient("lens_relighting"))
+    items = service.retrieve(db, task_desc="调整为黄昏光从右上角照下", top_k=3)
+    lens_ids = [item.lens_id for item in items]
+
+    assert lens_ids[0] == "lens_relighting"
+    assert "lens_depth_extract" in lens_ids

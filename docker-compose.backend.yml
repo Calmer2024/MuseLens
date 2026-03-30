@@ -46,13 +46,16 @@ services:
       MUSELENS_PG_DSN: postgresql://postgres:${MUSELENS_POSTGRES_PASSWORD:-123cfx}@postgres:5432/muselens
       MUSELENS_RAG_BACKEND: pgvector
       MUSELENS_RAG_PGVECTOR_TABLE: ${MUSELENS_RAG_PGVECTOR_TABLE:-lens_embeddings}
-      COMFYUI_OUTPUT_DIR: ${COMFYUI_OUTPUT_DIR:-/tmp/comfyui/output}
-      COMFYUI_INPUT_DIR: ${COMFYUI_INPUT_DIR:-/tmp/comfyui/input}
+      COMFYUI_OUTPUT_DIR: /tmp/comfyui/output
+      COMFYUI_INPUT_DIR: /tmp/comfyui/input
       MUSELENS_COMFY_NETLOC: ${MUSELENS_COMFY_NETLOC:-host.docker.internal:8188}
       MUSELENS_LLM_BASE_URL: ${MUSELENS_LLM_BASE_URL:-https://api.openai.com/v1}
       MUSELENS_LLM_API_KEY: ${MUSELENS_LLM_API_KEY:-}
       MUSELENS_LLM_MODEL: ${MUSELENS_LLM_MODEL:-}
       MUSELENS_LLM_TIMEOUT_S: ${MUSELENS_LLM_TIMEOUT_S:-60}
+    volumes:
+      - "${COMFYUI_INPUT_DIR}:/tmp/comfyui/input"
+      - "${COMFYUI_OUTPUT_DIR}:/tmp/comfyui/output"
     ports:
       - "${MUSELENS_BACKEND_PORT:-8000}:8000"
     healthcheck:

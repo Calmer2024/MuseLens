@@ -196,6 +196,7 @@ def _node_finalize(state: RouterGraphState) -> Dict[str, Any]:
     collected = ctx.collected_params
 
     po = PlannerOutput.model_validate(state["planner_out"])
+    _hydrate_blueprint_initial_inputs(ctx, po)
     lenses_raw = state.get("lenses") or []
     retrieved_ids = [str(x.get("lens_id")) for x in lenses_raw if x.get("lens_id")]
     verrors = state.get("verrors") or []
@@ -301,6 +302,17 @@ def _node_finalize(state: RouterGraphState) -> Dict[str, Any]:
         extra={"planner": po.model_dump()},
     )
     return {}
+
+
+def _hydrate_blueprint_initial_inputs(ctx: RouterV2Context, po: PlannerOutput) -> None:
+    if po.blueprint is None:
+        return
+
+    base_image = ctx.req.base_image or ctx.sess.base_image or ""
+    if not base_image:
+        return
+
+    po.blueprint.initial_inputs["user_base_image"] = base_image
 
 
 def build_router_v2_graph() -> Any:

@@ -92,6 +92,16 @@ class BlueprintValidator:
                         )
                     )
 
+            declared_inputs = {i.name for i in tmpl.inputs}
+            bound_inputs = set(step.input_links.keys())
+            for input_name in sorted(declared_inputs - bound_inputs):
+                errors.append(
+                    ValidationError(
+                        code="MISSING_REQUIRED_INPUT",
+                        message=f"步骤 {step.step_id} 缺少必须的输入槽位 '{input_name}'（lens={step.lens_id}）",
+                    )
+                )
+
             # 1.3 参数名/类型校验 + 必填校验
             errors.extend(
                 self._validate_step_params(

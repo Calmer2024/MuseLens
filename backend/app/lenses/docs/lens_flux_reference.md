@@ -44,6 +44,12 @@ examples:
       steps: 24
       cfg: 5.5
       noise_seed: 4102
+  - nl_desc: 保留人物和原始构图，把背景改成法国巴黎的埃菲尔铁塔
+    params_example:
+      prompt: preserve the subject and overall composition, replace the background with the Eiffel Tower in Paris, natural daylight
+      steps: 24
+      cfg: 5.2
+      noise_seed: 4103
 ---
 
 ## 适用任务
@@ -51,6 +57,7 @@ examples:
 - 需要保留一类明确结构约束，同时做重绘。
 - 只有一种关键参考资产就够用，例如只锁深度、只锁姿态、只锁边缘。
 - 适合“结构尽量别变，但整体风格/光影要变”的需求。
+- 也适合“主体尽量保留，只把背景或场景改掉”的任务，前提是你已经有一张能帮助锁住结构的参考资产，例如深度图、姿态图或边缘图。
 
 ## 不适用任务
 

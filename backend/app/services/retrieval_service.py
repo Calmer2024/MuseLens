@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -71,7 +71,12 @@ class RetrievalService:
             if lk:
                 result.append(lk)
 
-        return result
+        return self._expand_dependency_candidates(
+            db,
+            seeds=result,
+            examples_by_id=examples_by_id,
+            enabled_only=enabled_only,
+        )
 
     def retrieve_by_lens_ids(
         self,
@@ -227,6 +232,144 @@ class RetrievalService:
                 + examples_by_id.get(lens_id, [])
             ),
         )
+
+    def _expand_dependency_candidates(
+        self,
+        db: Session,
+        *,
+        seeds: List[LensKnowledge],
+        examples_by_id: Dict[str, List[LensExample]],
+        enabled_only: bool = False,
+        max_depth: int = 2,
+        max_matches_per_input: int = 3,
+    ) -> List[LensKnowledge]:
+        if not seeds:
+            return []
+
+        records: List[LensRecord] = db.query(LensRecord).all()
+        record_by_id = {r.lens_id: r for r in records}
+        known_ids: Set[str] = {item.lens_id for item in seeds}
+        ordered: List[LensKnowledge] = list(seeds)
+        frontier: List[LensKnowledge] = list(seeds)
+
+        for depth in range(max_depth):
+            if not frontier:
+                break
+
+            next_frontier: List[LensKnowledge] = []
+            for cand in frontier:
+                for dep_id in self._find_dependency_lens_ids(
+                    cand,
+                    records,
+                    exclude_ids=known_ids,
+                    limit=max_matches_per_input,
+                ):
+                    rec = record_by_id.get(dep_id)
+                    if not rec:
+                        continue
+                    lk = self._lens_knowledge_from_record(
+                        lens_id=dep_id,
+                        score=max(cand.score - 0.01 * (depth + 1), 0.0),
+                        rec=rec,
+                        examples_by_id=examples_by_id,
+                    )
+                    if not lk:
+                        continue
+                    known_ids.add(dep_id)
+                    ordered.append(lk)
+                    next_frontier.append(lk)
+
+            frontier = next_frontier
+
+        return ordered
+
+    def _find_dependency_lens_ids(
+        self,
+        candidate: LensKnowledge,
+        records: List[LensRecord],
+        *,
+        exclude_ids: Set[str],
+        limit: int,
+    ) -> List[str]:
+        found: List[str] = []
+        seen: Set[str] = set()
+
+        for input_asset in candidate.inputs or []:
+            if self._is_user_supplied_input(input_asset.name, input_asset.type):
+                continue
+
+            matches: List[Tuple[int, str]] = []
+            for rec in records:
+                if rec.lens_id in exclude_ids or rec.lens_id == candidate.lens_id:
+                    continue
+                score = self._dependency_match_score(
+                    input_name=input_asset.name,
+                    input_type=input_asset.type,
+                    outputs=rec.outputs or [],
+                )
+                if score > 0:
+                    matches.append((score, rec.lens_id))
+
+            matches.sort(key=lambda item: (-item[0], item[1]))
+            for _, dep_id in matches[:limit]:
+                if dep_id not in seen:
+                    seen.add(dep_id)
+                    found.append(dep_id)
+
+        return found
+
+    @staticmethod
+    def _is_user_supplied_input(name: str, asset_type: str) -> bool:
+        kind = RetrievalService._asset_kind(name, asset_type)
+        lname = (name or "").strip().lower()
+        return kind == "base_image" or lname.startswith("ref_image_") or lname == "style_reference_image"
+
+    @staticmethod
+    def _dependency_match_score(
+        *,
+        input_name: str,
+        input_type: str,
+        outputs: List[Dict],
+    ) -> int:
+        input_kind = RetrievalService._asset_kind(input_name, input_type)
+        if input_kind == "generic_image":
+            return 0
+
+        best = 0
+        for out in outputs or []:
+            output_name = str(out.get("name", ""))
+            output_type = str(out.get("type", ""))
+            output_kind = RetrievalService._asset_kind(output_name, output_type)
+
+            if output_name == input_name:
+                best = max(best, 4)
+            if output_kind and output_kind == input_kind:
+                best = max(best, 3)
+            if input_kind == "mask" and output_name.endswith("_result") and output_kind == "mask":
+                best = max(best, 2)
+
+        return best
+
+    @staticmethod
+    def _asset_kind(name: str, asset_type: str) -> str:
+        tokens = f"{name} {asset_type}".lower()
+        if "base_image" in tokens:
+            return "base_image"
+        if "mask" in tokens:
+            return "mask"
+        if "depth" in tokens:
+            return "depth"
+        if "canny" in tokens or "edge" in tokens:
+            return "canny"
+        if "pose" in tokens or "skeleton" in tokens:
+            return "pose"
+        if "style_reference" in tokens:
+            return "style_reference"
+        if "ref_image" in tokens:
+            return "generic_reference"
+        if "image" in tokens:
+            return "generic_image"
+        return tokens.strip()
 
 
 def build_task_desc(*, user_message: str, history_summary: str = "") -> str:
