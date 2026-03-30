@@ -1,28 +1,31 @@
 import 'dart:io';
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
-import '../../../../core/theme/app_theme.dart';
+
+import '../../../core/theme/app_theme.dart';
 import '../../screens/editor/editor_screen.dart';
+import '../shared/adaptive_media.dart';
 
 class EditorCanvas extends StatelessWidget {
-  final File originalImage;
-  final Uint8List? resultImage;
-  final String? simulationImagePath;
-  final bool isGenerating;
-  final ToolType activeTool;
-  final VoidCallback onFlipHorizontal;
-  final VoidCallback onMirror;
-
   const EditorCanvas({
     super.key,
-    required this.originalImage,
+    this.originalImage,
+    this.currentImagePath,
     this.resultImage,
-    this.simulationImagePath,
     required this.isGenerating,
     required this.activeTool,
     required this.onFlipHorizontal,
     required this.onMirror,
   });
+
+  final File? originalImage;
+  final String? currentImagePath;
+  final Uint8List? resultImage;
+  final bool isGenerating;
+  final ToolType activeTool;
+  final VoidCallback onFlipHorizontal;
+  final VoidCallback onMirror;
 
   @override
   Widget build(BuildContext context) {
@@ -40,10 +43,7 @@ class EditorCanvas extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // 1. Image Layer
               _buildImageContent(),
-
-              // 2. Crop Overlay
               if (activeTool == ToolType.crop)
                 Positioned(
                   top: 16,
@@ -56,8 +56,6 @@ class EditorCanvas extends StatelessWidget {
                     ],
                   ),
                 ),
-
-              // 3. Loading Layer (🔥 移除文字，纯转圈)
               if (isGenerating)
                 Container(
                   color: Colors.white70,
@@ -75,25 +73,32 @@ class EditorCanvas extends StatelessWidget {
   }
 
   Widget _buildImageContent() {
-    if (simulationImagePath != null) {
-      return Image.asset(
-        simulationImagePath!,
+    if (resultImage != null) {
+      return Image.memory(resultImage!, fit: BoxFit.contain);
+    }
+    if (currentImagePath != null && currentImagePath!.trim().isNotEmpty) {
+      return buildAdaptiveImage(
+        currentImagePath,
         fit: BoxFit.contain,
+        placeholder: const _CanvasFallback(),
+        errorWidget: const _CanvasFallback(),
         frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-          if (wasSynchronouslyLoaded) return child;
+          if (wasSynchronouslyLoaded) {
+            return child;
+          }
           return AnimatedOpacity(
             opacity: frame == null ? 0 : 1,
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.easeOut,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOutCubic,
             child: child,
           );
         },
       );
-    } else if (resultImage != null) {
-      return Image.memory(resultImage!, fit: BoxFit.contain);
-    } else {
-      return Image.file(originalImage, fit: BoxFit.contain);
     }
+    if (originalImage != null) {
+      return Image.file(originalImage!, fit: BoxFit.contain);
+    }
+    return const _CanvasFallback();
   }
 
   Widget _buildControl(IconData icon, VoidCallback onTap) {
@@ -107,6 +112,23 @@ class EditorCanvas extends StatelessWidget {
           border: Border.all(color: Colors.black12),
         ),
         child: Icon(icon, color: Colors.black87, size: 20),
+      ),
+    );
+  }
+}
+
+class _CanvasFallback extends StatelessWidget {
+  const _CanvasFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.grey.shade100,
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.image_outlined,
+        size: 42,
+        color: AppTheme.electricIndigo,
       ),
     );
   }
