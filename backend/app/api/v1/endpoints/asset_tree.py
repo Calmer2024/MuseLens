@@ -63,6 +63,7 @@ from app.schemas.asset_tree import (
     UpdateNodeStatusRequest,
 )
 from app.services import asset_tree_service as svc
+from app.services import editor_session_service as editor_session_svc
 
 router = APIRouter()
 
@@ -93,6 +94,12 @@ def _edge_summary(d: dict) -> AssetEdgeSummary:
 
 def _tag_out(t) -> NodeTagOut:
     return NodeTagOut.model_validate(t)
+
+
+def _raise_service_error(exc: Exception) -> None:
+    if isinstance(exc, LookupError):
+        raise HTTPException(status_code=404, detail=str(exc))
+    raise HTTPException(status_code=400, detail=str(exc))
 
 
 # ============================================================
@@ -282,30 +289,75 @@ def create_child_node(
     db: Session = Depends(get_db),
 ) -> CreateChildNodeResponse:
     try:
-        node, edge = svc.create_child_node(
-            db,
-            project_id=project_id,
-            parent_node_id=body.parent_node_id,
-            image_url=body.image_url,
-            thumbnail_url=body.thumbnail_url,
-            width=body.width,
-            height=body.height,
-            file_size=body.file_size,
-            fmt=body.format,
-            node_type="generated",
-            lens_id=body.lens_id,
-            lens_name=body.lens_name,
-            user_prompt=body.user_prompt,
-            parameters=body.parameters,
-            muse_dna=body.muse_dna,
-            generation_params=body.generation_params,
-            execution_time_ms=body.execution_time_ms,
-            task_id=body.task_id,
-            status=body.status,
-            metadata=body.metadata,
-        )
+        if body.episode_id is not None:
+            editor_session_svc.validate_episode_for_child_node(
+                db,
+                episode_id=body.episode_id,
+                project_id=project_id,
+                parent_node_id=body.parent_node_id,
+            )
+            node, edge = svc.create_child_node(
+                db,
+                project_id=project_id,
+                parent_node_id=body.parent_node_id,
+                image_url=body.image_url,
+                thumbnail_url=body.thumbnail_url,
+                width=body.width,
+                height=body.height,
+                file_size=body.file_size,
+                fmt=body.format,
+                node_type="generated",
+                lens_id=body.lens_id,
+                lens_name=body.lens_name,
+                user_prompt=body.user_prompt,
+                parameters=body.parameters,
+                muse_dna=body.muse_dna,
+                generation_params=body.generation_params,
+                execution_time_ms=body.execution_time_ms,
+                task_id=body.task_id,
+                status=body.status,
+                metadata=body.metadata,
+                auto_commit=False,
+            )
+            editor_session_svc.bind_episode_target_node(
+                db,
+                episode_id=body.episode_id,
+                target_node_id=node.node_id,
+                source_node_id=body.parent_node_id,
+                auto_commit=False,
+            )
+            db.commit()
+            db.refresh(node)
+            db.refresh(edge)
+        else:
+            node, edge = svc.create_child_node(
+                db,
+                project_id=project_id,
+                parent_node_id=body.parent_node_id,
+                image_url=body.image_url,
+                thumbnail_url=body.thumbnail_url,
+                width=body.width,
+                height=body.height,
+                file_size=body.file_size,
+                fmt=body.format,
+                node_type="generated",
+                lens_id=body.lens_id,
+                lens_name=body.lens_name,
+                user_prompt=body.user_prompt,
+                parameters=body.parameters,
+                muse_dna=body.muse_dna,
+                generation_params=body.generation_params,
+                execution_time_ms=body.execution_time_ms,
+                task_id=body.task_id,
+                status=body.status,
+                metadata=body.metadata,
+            )
     except ValueError as exc:
+        db.rollback()
         raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        db.rollback()
+        _raise_service_error(exc)
 
     tags = svc.get_node_tags(db, node.node_id)
     return CreateChildNodeResponse(

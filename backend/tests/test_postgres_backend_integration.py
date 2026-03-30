@@ -388,3 +388,97 @@ def test_postgres_chat_roundtrip(client, postgres_test_db):
     )
     assert detail_after_resp.status_code == 200
     assert detail_after_resp.json()["unread_count"] == 0
+
+
+@pytest.mark.integration
+def test_postgres_editor_session_asset_tree_roundtrip(client, postgres_test_db):
+    project_resp = client.post(
+        "/api/v1/asset-tree/projects",
+        json={"name": "pg-editor-project", "description": "editor session integration"},
+    )
+    assert project_resp.status_code == 200
+    project = project_resp.json()
+
+    root_resp = client.post(
+        f"/api/v1/asset-tree/projects/{project['project_id']}/root-node",
+        json={
+            "image_url": "s3://bucket/editor_root.png",
+            "thumbnail_url": "s3://bucket/editor_root_thumb.png",
+            "width": 1600,
+            "height": 900,
+            "format": "png",
+            "metadata": {"source": "upload", "stage": "root"},
+        },
+    )
+    assert root_resp.status_code == 201
+    root_node = root_resp.json()
+
+    session_resp = client.post(
+        f"/api/v1/editor-sessions/projects/{project['project_id']}/sessions",
+        json={
+            "title": "PostgreSQL 编辑会话",
+            "description": "验证 PostgreSQL 下的编辑片段树链路",
+        },
+    )
+    assert session_resp.status_code == 201
+    session = session_resp.json()
+    assert session["base_node_id"] == root_node["node_id"]
+
+    episode_resp = client.post(
+        f"/api/v1/editor-sessions/sessions/{session['session_id']}/episodes",
+        json={
+            "source_node_id": root_node["node_id"],
+            "title": "压高光",
+            "user_intent": "把天空压下来一点",
+            "assistant_plan": "降低高光并保留云层边缘",
+            "tool_snapshot": {"tool": "highlight_recovery", "strength": 0.42},
+            "metadata": {"pipeline": "tone"},
+            "status": "draft",
+        },
+    )
+    assert episode_resp.status_code == 201
+    episode = episode_resp.json()
+    assert episode["tool_snapshot"]["tool"] == "highlight_recovery"
+
+    child_resp = client.post(
+        f"/api/v1/asset-tree/projects/{project['project_id']}/nodes",
+        json={
+            "parent_node_id": root_node["node_id"],
+            "episode_id": episode["episode_id"],
+            "image_url": "s3://bucket/editor_result.png",
+            "thumbnail_url": "s3://bucket/editor_result_thumb.png",
+            "width": 1600,
+            "height": 900,
+            "format": "png",
+            "lens_id": "lens_highlight",
+            "lens_name": "高光恢复",
+            "parameters": {"highlight": -25},
+            "generation_params": {"highlight": -25},
+            "metadata": {"source": "generation", "engine": "postgres-test"},
+            "status": "completed",
+        },
+    )
+    assert child_resp.status_code == 201
+    child_node = child_resp.json()["node"]
+
+    detail_resp = client.get(f"/api/v1/editor-sessions/episodes/{episode['episode_id']}")
+    assert detail_resp.status_code == 200
+    detail = detail_resp.json()
+    assert detail["episode"]["target_node_id"] == child_node["node_id"]
+    assert detail["episode"]["status"] == "completed"
+    assert detail["episode"]["tool_snapshot"]["strength"] == 0.42
+    assert detail["episode"]["metadata"]["pipeline"] == "tone"
+    assert len(detail["messages"]) == 2
+
+    tree_resp = client.get(f"/api/v1/editor-sessions/sessions/{session['session_id']}/tree")
+    assert tree_resp.status_code == 200
+    tree = tree_resp.json()
+    assert tree["session"]["episode_count"] == 1
+    assert len(tree["episodes"]) == 1
+
+    lookup_resp = client.get(
+        f"/api/v1/editor-sessions/episodes/by-node/{child_node['node_id']}",
+        params={"session_id": session["session_id"]},
+    )
+    assert lookup_resp.status_code == 200
+    assert lookup_resp.json()["episode"]["episode_id"] == episode["episode_id"]

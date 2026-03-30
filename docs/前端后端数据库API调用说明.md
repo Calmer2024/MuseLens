@@ -1,23 +1,25 @@
 # MuseLens 前端后端数据库 API 调用说明
 
-## 一、文档目的
+## 一、文档目标
 
-本文档面向前端开发人员，说明当前后端中与数据库读写直接相关的接口应该如何调用。
+这份文档面向前端开发同学，说明当前后端中与数据库直接读写相关的接口应该如何调用。
 
-本文档覆盖以下模块：
+当前覆盖模块：
 
 - 用户管理
 - 社区
 - 透镜市场
 - 好友聊天
 - 资产树
+- 编辑会话 / 编辑片段树
 - 运行时 Lens 注册表
 
-本文档不覆盖：
+本文重点回答四类问题：
 
-- WebSocket 编辑器实时生成接口
-- ComfyUI 执行链路细节
-- `test_run` 测试接口
+1. 前端应该调用哪个接口
+2. 这个接口需要传哪些字段
+3. 返回值里哪些字段最重要
+4. 哪些接口之间需要串起来使用
 
 ---
 
@@ -31,50 +33,49 @@
 http://127.0.0.1:8000
 ```
 
-Swagger 文档地址：
+Swagger UI 地址：
 
 ```text
 http://127.0.0.1:8000/docs
 ```
 
-所有数据库相关接口的统一前缀为：
+所有业务接口统一前缀：
 
 ```text
 http://127.0.0.1:8000/api/v1
 ```
 
-### 2. 当前阶段没有接入鉴权
+### 2. 当前没有接入鉴权
 
-当前后端接口**没有接入 JWT / Session 鉴权**。
+当前阶段后端接口没有接入 JWT / Session。
 
 这意味着：
 
-- 前端需要在请求体中显式传 `user_id`
-- 不需要额外加 `Authorization` 头
+- 前端需要在请求里显式传 `user_id`
+- 目前不需要传 `Authorization`
 
-后续如果接入鉴权，这一部分会调整。
+后续如果接入鉴权，这部分约定会再调整。
 
-### 3. 两类 ID 的区别
+### 3. ID 类型一定要分清
 
-前端调用时请特别注意 ID 类型：
+项目里同时存在整数主键和 UUID 主键。
 
-- 用户、社区、透镜市场相关主键：`int`
-- 资产树相关主键：`string(UUID)`
-- 运行时 Lens 注册表中的 `lens_id`：`string`
+- 用户、社区、市场、聊天：大多使用 `int`
+- 资产树、编辑会话：大量使用 `string(UUID)`
+- 运行时 Lens 注册表的 `lens_id`：使用 `string`
 
-例如：
+示例：
 
-- 用户 `user_id = 1`
-- 帖子 `post_id = 3`
-- 市场透镜 `lens_id = 2`
-- 资产树节点 `node_id = "550e8400-e29b-41d4-a716-446655440000"`
-- 运行时 Lens `lens_id = "lens_inpaint_bg"`
-
-其中“市场透镜 ID”和“运行时 Lens ID”不是同一个概念，不要混用。
+- `user_id = 1`
+- `post_id = 3`
+- `market lens_id = 2`
+- `node_id = "550e8400-e29b-41d4-a716-446655440000"`
+- `session_id = "c2c80b2e-b0bd-4d0a-b97b-4d0dd9f8eab7"`
+- `runtime lens_id = "lens_inpaint_bg"`
 
 ### 4. 错误返回格式
 
-当前错误返回遵循 FastAPI 默认格式：
+当前错误返回遵循 FastAPI 默认结构：
 
 ```json
 {
@@ -82,23 +83,22 @@ http://127.0.0.1:8000/api/v1
 }
 ```
 
-前端应统一读取：
+前端统一读取：
 
-- `status code`
+- HTTP 状态码
 - `detail`
 
-### 5. DELETE 请求里有些接口需要带 JSON Body
+### 5. 有些 `DELETE` 请求需要带 JSON Body
 
-当前后端中，部分 `DELETE` 接口不是纯路径删除，而是需要附带请求体，例如：
+例如：
 
 - 取消关注
 - 取消帖子点赞
 - 取消帖子收藏
-- 取消评论点赞
 - 卸载透镜
 - 取消收藏透镜
 
-前端调用时不要默认认为 `DELETE` 不能带 body。
+前端不要假设 `DELETE` 一定没有请求体。
 
 ---
 
@@ -112,13 +112,11 @@ http://127.0.0.1:8000/api/v1
 
 ### 1. 注册用户
 
-接口：
-
 ```text
 POST /api/v1/users/register
 ```
 
-请求体：
+请求体示例：
 
 ```json
 {
@@ -130,41 +128,18 @@ POST /api/v1/users/register
 }
 ```
 
-成功返回：
+说明：
 
-```json
-{
-  "user_id": 1,
-  "username": "alice",
-  "email": "alice@example.com",
-  "nickname": "Alice",
-  "bio": "喜欢修图",
-  "avatar_url": null,
-  "banner_url": null,
-  "total_likes": 0,
-  "follower_count": 0,
-  "following_count": 0,
-  "member_level": "free",
-  "is_verified": false,
-  "created_at": "2026-03-28T20:00:00Z",
-  "updated_at": "2026-03-28T20:00:00Z"
-}
-```
-
-常见错误：
-
-- `409`：用户名已存在
-- `409`：邮箱已存在
+- `username` 和 `email` 需要唯一
+- `password` 当前为明文传入，后端内部处理
 
 ### 2. 用户登录
-
-接口：
 
 ```text
 POST /api/v1/users/login
 ```
 
-请求体：
+请求体示例：
 
 ```json
 {
@@ -173,61 +148,28 @@ POST /api/v1/users/login
 }
 ```
 
-成功返回：
+返回重点：
 
-```json
-{
-  "message": "登录成功",
-  "user": {
-    "user_id": 1,
-    "username": "alice",
-    "email": "alice@example.com",
-    "nickname": "Alice",
-    "bio": "喜欢修图",
-    "avatar_url": null,
-    "banner_url": null,
-    "total_likes": 0,
-    "follower_count": 0,
-    "following_count": 0,
-    "member_level": "free",
-    "is_verified": false,
-    "created_at": "2026-03-28T20:00:00Z",
-    "updated_at": "2026-03-28T20:00:00Z"
-  }
-}
-```
-
-常见错误：
-
-- `401`：用户名或密码错误
+- `message`
+- `user`
 
 ### 3. 获取用户详情
-
-接口：
 
 ```text
 GET /api/v1/users/{user_id}
 ```
 
-示例：
-
-```text
-GET /api/v1/users/1
-```
-
 ### 4. 更新用户资料
-
-接口：
 
 ```text
 PATCH /api/v1/users/{user_id}
 ```
 
-请求体字段均可选：
+可选字段示例：
 
 ```json
 {
-  "nickname": "新昵称",
+  "nickname": "新的昵称",
   "bio": "新的个人简介",
   "avatar_url": "https://example.com/avatar.png",
   "banner_url": "https://example.com/banner.png",
@@ -238,16 +180,14 @@ PATCH /api/v1/users/{user_id}
 
 ### 5. 关注用户
 
-接口：
-
 ```text
 POST /api/v1/users/{user_id}/follow
 ```
 
 说明：
 
-- 路径中的 `user_id` 是“被关注的人”
-- 请求体中的 `follower_id` 是“发起关注的人”
+- 路径里的 `user_id` 是被关注的人
+- 请求体里的 `follower_id` 是发起关注的人
 
 请求体：
 
@@ -258,8 +198,6 @@ POST /api/v1/users/{user_id}/follow
 ```
 
 ### 6. 取消关注
-
-接口：
 
 ```text
 DELETE /api/v1/users/{user_id}/follow
@@ -275,23 +213,15 @@ DELETE /api/v1/users/{user_id}/follow
 
 ### 7. 获取粉丝列表
 
-接口：
-
 ```text
 GET /api/v1/users/{user_id}/followers
 ```
 
-返回结构为 `UserSummary[]`。
-
 ### 8. 获取关注列表
-
-接口：
 
 ```text
 GET /api/v1/users/{user_id}/following
 ```
-
-返回结构为 `UserSummary[]`。
 
 ---
 
@@ -305,13 +235,11 @@ GET /api/v1/users/{user_id}/following
 
 ### 1. 创建帖子
 
-接口：
-
 ```text
 POST /api/v1/community/posts
 ```
 
-请求体：
+请求体示例：
 
 ```json
 {
@@ -335,23 +263,16 @@ POST /api/v1/community/posts
 
 说明：
 
-- `tag_names` 可以带 `#`，后端会自动去掉前缀并去重
-- `asset_node_id` 可选；如果帖子图片来自资产树，可以把节点 ID 传上来
-
-成功返回：
-
-- `PostOut`
-- 内含 `images[]` 与 `tags[]`
+- `tag_names` 可以带 `#`，后端会自动清洗
+- 如果帖子图片来自资产树，可以在图片对象里带 `asset_node_id`
 
 ### 2. 列出帖子
-
-接口：
 
 ```text
 GET /api/v1/community/posts
 ```
 
-可选查询参数：
+支持查询参数：
 
 - `user_id`
 - `tag_name`
@@ -367,25 +288,21 @@ GET /api/v1/community/posts?only_public=true
 
 ### 3. 获取帖子详情
 
-接口：
-
 ```text
 GET /api/v1/community/posts/{post_id}
 ```
 
 说明：
 
-- 每次获取详情时，后端会自动将 `view_count + 1`
+- 每次读取详情时，后端会自动增加 `view_count`
 
 ### 4. 发表评论
-
-接口：
 
 ```text
 POST /api/v1/community/posts/{post_id}/comments
 ```
 
-一级评论请求体：
+一级评论：
 
 ```json
 {
@@ -394,55 +311,27 @@ POST /api/v1/community/posts/{post_id}/comments
 }
 ```
 
-二级评论请求体：
+二级评论：
 
 ```json
 {
   "user_id": 1,
-  "content": "回复评论",
+  "content": "回复这条评论",
   "parent_id": 10
 }
 ```
 
-当前限制：
+说明：
 
-- 只支持两层评论
-- 不能继续回复二级评论
+- 当前只支持两层评论
 
 ### 5. 获取评论列表
-
-接口：
 
 ```text
 GET /api/v1/community/posts/{post_id}/comments
 ```
 
-返回：
-
-```json
-{
-  "post_id": 1,
-  "comments": [
-    {
-      "comment_id": 1,
-      "post_id": 1,
-      "user_id": 2,
-      "parent_id": null,
-      "root_id": null,
-      "content": "一级评论",
-      "like_count": 0,
-      "reply_count": 1,
-      "level": 1,
-      "created_at": "...",
-      "updated_at": "..."
-    }
-  ]
-}
-```
-
 ### 6. 点赞帖子
-
-接口：
 
 ```text
 POST /api/v1/community/posts/{post_id}/like
@@ -458,93 +347,39 @@ POST /api/v1/community/posts/{post_id}/like
 
 ### 7. 取消帖子点赞
 
-接口：
-
 ```text
 DELETE /api/v1/community/posts/{post_id}/like
 ```
 
-请求体：
-
-```json
-{
-  "user_id": 2
-}
-```
-
 ### 8. 收藏帖子
-
-接口：
 
 ```text
 POST /api/v1/community/posts/{post_id}/favorite
 ```
 
-请求体：
-
-```json
-{
-  "user_id": 2
-}
-```
-
 ### 9. 取消收藏帖子
-
-接口：
 
 ```text
 DELETE /api/v1/community/posts/{post_id}/favorite
 ```
 
-请求体：
-
-```json
-{
-  "user_id": 2
-}
-```
-
 ### 10. 点赞评论
-
-接口：
 
 ```text
 POST /api/v1/community/comments/{comment_id}/like
 ```
 
-请求体：
-
-```json
-{
-  "user_id": 1
-}
-```
-
 ### 11. 取消评论点赞
-
-接口：
 
 ```text
 DELETE /api/v1/community/comments/{comment_id}/like
 ```
 
-请求体：
-
-```json
-{
-  "user_id": 1
-}
-```
-
 ### 12. 获取标签列表
-
-接口：
 
 ```text
 GET /api/v1/community/tags
 ```
-
-返回为 `TagOut[]`，按热度和名称排序。
 
 ---
 
@@ -558,18 +393,16 @@ GET /api/v1/community/tags
 
 ### 1. 创建市场透镜
 
-接口：
-
 ```text
 POST /api/v1/market/lenses
 ```
 
-请求体：
+请求体示例：
 
 ```json
 {
   "lens_key": "lens_market_portrait_v1",
-  "name": "人像柔光镜",
+  "name": "人像柔光",
   "description": "适合人像氛围增强",
   "author_id": 1,
   "category": "portrait",
@@ -581,70 +414,46 @@ POST /api/v1/market/lenses
 
 说明：
 
-- `lens_key` 是市场透镜唯一键
-- `author_id` 为用户表中的整数 ID
+- `lens_key` 是市场透镜的业务唯一键
+- 这里的 `lens_id` 是市场表里的整数主键，不是运行时 Lens 的 `lens_id`
 
 ### 2. 更新市场透镜
-
-接口：
 
 ```text
 PATCH /api/v1/market/lenses/{lens_id}
 ```
 
-请求体字段均可选，例如：
-
-```json
-{
-  "name": "人像柔光镜 Pro",
-  "price": "12.50"
-}
-```
-
 ### 3. 列出市场透镜
-
-接口：
 
 ```text
 GET /api/v1/market/lenses
 ```
 
-可选查询参数：
+支持查询参数：
 
 - `category`
 - `status`
 - `is_official`
 
-示例：
-
-```text
-GET /api/v1/market/lenses?category=portrait
-GET /api/v1/market/lenses?is_official=true
-```
-
 ### 4. 获取透镜详情
-
-接口：
 
 ```text
 GET /api/v1/market/lenses/{lens_id}
 ```
 
-返回结构：
+返回通常包含：
 
-- 市场透镜基础信息
-- `versions[]`
-- `reviews[]`
+- 透镜基本信息
+- `versions`
+- `reviews`
 
 ### 5. 创建透镜版本
-
-接口：
 
 ```text
 POST /api/v1/market/lenses/{lens_id}/versions
 ```
 
-请求体：
+请求体示例：
 
 ```json
 {
@@ -667,8 +476,6 @@ POST /api/v1/market/lenses/{lens_id}/versions
 
 ### 6. 安装透镜
 
-接口：
-
 ```text
 POST /api/v1/market/lenses/{lens_id}/install
 ```
@@ -685,59 +492,27 @@ POST /api/v1/market/lenses/{lens_id}/install
 说明：
 
 - `version_id` 可选
-- 如果不传，后端会优先安装 `is_latest=true` 的版本
+- 不传时后端会优先安装 `is_latest=true` 的版本
 
 ### 7. 卸载透镜
-
-接口：
 
 ```text
 DELETE /api/v1/market/lenses/{lens_id}/install
 ```
 
-请求体：
-
-```json
-{
-  "user_id": 2
-}
-```
-
 ### 8. 收藏透镜
-
-接口：
 
 ```text
 POST /api/v1/market/lenses/{lens_id}/favorite
 ```
 
-请求体：
-
-```json
-{
-  "user_id": 2
-}
-```
-
 ### 9. 取消收藏透镜
-
-接口：
 
 ```text
 DELETE /api/v1/market/lenses/{lens_id}/favorite
 ```
 
-请求体：
-
-```json
-{
-  "user_id": 2
-}
-```
-
 ### 10. 创建或更新评价
-
-接口：
 
 ```text
 POST /api/v1/market/lenses/{lens_id}/reviews
@@ -755,20 +530,15 @@ POST /api/v1/market/lenses/{lens_id}/reviews
 
 说明：
 
-- 同一个用户对同一个市场透镜只有一条评价
-- 再次调用会更新原评价
+- 同一用户对同一透镜只保留一条评价
 
 ### 11. 获取用户已安装透镜
-
-接口：
 
 ```text
 GET /api/v1/market/users/{user_id}/installed
 ```
 
 ### 12. 获取用户收藏透镜
-
-接口：
 
 ```text
 GET /api/v1/market/users/{user_id}/favorites
@@ -787,12 +557,10 @@ GET /api/v1/market/users/{user_id}/favorites
 ### 1. 业务前置条件
 
 - 当前只支持一对一私聊
-- 只有互相关注的双方才能创建私聊会话
-- 如果历史会话已经存在，但双方后来不再互关，则仍可读取历史消息，但发送新消息会被拒绝
+- 只有互相关注的双方才能新建私聊
+- 如果历史会话已经存在，即使后来不再互关，也可以读取历史，但不能继续发送新消息
 
 ### 2. 获取可私聊好友列表
-
-接口：
 
 ```text
 GET /api/v1/chat/friends/{user_id}
@@ -800,28 +568,10 @@ GET /api/v1/chat/friends/{user_id}
 
 说明：
 
-- 返回当前用户“互相关注”的好友列表
-- 如果和某个好友已经建立过私聊，会额外返回 `conversation_id`
-
-返回示例：
-
-```json
-[
-  {
-    "user_id": 2,
-    "username": "bob",
-    "nickname": "Bob",
-    "avatar_url": "https://example.com/bob.png",
-    "is_verified": false,
-    "conversation_id": 12,
-    "last_message_at": "2026-03-30T12:00:00Z"
-  }
-]
-```
+- 返回当前用户所有“互相关注”的好友
+- 如果和某个好友已经有会话，会额外返回 `conversation_id`
 
 ### 3. 创建或打开好友私聊
-
-接口：
 
 ```text
 POST /api/v1/chat/conversations/direct
@@ -836,72 +586,30 @@ POST /api/v1/chat/conversations/direct
 }
 ```
 
-说明：
+返回重点：
 
-- 如果双方第一次私聊，会创建新会话，返回 `created=true`
-- 如果历史会话已存在，则直接返回原会话，`created=false`
+- `created`
+- `conversation`
 
-成功返回：
-
-```json
-{
-  "created": true,
-  "conversation": {
-    "conversation_id": 12,
-    "participant_user_ids": [1, 2],
-    "peer_user": {
-      "user_id": 2,
-      "username": "bob",
-      "nickname": "Bob",
-      "avatar_url": null,
-      "is_verified": false
-    },
-    "last_message": null,
-    "last_message_at": null,
-    "unread_count": 0,
-    "created_at": "2026-03-30T12:00:00Z",
-    "updated_at": "2026-03-30T12:00:00Z"
-  }
-}
-```
-
-常见错误：
-
-- `400`：双方未互相关注
-- `400`：不能给自己发起私聊
-- `404`：用户不存在
-
-### 4. 获取会话列表
-
-接口：
+### 4. 获取当前用户会话列表
 
 ```text
 GET /api/v1/chat/conversations?user_id=1
 ```
 
-说明：
+返回重点：
 
-- 返回当前用户参与的所有私聊会话
-- `peer_user` 是“对方用户”的摘要
-- `last_message` 是最后一条消息的预览
-- `unread_count` 是当前用户未读消息数
+- `peer_user`
+- `last_message`
+- `unread_count`
 
 ### 5. 获取会话详情
-
-接口：
 
 ```text
 GET /api/v1/chat/conversations/{conversation_id}?user_id=1
 ```
 
-说明：
-
-- 用于聊天页顶部加载会话摘要、对方用户信息、未读数
-- 只有会话参与者本人可以访问
-
 ### 6. 获取会话消息列表
-
-接口：
 
 ```text
 GET /api/v1/chat/conversations/{conversation_id}/messages
@@ -909,63 +617,24 @@ GET /api/v1/chat/conversations/{conversation_id}/messages
 
 查询参数：
 
-- `user_id`：当前用户 ID，必传
-- `limit`：单次拉取消息数，默认 `50`，最大 `100`
-- `before_message_id`：向上翻页时传入，只获取比它更早的消息
+- `user_id`：必传
+- `limit`：默认 `50`
+- `before_message_id`：做向上翻页时使用
 
-示例：
-
-```text
-GET /api/v1/chat/conversations/12/messages?user_id=1&limit=20
-GET /api/v1/chat/conversations/12/messages?user_id=1&limit=20&before_message_id=88
-```
-
-返回示例：
-
-```json
-{
-  "conversation_id": 12,
-  "messages": [
-    {
-      "message_id": 101,
-      "conversation_id": 12,
-      "sender_id": 1,
-      "message_type": "text",
-      "content": "你好",
-      "share": null,
-      "created_at": "2026-03-30T12:01:00Z"
-    }
-  ],
-  "has_more": false
-}
-```
-
-### 7. 发送纯文本消息
-
-接口：
+### 7. 发送文本消息
 
 ```text
 POST /api/v1/chat/conversations/{conversation_id}/messages
 ```
-
-请求体：
 
 ```json
 {
   "sender_id": 1,
-  "content": "你好，这是一条纯文本消息"
+  "content": "你好，这里先发一条文本消息"
 }
 ```
 
-### 8. 发送帖子分享消息
-
-接口：
-
-```text
-POST /api/v1/chat/conversations/{conversation_id}/messages
-```
-
-请求体：
+### 8. 分享帖子
 
 ```json
 {
@@ -978,21 +647,9 @@ POST /api/v1/chat/conversations/{conversation_id}/messages
 }
 ```
 
-说明：
+### 9. 分享预设
 
-- `content` 可选，可以只发分享卡片不带文字
-- 帖子分享会在消息里自动生成卡片快照
-- 如果帖子是私密帖，当前只允许作者本人分享
-
-### 9. 发送预设分享消息
-
-接口：
-
-```text
-POST /api/v1/chat/conversations/{conversation_id}/messages
-```
-
-方式一：分享透镜市场预设
+分享市场预设：
 
 ```json
 {
@@ -1005,7 +662,7 @@ POST /api/v1/chat/conversations/{conversation_id}/messages
 }
 ```
 
-方式二：分享资产树节点预设
+分享资产树节点预设：
 
 ```json
 {
@@ -1020,18 +677,14 @@ POST /api/v1/chat/conversations/{conversation_id}/messages
 
 说明：
 
-- `share_type=preset` 时，`market_lens_id` 和 `asset_node_id` 二选一，且只能传一个
-- 后端会把预设信息转成统一的分享卡片结构，前端不需要再额外拼字段
+- `share_type=preset` 时，`market_lens_id` 和 `asset_node_id` 二选一
+- 后端会把分享内容转成统一卡片结构，前端优先直接渲染 `share`
 
 ### 10. 标记会话已读
-
-接口：
 
 ```text
 POST /api/v1/chat/conversations/{conversation_id}/read
 ```
-
-请求体：
 
 ```json
 {
@@ -1040,32 +693,19 @@ POST /api/v1/chat/conversations/{conversation_id}/read
 }
 ```
 
-说明：
-
-- `last_read_message_id` 可选
-- 如果不传，默认会把该会话当前最新消息标记为已读
-
-### 11. 聊天消息结构说明
-
-聊天消息里的几个关键字段：
+### 11. 聊天消息的关键字段
 
 - `message_type`
-  - `text`：纯文本消息
-  - `share`：纯分享消息
-  - `text_share`：文字 + 分享卡片
+  - `text`
+  - `share`
+  - `text_share`
 - `share.share_type`
-  - `post`：帖子分享
-  - `preset`：预设分享
+  - `post`
+  - `preset`
 - `share.share_source_type`
-  - `community_post`：来自社区帖子
-  - `market_lens`：来自透镜市场预设
-  - `asset_node`：来自资产树节点预设
-
-前端渲染时建议优先判断：
-
-1. `share` 是否为 `null`
-2. 若不为 `null`，根据 `share_type` 决定渲染“帖子卡片”还是“预设卡片”
-3. 再根据 `share_source_type` 补充跳转逻辑
+  - `community_post`
+  - `market_lens`
+  - `asset_node`
 
 ---
 
@@ -1077,17 +717,11 @@ POST /api/v1/chat/conversations/{conversation_id}/read
 /api/v1/asset-tree
 ```
 
-这部分主要服务于“编辑器项目、历史版本树、分支管理”。
-
 ### 1. 创建项目
-
-接口：
 
 ```text
 POST /api/v1/asset-tree/projects
 ```
-
-请求体：
 
 ```json
 {
@@ -1098,51 +732,27 @@ POST /api/v1/asset-tree/projects
 
 ### 2. 获取项目列表
 
-接口：
-
 ```text
 GET /api/v1/asset-tree/projects
 ```
 
 ### 3. 获取项目详情
 
-接口：
-
 ```text
 GET /api/v1/asset-tree/projects/{project_id}
 ```
 
-注意：
-
-- `project_id` 是 UUID 字符串
-
 ### 4. 更新项目信息
-
-接口：
 
 ```text
 PATCH /api/v1/asset-tree/projects/{project_id}
 ```
 
-请求体字段可选：
-
-```json
-{
-  "name": "新项目名",
-  "description": "新的描述",
-  "cover_url": "https://example.com/cover.png"
-}
-```
-
 ### 5. 切换当前节点
-
-接口：
 
 ```text
 POST /api/v1/asset-tree/projects/{project_id}/current-node
 ```
-
-请求体：
 
 ```json
 {
@@ -1152,45 +762,27 @@ POST /api/v1/asset-tree/projects/{project_id}/current-node
 
 ### 6. 删除项目
 
-接口：
-
 ```text
 DELETE /api/v1/asset-tree/projects/{project_id}
 ```
 
 ### 7. 获取完整树结构
 
-接口：
-
 ```text
 GET /api/v1/asset-tree/projects/{project_id}/tree
 ```
 
-这个接口是编辑器历史树渲染的核心接口。
-
-返回：
+返回核心：
 
 - `project`
-- `nodes[]`
-- `edges[]`
-
-前端可以直接根据：
-
-- `nodes[].node_id`
-- `edges[].source_node_id`
-- `edges[].target_node_id`
-
-构建树形图或 DAG 视图。
+- `nodes`
+- `edges`
 
 ### 8. 添加根节点
-
-接口：
 
 ```text
 POST /api/v1/asset-tree/projects/{project_id}/root-node
 ```
-
-请求体：
 
 ```json
 {
@@ -1209,21 +801,19 @@ POST /api/v1/asset-tree/projects/{project_id}/root-node
 说明：
 
 - 每个项目只能有一个根节点
-- 前端/调用方应先完成图片上传，再把 URL 传给后端
 
 ### 9. 创建子节点
-
-接口：
 
 ```text
 POST /api/v1/asset-tree/projects/{project_id}/nodes
 ```
 
-请求体：
+请求体示例：
 
 ```json
 {
   "parent_node_id": "550e8400-e29b-41d4-a716-446655440000",
+  "episode_id": 12,
   "image_url": "s3://bucket/result.png",
   "thumbnail_url": "s3://bucket/result_thumb.png",
   "width": 1024,
@@ -1251,9 +841,13 @@ POST /api/v1/asset-tree/projects/{project_id}/nodes
 }
 ```
 
-### 10. 获取节点详情
+说明：
 
-接口：
+- `episode_id` 为可选字段
+- 不传 `episode_id`：行为与旧版一致，只创建资产树节点
+- 传 `episode_id`：后端会自动把新节点绑定为对应编辑片段的 `target_node_id`
+
+### 10. 获取节点详情
 
 ```text
 GET /api/v1/asset-tree/nodes/{node_id}
@@ -1261,13 +855,9 @@ GET /api/v1/asset-tree/nodes/{node_id}
 
 ### 11. 更新节点状态
 
-接口：
-
 ```text
 PATCH /api/v1/asset-tree/nodes/{node_id}/status
 ```
-
-请求体：
 
 ```json
 {
@@ -1278,40 +868,19 @@ PATCH /api/v1/asset-tree/nodes/{node_id}/status
 }
 ```
 
-这个接口主要用于：
-
-- 先创建一个 `generating` 节点
-- 后续异步任务完成后回填结果
-
 ### 12. 获取祖先路径
-
-接口：
 
 ```text
 GET /api/v1/asset-tree/nodes/{node_id}/ancestors
 ```
 
-返回：
-
-- `ancestors[]`
-- `path_edges[]`
-
-前端可用于：
-
-- 面包屑
-- 当前版本来源链路展示
-
-### 13. 获取后代节点
-
-接口：
+### 13. 获取所有后代节点
 
 ```text
 GET /api/v1/asset-tree/nodes/{node_id}/descendants
 ```
 
 ### 14. 删除节点
-
-接口：
 
 ```text
 DELETE /api/v1/asset-tree/nodes/{node_id}?cascade=false
@@ -1320,31 +889,19 @@ DELETE /api/v1/asset-tree/nodes/{node_id}?cascade=false
 说明：
 
 - `cascade=false`：只能删叶子节点
-- `cascade=true`：删除整个子树
+- `cascade=true`：删除整棵子树
 
-### 15. 比较两个节点
-
-接口：
+### 15. 对比两个节点
 
 ```text
 GET /api/v1/asset-tree/nodes/compare?nodeA={node_id}&nodeB={node_id}
 ```
 
-返回：
-
-- `node_a`
-- `node_b`
-- `edge`（如果两者存在直接边）
-
 ### 16. 添加节点标签
-
-接口：
 
 ```text
 POST /api/v1/asset-tree/nodes/{node_id}/tags
 ```
-
-请求体：
 
 ```json
 {
@@ -1355,15 +912,11 @@ POST /api/v1/asset-tree/nodes/{node_id}/tags
 
 ### 17. 获取节点标签
 
-接口：
-
 ```text
 GET /api/v1/asset-tree/nodes/{node_id}/tags
 ```
 
 ### 18. 删除节点标签
-
-接口：
 
 ```text
 DELETE /api/v1/asset-tree/tags/{tag_id}
@@ -1371,7 +924,216 @@ DELETE /api/v1/asset-tree/tags/{tag_id}
 
 ---
 
-## 八、运行时 Lens 注册表接口
+## 八、编辑会话 / 编辑片段树接口
+
+统一前缀：
+
+```text
+/api/v1/editor-sessions
+```
+
+这一组接口是本次新增能力，目标是把“修图会话历史”结构化保存下来，并和资产树结果节点建立双向关联。
+
+### 1. 核心关系
+
+- `editor_sessions.base_node_id`：会话起点资产节点
+- `editor_episodes.source_node_id`：本轮编辑起点节点
+- `editor_episodes.target_node_id`：本轮编辑结果节点
+
+前端可以把这组接口理解成两件事：
+
+- 片段树：用于展示每一轮意图、计划和分支
+- 资产联动：用于把每轮对话和某个图片结果绑定起来
+
+### 2. 创建编辑会话
+
+```text
+POST /api/v1/editor-sessions/projects/{project_id}/sessions
+```
+
+请求体：
+
+```json
+{
+  "title": "夜景精修会话",
+  "description": "记录一次从原图到最终图的推演过程",
+  "base_node_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+说明：
+
+- `base_node_id` 可选
+- 不传时后端优先使用项目当前节点，否则使用根节点
+
+### 3. 获取项目下的编辑会话列表
+
+```text
+GET /api/v1/editor-sessions/projects/{project_id}/sessions
+```
+
+### 4. 获取单个编辑会话详情
+
+```text
+GET /api/v1/editor-sessions/sessions/{session_id}
+```
+
+返回重点字段：
+
+- `base_node_id`
+- `current_episode_id`
+- `episode_count`
+- `branch_count`
+- `base_node`
+
+### 5. 创建编辑片段
+
+```text
+POST /api/v1/editor-sessions/sessions/{session_id}/episodes
+```
+
+请求体示例：
+
+```json
+{
+  "parent_episode_id": null,
+  "source_node_id": "550e8400-e29b-41d4-a716-446655440000",
+  "title": "压高光",
+  "branch_name": "主线",
+  "user_intent": "把天空高光压下来一点",
+  "assistant_plan": "降低高光并保留云层边缘层次",
+  "action_summary": "准备开始一轮高光恢复",
+  "tags": ["高光", "天空"],
+  "action_items": ["降低高光", "保留层次"],
+  "tool_snapshot": {
+    "tool": "highlight_recovery",
+    "strength": 0.4
+  },
+  "metadata": {
+    "scene": "night_city"
+  },
+  "status": "draft"
+}
+```
+
+说明：
+
+- `parent_episode_id` 可选，用来形成分支
+- `source_node_id` 可选
+- `user_intent` 和 `assistant_plan` 不能同时为空
+- `status` 可选值：`draft`、`completed`、`archived`
+
+后端自动行为：
+
+- 自动补 `round_index`
+- 自动生成两条初始消息：
+  - `intent`
+  - `plan`
+- 自动刷新会话计数
+
+### 6. 获取编辑片段树
+
+```text
+GET /api/v1/editor-sessions/sessions/{session_id}/tree
+```
+
+返回结构：
+
+- `session`
+- `episodes`
+- `edges`
+
+前端渲染片段树时主要使用：
+
+- `episode_id`
+- `parent_episode_id`
+- `branch_name`
+- `message_preview`
+
+### 7. 获取单个编辑片段详情
+
+```text
+GET /api/v1/editor-sessions/episodes/{episode_id}
+```
+
+返回内容包含：
+
+- `session`
+- `episode`
+- `parent_episode`
+- `child_episodes`
+- `messages`
+
+这是前端打开“本轮修图详情侧栏”时最推荐优先调用的接口。
+
+### 8. 给编辑片段追加消息
+
+```text
+POST /api/v1/editor-sessions/episodes/{episode_id}/messages
+```
+
+请求体：
+
+```json
+{
+  "role": "assistant",
+  "message_kind": "note",
+  "content": "这一支建议保留更多暖色氛围。",
+  "payload": null
+}
+```
+
+可选值：
+
+- `role`：`user`、`assistant`、`system`
+- `message_kind`：`intent`、`plan`、`decision`、`note`、`system_event`
+
+### 9. 手动绑定结果节点
+
+```text
+POST /api/v1/editor-sessions/episodes/{episode_id}/bind-target
+```
+
+```json
+{
+  "target_node_id": "2ef0f526-7b38-4bd8-9fd7-1b6f03f1d499",
+  "source_node_id": "550e8400-e29b-41d4-a716-446655440000",
+  "action_summary": "高光恢复完成",
+  "status": "completed"
+}
+```
+
+说明：
+
+- 适合“节点已经创建好了，后面再补绑片段”的场景
+
+### 10. 通过结果节点反查片段
+
+```text
+GET /api/v1/editor-sessions/episodes/by-node/{node_id}?session_id={session_id}
+```
+
+说明：
+
+- 适合前端用户从资产树里点到某张结果图后，反查它是哪轮对话生成的
+
+### 11. 最推荐的联动方式
+
+不是先创建资产节点、再手动调两三个接口去拼状态，而是：
+
+1. 创建编辑会话
+2. 创建编辑片段
+3. 结果图生成完成后，调用资产树 `create child node`
+4. 在创建子节点的请求体里同时传 `episode_id`
+5. 后端自动完成：
+   - 资产树落节点
+   - 编辑片段绑定 `target_node_id`
+
+这样前端最省事，也最不容易写出脏状态。
+
+---
+
+## 九、运行时 Lens 注册表接口
 
 统一前缀：
 
@@ -1379,72 +1141,18 @@ DELETE /api/v1/asset-tree/tags/{tag_id}
 /api/v1/lenses
 ```
 
-这组接口主要服务于“后端运行时能力注册表”，而不是市场透镜。
+说明：
 
-前端如果只是做市场页，一般不直接调用这组接口；  
-如果要做“开发者透镜管理台”或“内部透镜配置页”，则会用到。
+- 这一组接口服务的是“后端运行时可编排能力”
+- 它不是市场透镜
 
 ### 1. 注册运行时 Lens
-
-接口：
 
 ```text
 POST /api/v1/lenses/register
 ```
 
-请求体示例：
-
-```json
-{
-  "lens_id": "lens_inpaint_bg",
-  "layer": "A2",
-  "description": "局部重绘",
-  "workflow_file_path": "lens_inpaint_bg.json",
-  "inputs": [
-    {
-      "name": "base_image",
-      "type": "image",
-      "mapping": {
-        "node_id": "1",
-        "field_name": "image"
-      }
-    }
-  ],
-  "outputs": [
-    {
-      "name": "result_image",
-      "type": "image",
-      "mapping": {
-        "node_id": "11",
-        "field_name": "images"
-      }
-    }
-  ],
-  "params": [
-    {
-      "name": "positive_prompt",
-      "type": "text",
-      "description": "描述重绘内容",
-      "mapping": {
-        "node_id": "8",
-        "field_name": "text"
-      }
-    }
-  ],
-  "examples": [
-    {
-      "nl_desc": "把背景换成海边黄昏",
-      "params_example": {
-        "positive_prompt": "beach sunset"
-      }
-    }
-  ]
-}
-```
-
 ### 2. 获取运行时 Lens 列表
-
-接口：
 
 ```text
 GET /api/v1/lenses/
@@ -1452,20 +1160,11 @@ GET /api/v1/lenses/
 
 ### 3. 获取单个运行时 Lens 详情
 
-接口：
-
 ```text
 GET /api/v1/lenses/{lens_id}
 ```
 
-注意：
-
-- 这里的 `lens_id` 是字符串，例如 `lens_inpaint_bg`
-- 不是透镜市场的整数 `lens_id`
-
 ### 4. 删除运行时 Lens
-
-接口：
 
 ```text
 DELETE /api/v1/lenses/{lens_id}
@@ -1473,178 +1172,98 @@ DELETE /api/v1/lenses/{lens_id}
 
 ### 5. 重载运行时 Lens 注册表
 
-接口：
-
 ```text
 POST /api/v1/lenses/reload
 ```
 
-这个接口适合管理后台在“磁盘工作流有改动”后手动刷新注册表。
-
 ---
 
-## 九、推荐前端调用流程
+## 十、推荐联调顺序
 
-### 1. 用户与社区的基础流程
-
-推荐顺序：
-
-1. 注册或登录用户
-2. 缓存 `user_id`
-3. 发帖时把 `user_id` 带到请求体中
-4. 点赞、收藏、评论时同样显式传 `user_id`
-
-### 2. 透镜市场的基础流程
+### 1. 普通业务页面
 
 推荐顺序：
 
-1. 列表页调用 `GET /api/v1/market/lenses`
-2. 详情页调用 `GET /api/v1/market/lenses/{lens_id}`
-3. 安装时调用 `POST /install`
-4. 收藏时调用 `POST /favorite`
-5. 评价时调用 `POST /reviews`
+1. 用户注册 / 登录 / 获取用户详情
+2. 社区发帖 / 帖子列表 / 评论 / 点赞 / 收藏
+3. 双方互关后接聊天模块
+4. 市场透镜列表 / 详情 / 安装 / 收藏 / 评价
 
-### 3. 好友聊天与私聊分享流程
-
-推荐顺序：
-
-1. 先通过关注接口让双方成为互关关系
-2. 调用 `GET /api/v1/chat/friends/{user_id}` 获取可私聊好友
-3. 点击某个好友时，调用 `POST /api/v1/chat/conversations/direct`
-4. 聊天页进入后，调用 `GET /messages` 拉取历史消息
-5. 发送纯文本、帖子分享或预设分享时，统一调用 `POST /messages`
-6. 页面停留或退出前调用 `POST /read` 更新已读状态
-
-### 4. 编辑器项目与资产树流程
+### 2. 编辑器与资产树页面
 
 推荐顺序：
 
 1. 创建项目
-2. 上传原图后调用 `root-node`
-3. 每次生成结果后调用 `create child node`
-4. 历史树页面调用 `GET /tree`
-5. 点击旧节点时调用 `current-node`
-6. 需要回溯链路时调用 `ancestors`
-
-### 5. 内部 Lens 管理台流程
-
-推荐顺序：
-
-1. 查看运行时 Lens 列表
-2. 注册新 Lens
-3. 查看单个 Lens 详情
-4. 必要时删除或重载
+2. 上传原图后创建根节点
+3. 创建编辑会话
+4. 创建编辑片段
+5. 结果生成完成后创建资产树子节点，并带上 `episode_id`
+6. 拉取资产树
+7. 拉取编辑片段树
+8. 点击节点时通过 `by-node` 反查对应片段
 
 ---
 
-## 十、前端调用时的注意事项
+## 十一、前端调用时最容易踩坑的地方
 
-### 1. 市场透镜和运行时 Lens 是两套体系
+### 1. 不要混淆三种“透镜 ID”
 
-请前端不要把下面两者混为一谈：
+- 市场透镜的 `lens_id`：整数
+- 运行时 Lens 的 `lens_id`：字符串
+- 资产树边上的 `lens_id`：记录当时调用了哪个运行时 Lens
 
-- 市场透镜：`/api/v1/market/...`
-- 运行时 Lens 注册表：`/api/v1/lenses/...`
+### 2. 不要把 UUID 当整数
 
-简化理解：
+下面这些字段都要按字符串处理：
 
-- 市场透镜是“商品/内容”
-- 运行时 Lens 是“后端可编排能力”
+- `project_id`
+- `node_id`
+- `session_id`
 
-### 2. 当前很多接口都显式要求传 `user_id`
+### 3. 聊天私聊需要互关
 
-这是当前阶段的设计现实，不是 Bug。
+前端不要只看“我关注了对方”，就默认可以发私聊。
 
-前端请不要等待后端自动识别用户身份。
+### 4. 社区帖子详情会增加浏览数
 
-### 3. 好友聊天要求双方互关
+如果只是做静默刷新，要注意这一点。
 
-前端不要直接假设“关注了对方”就一定能发私信。
+### 5. 资产树和编辑片段树不是一棵树
 
-真正可私聊的条件是：
+建议前端实现成两个数据结构：
 
-- A 关注 B
-- B 也关注 A
+- 图像版本树
+- 编辑片段树
 
-建议聊天入口直接使用：
+二者通过：
 
-- `GET /api/v1/chat/friends/{user_id}`
+- `source_node_id`
+- `target_node_id`
 
-而不是自己在前端拼互关逻辑。
+进行联动。
 
-### 4. 聊天分享消息有统一卡片结构
+### 6. 最省事的方式是用 Swagger UI 对照联调
 
-无论分享的是帖子还是预设，后端都会返回统一的 `share` 对象。
+建议前端同学本地先打开：
 
-前端请不要再自行二次请求去拼“标题、封面、作者”这些基础字段，优先直接使用消息里的 `share` 快照渲染。
+```text
+http://127.0.0.1:8000/docs
+```
 
-### 5. 资产树模块大量使用 UUID 字符串
-
-前端在状态管理中不要把这些 ID 当整数处理。
-
-### 6. DELETE 请求有 body
-
-如果使用 `fetch`、`axios`、`Dio`，要确认：
-
-- DELETE 请求是否支持传 JSON body
-- 若不支持，需单独配置
-
-### 7. 帖子详情接口会增加浏览数
-
-前端如果只是静默刷新帖子内容，请注意它会增加 `view_count`。
+一边看这份文档，一边在 Swagger 里直接试参数和响应结构，联调效率会更高。
 
 ---
 
-## 十一、建议的前端封装方式
+## 十二、结语
 
-前端建议按模块封装 API：
+当前后端数据库相关接口已经覆盖了以下主要能力：
 
-- `userApi`
-- `communityApi`
-- `marketApi`
-- `chatApi`
-- `assetTreeApi`
-- `lensRegistryApi`
+- 用户基础资料与社交关系
+- 社区帖子、评论、点赞、收藏
+- 市场透镜、版本、安装、收藏、评价
+- 好友聊天与帖子 / 预设分享
+- 资产树版本管理
+- 编辑会话与资产树融合追踪
+- 运行时 Lens 注册表
 
-建议统一封装：
-
-- 基础 URL
-- 错误处理
-- JSON 序列化
-- DELETE 带 body 的特殊处理
-
----
-
-## 十二、建议的联调优先级
-
-如果前端要开始联调，推荐顺序如下：
-
-1. 用户注册 / 登录 / 获取用户详情
-2. 社区发帖 / 拉帖子列表 / 评论 / 点赞
-3. 好友互关 / 打开私聊 / 发文本消息 / 分享帖子或预设
-4. 透镜市场列表 / 详情 / 安装 / 收藏 / 评价
-5. 资产树项目创建 / 根节点 / 子节点 / 树结构展示
-6. 最后再考虑运行时 Lens 管理台
-
-这样可以先把用户可感知路径打通。
-
----
-
-## 十三、结论
-
-当前后端数据库相关 API 已经具备前端联调条件，前端开发时最重要的几件事是：
-
-- 明确区分整数 ID 与 UUID 字符串 ID
-- 明确区分市场透镜和运行时 Lens
-- 明确聊天功能要求双方互关
-- 当前阶段所有用户行为都要显式传 `user_id`
-- DELETE 请求里有些接口必须带 body
-
-如果前端严格按照本文档调用，当前后端接口已经足够支撑：
-
-- 用户页
-- 社区页
-- 好友聊天页
-- 透镜市场页
-- 编辑器历史树页
-- 内部透镜管理页
+如果前端严格按照本文档和 Swagger UI 一起联调，当前阶段已经可以把主要页面和核心业务链路打通。

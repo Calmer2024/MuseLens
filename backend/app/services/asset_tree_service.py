@@ -254,6 +254,7 @@ def create_child_node(
     task_id: Optional[str] = None,
     status: str = "completed",
     metadata: Optional[Dict[str, Any]] = None,
+    auto_commit: bool = True,
 ) -> Tuple[AssetNode, AssetEdge]:
     """
     从父节点生成子节点（核心操作）。
@@ -329,9 +330,12 @@ def create_child_node(
     if existing_children_count == 1:
         project.branch_count = (project.branch_count or 0) + 1
 
-    db.commit()
-    db.refresh(child_node)
-    db.refresh(edge)
+    if auto_commit:
+        db.commit()
+        db.refresh(child_node)
+        db.refresh(edge)
+    else:
+        db.flush()
     return child_node, edge
 
 
