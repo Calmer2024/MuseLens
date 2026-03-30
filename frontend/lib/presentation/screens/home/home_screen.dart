@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 // 引入刚刚写的炫彩流体卡片
 import '../../widgets/home/hero_create_card.dart';
 import '../../widgets/home/recipe_list_item.dart';
@@ -7,6 +8,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/navigation/slide_right_route.dart';
 import '../../../data/models/lens_template_mock.dart';
 import '../lens/lens_detail_screen.dart';
+import 'my_projects_screen.dart';
 import '../../widgets/shared/adaptive_media.dart';
 
 // --- 1. 临时 Mock 数据 ---
@@ -38,11 +40,11 @@ class OfficialChallengeItem {
   });
 }
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final recipes = RecipeMock.getRecentRecipes();
 
     // 官方 Lens 数据
@@ -140,6 +142,10 @@ class HomeScreen extends StatelessWidget {
 
               const SizedBox(height: 32),
 
+              const HomeProjectsSection(),
+
+              const SizedBox(height: 28),
+
               // --- 2. 最近使用 ---
               _buildSectionHeader(context, title: "最近使用", onTapViewAll: () {}),
               const SizedBox(height: 12),
@@ -226,7 +232,7 @@ class HomeScreen extends StatelessWidget {
                   "查看全部",
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.black.withOpacity(0.5),
+                    color: Colors.black.withValues(alpha: 0.5),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -234,7 +240,7 @@ class HomeScreen extends StatelessWidget {
                 Icon(
                   Icons.arrow_forward_ios,
                   size: 10,
-                  color: Colors.black.withOpacity(0.5),
+                  color: Colors.black.withValues(alpha: 0.5),
                 ),
               ],
             ),
@@ -257,7 +263,7 @@ class HomeScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -334,7 +340,7 @@ class HomeScreen extends StatelessWidget {
                       Text(
                         item.usageCount,
                         style: TextStyle(
-                          color: Colors.black.withOpacity(0.4),
+                          color: Colors.black.withValues(alpha: 0.4),
                           fontSize: 10,
                         ),
                       ),
@@ -367,7 +373,7 @@ class HomeScreen extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
-                colors: [Colors.black.withOpacity(0.7), Colors.transparent],
+                colors: [Colors.black.withValues(alpha: 0.7), Colors.transparent],
               ),
             ),
           ),
@@ -383,7 +389,7 @@ class HomeScreen extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryPurple.withOpacity(0.8),
+                    color: AppTheme.primaryPurple.withValues(alpha: 0.8),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: const Text(
@@ -410,7 +416,7 @@ class HomeScreen extends StatelessWidget {
                 Text(
                   "${item.description} · ${item.participants}",
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 12,
                   ),
                   maxLines: 1,
@@ -426,7 +432,7 @@ class HomeScreen extends StatelessWidget {
             child: Center(
               child: Icon(
                 Icons.arrow_forward_ios,
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
                 size: 16,
               ),
             ),

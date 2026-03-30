@@ -39,7 +39,7 @@ class _ImageHistoryTreeState extends State<ImageHistoryTree> {
       return const Center(
         child: Text(
           '这个项目还没有根节点',
-          style: TextStyle(color: Colors.black54),
+          style: TextStyle(color: Colors.white70),
         ),
       );
     }
@@ -270,7 +270,7 @@ class _TreeNodeCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.black.withValues(alpha: 0.86),
+                color: Colors.white.withValues(alpha: 0.94),
                 fontSize: 11,
                 fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
               ),
@@ -281,7 +281,7 @@ class _TreeNodeCard extends StatelessWidget {
                   ? '生成中'
                   : node.createdAt.toLocal().toString().substring(5, 16),
               style: TextStyle(
-                color: Colors.black.withValues(alpha: 0.42),
+                color: Colors.white.withValues(alpha: 0.52),
                 fontSize: 10,
               ),
             ),

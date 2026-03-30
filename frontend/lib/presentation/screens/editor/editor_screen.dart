@@ -8,12 +8,12 @@ import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 
+import '../../../core/providers/asset_tree_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/local_media_store.dart';
 import '../../../data/models/asset_tree_models.dart';
 import '../../../data/repositories/asset_tree_repository.dart';
 import '../../widgets/editor/asset_tree_node_sheet.dart';
-import '../../widgets/editor/chat_history_drawer.dart';
 import '../../widgets/editor/editor_canvas.dart';
 import '../../widgets/editor/editor_header.dart';
 import '../../widgets/editor/editor_tools_panel.dart';
@@ -46,15 +46,22 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   String? _displayedImagePath;
   String? _initialImagePath;
   String? _projectError;
+  Size? _currentImageSize;
 
   ToolType _activeTool = ToolType.templates;
   double _cropAspectRatio = -1;
   String _activeAdjustParam = '曝光';
   double _adjustValue = 0.0;
   String? _selectedLensId;
+  Rect _cropRect = const Rect.fromLTWH(0.12, 0.1, 0.76, 0.76);
 
   List<String> _appliedLensIds = <String>[];
   String? _activeHighlightId;
+  bool _hasPendingEdits = false;
+  String? _pendingLensId;
+  String? _pendingLensName;
+  String? _pendingPrompt;
+  String? _pendingTagLabel;
 
   AssetTreeProject? _project;
   AssetTreeProjectTree? _tree;
@@ -110,6 +117,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
         description: '编辑器项目',
       ),
     );
+    ref.invalidate(assetTreeProjectsProvider);
     final rootNode = await repository.addRootNode(
       projectId: project.projectId,
       input: payload,
@@ -117,32 +125,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
     _initialImagePath = storedPath;
     await _loadProject(project.projectId, preferredNodeId: rootNode.nodeId);
-  }
-
-  Future<void> _createProjectFromCurrentFrame() async {
-    final currentPath = _normalizeProjectImagePath(
-      _displayedImagePath ?? _initialImagePath,
-    );
-    if (currentPath == null) {
-      throw StateError('当前没有可保存的画面');
-    }
-
-    final repository = ref.read(assetTreeRepositoryProvider);
-    final project = await repository.createProject(
-      CreateAssetTreeProjectInput(
-        name: '${_project?.displayName ?? '编辑项目'} 副本',
-        description: '由当前画面保存',
-      ),
-    );
-    await repository.addRootNode(
-      projectId: project.projectId,
-      input: AssetTreeImagePayload(
-        imageUrl: currentPath,
-        thumbnailUrl: currentPath,
-        metadata: const {'source': 'duplicate'},
-      ),
-    );
-    await _loadProject(project.projectId);
   }
 
   Future<void> _loadProject(
@@ -160,16 +142,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
           tree.project.rootNodeId ??
           (tree.nodes.isNotEmpty ? tree.nodes.last.nodeId : null);
       final node = nodeId == null ? null : tree.nodeMap[nodeId];
+      final imagePath = _normalizeProjectImagePath(
+        node?.imageUrl ?? tree.project.coverUrl ?? _initialImagePath,
+      );
+      final imageSize = await _resolveImageSize(imagePath);
 
       if (!mounted) return;
       setState(() {
         _project = tree.project;
         _tree = tree;
         _currentNodeId = nodeId;
-        _displayedImagePath = _normalizeProjectImagePath(
-          node?.imageUrl ?? tree.project.coverUrl ?? _initialImagePath,
-        );
+        _displayedImagePath = imagePath;
+        _currentImageSize = imageSize;
         _projectError = null;
+        _clearPendingEdit();
+        _resetCropRect();
       });
 
       if (nodeId != null) {
@@ -207,66 +194,23 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     FocusScope.of(context).unfocus();
     if (prompt.isEmpty) return;
 
-    final project = _project;
-    final currentNodeId = _currentNodeId;
-    final currentPath = _normalizeProjectImagePath(
-      _displayedImagePath ?? _initialImagePath,
-    );
-    if (project == null || currentNodeId == null || currentPath == null) {
-      _showError(StateError('当前没有可编辑的画面'), '当前没有可编辑的画面');
-      return;
-    }
-
     setState(() {
-      _isGenerating = true;
       _promptController.clear();
       final lensId = _selectedLensId ?? 'ai_prompt';
       if (!_appliedLensIds.contains(lensId)) {
         _appliedLensIds = [..._appliedLensIds, lensId];
       }
       _activeHighlightId = lensId;
+      _hasPendingEdits = true;
+      _pendingLensId = lensId;
+      _pendingLensName = _selectedLensName();
+      _pendingPrompt = prompt;
+      _pendingTagLabel = _buildPromptTag(prompt);
     });
-
-    try {
-      final repository = ref.read(assetTreeRepositoryProvider);
-      final created = await repository.createChildNode(
-            projectId: project.projectId,
-            input: CreateAssetTreeChildNodeInput(
-              parentNodeId: currentNodeId,
-              imageUrl: currentPath,
-              thumbnailUrl: currentPath,
-              lensId: _selectedLensId ?? 'ai_prompt',
-              lensName: _selectedLensName(),
-              userPrompt: prompt,
-              parameters: {
-                'prompt': prompt,
-                'tool': _activeTool.name,
-              },
-              generationParams: {
-                'prompt': prompt,
-                'tool': _activeTool.name,
-                'adjust_value': _adjustValue,
-              },
-              metadata: const {'source': 'prompt_record'},
-              status: 'completed',
-            ),
-          );
-      await repository.addNodeTag(
-        nodeId: created.node.nodeId,
-        input: AddAssetTreeTagInput(label: _buildPromptTag(prompt)),
-      );
-      await _loadProject(project.projectId, preferredNodeId: created.node.nodeId);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('本次修图指令已记录到资产树')),
-      );
-    } catch (error) {
-      _showError(error, '记录修图指令失败');
-    } finally {
-      if (mounted) {
-        setState(() => _isGenerating = false);
-      }
-    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('指令已加入当前草稿，点击保存后写入版本树')),
+    );
   }
 
   Future<void> _handleSave() async {
@@ -280,24 +224,41 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
     try {
       final repository = ref.read(assetTreeRepositoryProvider);
+      final currentSize = await _resolveImageSize(currentPath);
+      final imageFileSize = isAdaptiveLocalFilePath(currentPath)
+          ? await File(normalizeAdaptiveFilePath(currentPath)).length()
+          : null;
       final created = await repository.createChildNode(
             projectId: project.projectId,
             input: CreateAssetTreeChildNodeInput(
               parentNodeId: currentNodeId,
               imageUrl: currentPath,
               thumbnailUrl: currentPath,
-              lensId: 'manual_save',
-              lensName: '手动存档',
-              userPrompt: '用户手动保存当前画面',
-              generationParams: const {'mode': 'manual_save'},
+              width: currentSize?.width.round(),
+              height: currentSize?.height.round(),
+              fileSize: imageFileSize,
+              format: _extractFormat(currentPath),
+              lensId: _pendingLensId ?? 'manual_save',
+              lensName: _pendingLensName ?? '手动存档',
+              userPrompt: _pendingPrompt ?? '用户手动保存当前画面',
+              generationParams: {
+                'mode': _hasPendingEdits ? 'pending_edit_save' : 'manual_save',
+                'tool': _pendingLensId ?? 'manual_save',
+                if (_adjustValue != 0) 'adjust_value': _adjustValue,
+              },
               status: 'completed',
-              metadata: const {'source': 'manual_save'},
+              metadata: {
+                'source': _hasPendingEdits ? 'draft_save' : 'manual_save',
+              },
             ),
           );
       await repository.addNodeTag(
         nodeId: created.node.nodeId,
-        input: const AddAssetTreeTagInput(label: '手动存档'),
+        input: AddAssetTreeTagInput(label: _pendingTagLabel ?? '手动存档'),
       );
+      ref.invalidate(assetTreeProjectsProvider);
+      ref.invalidate(assetTreeProjectDetailProvider(project.projectId));
+      ref.invalidate(assetTreeProjectTreeProvider(project.projectId));
       await _loadProject(project.projectId, preferredNodeId: created.node.nodeId);
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -306,32 +267,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     } catch (error) {
       _showError(error, '保存到资产树失败');
     }
-  }
-
-  Future<void> _applyCropPreset(double ratio) async {
-    setState(() => _cropAspectRatio = ratio);
-    await _applyImageTransform(
-      lensId: ratio == -1 ? 'free_crop' : 'crop_${ratio.toString().replaceAll('.', '_')}',
-      lensName: ratio == -1
-          ? '自由裁剪'
-          : ratio == 0
-              ? '原图比例'
-              : '比例裁剪',
-      tagLabel: ratio == -1
-          ? '自由裁剪'
-          : ratio == 0
-              ? '原图比例'
-              : _cropLabel(ratio),
-      userPrompt: ratio == -1
-          ? '自由裁剪'
-          : ratio == 0
-              ? '恢复为原图比例'
-              : '裁剪为 ${_cropLabel(ratio)}',
-      transformer: (source) {
-        final targetRatio = _resolveCropAspectRatio(ratio, source);
-        return _cropImageToRatio(source, targetRatio, freeCrop: ratio == -1);
-      },
-    );
   }
 
   Future<void> _applyMirror() async {
@@ -347,10 +282,35 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   Future<void> _applyFlip() async {
     await _applyImageTransform(
       lensId: 'flip_vertical',
-      lensName: '翻转',
-      tagLabel: '翻转',
-      userPrompt: '垂直翻转当前画面',
+      lensName: '纵向翻转',
+      tagLabel: '纵向翻转',
+      userPrompt: '按垂直方向翻转当前画面',
       transformer: (source) => img.flipVertical(source.clone()),
+    );
+  }
+
+  Future<void> _confirmCrop() async {
+    final ratio = _cropAspectRatio;
+    await _applyImageTransform(
+      lensId: ratio == -1 ? 'free_crop' : 'ratio_crop',
+      lensName: ratio == -1 ? '自由裁剪' : '比例裁剪',
+      tagLabel: ratio == -1 ? '自由裁剪' : _cropLabel(ratio),
+      userPrompt: ratio == -1 ? '自由裁剪当前画面' : '按 ${_cropLabel(ratio)} 裁剪当前画面',
+      transformer: (source) {
+        final rect = Rect.fromLTWH(
+          _cropRect.left * source.width,
+          _cropRect.top * source.height,
+          _cropRect.width * source.width,
+          _cropRect.height * source.height,
+        );
+        return img.copyCrop(
+          source,
+          x: rect.left.round(),
+          y: rect.top.round(),
+          width: rect.width.round().clamp(1, source.width),
+          height: rect.height.round().clamp(1, source.height),
+        );
+      },
     );
   }
 
@@ -361,12 +321,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     required String userPrompt,
     required img.Image Function(img.Image source) transformer,
   }) async {
-    final project = _project;
-    final currentNodeId = _currentNodeId;
     final currentPath = _normalizeProjectImagePath(
       _displayedImagePath ?? _initialImagePath,
     );
-    if (project == null || currentNodeId == null || currentPath == null) {
+    if (currentPath == null) {
       _showError(StateError('当前没有可编辑的画面'), '当前没有可编辑的画面');
       return;
     }
@@ -388,18 +346,22 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
         prefix: lensId,
         extension: '.png',
       );
-
-      await _createDerivedNode(
-        projectId: project.projectId,
-        parentNodeId: currentNodeId,
-        imagePath: savedPath,
-        width: transformed.width,
-        height: transformed.height,
-        fileSize: encoded.lengthInBytes,
-        lensId: lensId,
-        lensName: lensName,
-        userPrompt: userPrompt,
-        tagLabel: tagLabel,
+      if (!mounted) return;
+      setState(() {
+        _displayedImagePath = savedPath;
+        _currentImageSize = Size(
+          transformed.width.toDouble(),
+          transformed.height.toDouble(),
+        );
+        _hasPendingEdits = true;
+        _pendingLensId = lensId;
+        _pendingLensName = lensName;
+        _pendingPrompt = userPrompt;
+        _pendingTagLabel = tagLabel;
+        _resetCropRect();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$lensName 已应用到当前草稿')),
       );
     } catch (error) {
       _showError(error, '图片处理失败');
@@ -410,46 +372,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     }
   }
 
-  Future<void> _createDerivedNode({
-    required String projectId,
-    required String parentNodeId,
-    required String imagePath,
-    required int width,
-    required int height,
-    required int fileSize,
-    required String lensId,
-    required String lensName,
-    required String userPrompt,
-    required String tagLabel,
-  }) async {
-    final repository = ref.read(assetTreeRepositoryProvider);
-    final created = await repository.createChildNode(
-          projectId: projectId,
-          input: CreateAssetTreeChildNodeInput(
-            parentNodeId: parentNodeId,
-            imageUrl: imagePath,
-            thumbnailUrl: imagePath,
-            width: width,
-            height: height,
-            fileSize: fileSize,
-            format: 'png',
-            lensId: lensId,
-            lensName: lensName,
-            userPrompt: userPrompt,
-            generationParams: {
-              'tool': lensId,
-            },
-            metadata: const {'source': 'local_edit'},
-            status: 'completed',
-          ),
-        );
-    await repository.addNodeTag(
-      nodeId: created.node.nodeId,
-      input: AddAssetTreeTagInput(label: tagLabel),
-    );
-    await _loadProject(projectId, preferredNodeId: created.node.nodeId);
-  }
-
   Future<void> _selectNode(String nodeId) async {
     final project = _project;
     final tree = _tree;
@@ -457,9 +379,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     final node = tree.nodeMap[nodeId];
     if (node == null) return;
 
+    final imagePath = _normalizeProjectImagePath(node.imageUrl);
+    final imageSize = await _resolveImageSize(imagePath);
+
+    if (!mounted) return;
     setState(() {
       _currentNodeId = nodeId;
-      _displayedImagePath = _normalizeProjectImagePath(node.imageUrl);
+      _displayedImagePath = imagePath;
+      _currentImageSize = imageSize;
+      _clearPendingEdit();
+      _resetCropRect();
     });
     await _syncWorkflow(nodeId);
 
@@ -537,166 +466,105 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        return DefaultTabController(
-          length: 2,
-          child: FractionallySizedBox(
-            heightFactor: 0.88,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFF0A0A0E),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-              ),
-              child: Column(
-                children: [
-                  const SizedBox(height: 10),
-                  Container(
-                    width: 46,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
+        return FractionallySizedBox(
+          heightFactor: 0.88,
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Color(0xFF0A0A0E),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: 46,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(999),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 16, 10, 10),
-                    child: Row(
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 16, 10, 10),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          '资产树',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                        color: Colors.white70,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Column(
                       children: [
-                        const Expanded(
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF14141A),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.08),
+                            ),
+                          ),
                           child: Text(
-                            '资产树管理',
+                            '根节点始终是你上传的原图，只有点击保存后，当前草稿才会写入版本树。',
                             style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
+                              color: Colors.white.withValues(alpha: 0.68),
+                              fontSize: 13,
+                              height: 1.45,
                             ),
                           ),
                         ),
-                        IconButton(
-                          onPressed: () => Navigator.of(sheetContext).pop(),
-                          icon: const Icon(Icons.close_rounded),
-                          color: Colors.white70,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF17171D),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const TabBar(
-                      indicatorSize: TabBarIndicatorSize.tab,
-                      indicator: BoxDecoration(
-                        color: AppTheme.electricIndigo,
-                        borderRadius: BorderRadius.all(Radius.circular(16)),
-                      ),
-                      labelColor: Colors.white,
-                      unselectedLabelColor: Colors.white70,
-                      dividerColor: Colors.transparent,
-                      tabs: [
-                        Tab(text: '版本树'),
-                        Tab(text: '项目'),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                          child: Column(
-                            children: [
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF14141A),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.08),
-                                  ),
-                                ),
-                                child: Wrap(
-                                  spacing: 10,
-                                  runSpacing: 10,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    SizedBox(
-                                      width: 220,
-                                      child: Text(
-                                        '轻点版本切换当前画面，长按节点查看标签、祖先路径和删除等管理操作。',
-                                        style: TextStyle(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.65,
-                                          ),
-                                          fontSize: 13,
-                                          height: 1.45,
-                                        ),
-                                      ),
-                                    ),
-                                    FilledButton(
-                                      onPressed: _handleSave,
-                                      style: FilledButton.styleFrom(
-                                        backgroundColor: AppTheme.electricIndigo,
-                                        foregroundColor: Colors.white,
-                                      ),
-                                      child: const Text('保存版本'),
-                                    ),
-                                  ],
-                                ),
+                        const SizedBox(height: 14),
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF101015),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.08),
                               ),
-                              const SizedBox(height: 14),
-                              Expanded(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF101015),
-                                    borderRadius: BorderRadius.circular(24),
-                                    border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.08),
+                            ),
+                            child: _tree == null
+                                ? const Center(
+                                    child: CircularProgressIndicator(
+                                      color: AppTheme.electricIndigo,
+                                    ),
+                                  )
+                                : Padding(
+                                    padding: const EdgeInsets.all(8),
+                                    child: ImageHistoryTree(
+                                      tree: _tree!,
+                                      currentNodeId: _currentNodeId,
+                                      onNodeSelected: (nodeId) async {
+                                        await _selectNode(nodeId);
+                                      },
+                                      onNodeLongPress: _openNodeSheet,
                                     ),
                                   ),
-                                  child: _tree == null
-                                      ? const Center(
-                                          child: CircularProgressIndicator(
-                                            color: AppTheme.electricIndigo,
-                                          ),
-                                        )
-                                      : Padding(
-                                          padding: const EdgeInsets.all(8),
-                                          child: ImageHistoryTree(
-                                            tree: _tree!,
-                                            currentNodeId: _currentNodeId,
-                                            onNodeSelected: (nodeId) async {
-                                              await _selectNode(nodeId);
-                                            },
-                                            onNodeLongPress: _openNodeSheet,
-                                          ),
-                                        ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                          child: ChatHistoryDrawer(
-                            currentProjectId: _project?.projectId,
-                            onOpenProject: (projectId) async {
-                              await _loadProject(projectId);
-                              if (sheetContext.mounted) {
-                                Navigator.of(sheetContext).pop();
-                              }
-                            },
-                            onCreateProjectFromCurrentFrame: _createProjectFromCurrentFrame,
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );
@@ -740,6 +608,28 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
   String _buildDefaultProjectName() => '编辑项目';
 
+  Future<Size?> _resolveImageSize(String? path) async {
+    if (path == null || path.trim().isEmpty) return null;
+    if (isAdaptiveLocalFilePath(path)) {
+      final file = File(normalizeAdaptiveFilePath(path));
+      if (!await file.exists()) return null;
+      final size = await _readImageSize(file);
+      if (size == null) return null;
+      return Size(size.$1.toDouble(), size.$2.toDouble());
+    }
+    try {
+      final data = await rootBundle.load(path);
+      final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+      final frame = await codec.getNextFrame();
+      return Size(
+        frame.image.width.toDouble(),
+        frame.image.height.toDouble(),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<Uint8List> _loadEditableBytes(String path) async {
     if (isAdaptiveLocalFilePath(path)) {
       return File(normalizeAdaptiveFilePath(path)).readAsBytes();
@@ -748,66 +638,43 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     return data.buffer.asUint8List();
   }
 
-  double _resolveCropAspectRatio(double ratio, img.Image source) {
-    if (ratio == -1) {
-      return source.width / source.height;
-    }
-    if (ratio == 0) {
-      final originalBytes = widget.selectedImage.readAsBytesSync();
-      final original = img.decodeImage(originalBytes);
-      if (original != null) {
-        return original.width / original.height;
+  void _resetCropRect([double? ratio]) {
+    final effectiveRatio = ratio ?? _cropAspectRatio;
+    Rect next = const Rect.fromLTWH(0.12, 0.1, 0.76, 0.76);
+    final normalizedRatio = effectiveRatio == 0
+        ? ((_currentImageSize?.width ?? 1) / (_currentImageSize?.height ?? 1))
+        : effectiveRatio;
+    if (normalizedRatio > 0) {
+      const maxWidth = 0.82;
+      const maxHeight = 0.72;
+      double width = maxWidth;
+      double height = width / normalizedRatio;
+      if (height > maxHeight) {
+        height = maxHeight;
+        width = height * normalizedRatio;
       }
-      return source.width / source.height;
+      next = Rect.fromLTWH(
+        (1 - width) / 2,
+        (1 - height) / 2,
+        width,
+        height,
+      );
+    } else if (normalizedRatio == -1) {
+      next = const Rect.fromLTWH(0.1, 0.1, 0.8, 0.76);
     }
-    return ratio;
+    _cropRect = next;
   }
 
-  img.Image _cropImageToRatio(
-    img.Image source,
-    double targetRatio, {
-    bool freeCrop = false,
-  }) {
-    final sourceRatio = source.width / source.height;
-    if (freeCrop) {
-      final cropWidth = (source.width * 0.9).round();
-      final cropHeight = (source.height * 0.9).round();
-      final offsetX = ((source.width - cropWidth) / 2).round();
-      final offsetY = ((source.height - cropHeight) / 2).round();
-      return img.copyCrop(
-        source,
-        x: offsetX,
-        y: offsetY,
-        width: cropWidth,
-        height: cropHeight,
-      );
-    }
+  void _updateCropRect(Rect rect) {
+    setState(() => _cropRect = rect);
+  }
 
-    if ((sourceRatio - targetRatio).abs() < 0.01) {
-      return source.clone();
-    }
-
-    if (sourceRatio > targetRatio) {
-      final cropWidth = (source.height * targetRatio).round();
-      final offsetX = ((source.width - cropWidth) / 2).round();
-      return img.copyCrop(
-        source,
-        x: offsetX,
-        y: 0,
-        width: cropWidth,
-        height: source.height,
-      );
-    }
-
-    final cropHeight = (source.width / targetRatio).round();
-    final offsetY = ((source.height - cropHeight) / 2).round();
-    return img.copyCrop(
-      source,
-      x: 0,
-      y: offsetY,
-      width: source.width,
-      height: cropHeight,
-    );
+  void _clearPendingEdit() {
+    _hasPendingEdits = false;
+    _pendingLensId = null;
+    _pendingLensName = null;
+    _pendingPrompt = null;
+    _pendingTagLabel = null;
   }
 
   String _cropLabel(double ratio) {
@@ -868,7 +735,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
           content: Text(
             '1. 先在底部选择一个 AI 模板或工具。\n'
             '2. 再输入更具体的修图描述。\n'
-            '3. 每次保存或发送指令后，都会记录到资产树里。',
+            '3. 只有点击保存后，当前草稿才会写入资产树。',
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.72),
               height: 1.6,
@@ -961,10 +828,17 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                 child: EditorCanvas(
                   originalImage: widget.selectedImage,
                   currentImagePath: _displayedImagePath,
+                  imagePixelSize: _currentImageSize,
                   isGenerating: busy,
                   activeTool: _activeTool,
                   onFlipHorizontal: _applyFlip,
                   onMirror: _applyMirror,
+                  cropAspectRatio: _cropAspectRatio == 0 && _currentImageSize != null
+                      ? _currentImageSize!.width / _currentImageSize!.height
+                      : _cropAspectRatio,
+                  cropRect: _cropRect,
+                  onCropRectChanged: _updateCropRect,
+                  onConfirmCrop: _confirmCrop,
                 ),
               ),
               EditorToolsPanel(
@@ -973,11 +847,18 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                 isGenerating: busy,
                 appliedLensIds: _appliedLensIds,
                 activeHighlightId: _activeHighlightId,
-                onToolChanged: (tool) => setState(() => _activeTool = tool),
+                onToolChanged: (tool) => setState(() {
+                  _activeTool = tool;
+                  if (tool == ToolType.crop) {
+                    _resetCropRect();
+                  }
+                }),
                 onSendPrompt: () => _handleUserCommand(_promptController.text),
-                onClosePanel: () => setState(() => _activeTool = ToolType.none),
                 cropAspectRatio: _cropAspectRatio,
-                onCropRatioChanged: _applyCropPreset,
+                onCropRatioChanged: (ratio) => setState(() {
+                  _cropAspectRatio = ratio;
+                  _resetCropRect(ratio);
+                }),
                 activeAdjustParam: _activeAdjustParam,
                 adjustValue: _adjustValue,
                 onAdjustParamChanged: (param) => setState(() {

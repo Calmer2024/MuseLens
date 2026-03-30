@@ -33,7 +33,6 @@ class EditorToolsPanel extends StatelessWidget {
     required this.isGenerating,
     required this.onToolChanged,
     required this.onSendPrompt,
-    required this.onClosePanel,
     required this.cropAspectRatio,
     required this.onCropRatioChanged,
     required this.activeAdjustParam,
@@ -51,7 +50,6 @@ class EditorToolsPanel extends StatelessWidget {
   final bool isGenerating;
   final ValueChanged<ToolType> onToolChanged;
   final VoidCallback onSendPrompt;
-  final VoidCallback onClosePanel;
   final double cropAspectRatio;
   final ValueChanged<double> onCropRatioChanged;
   final String activeAdjustParam;
@@ -187,7 +185,7 @@ class EditorToolsPanel extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         SizedBox(
-          height: 30,
+          height: 40,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: _adjustIcons.length,
@@ -238,36 +236,49 @@ class EditorToolsPanel extends StatelessWidget {
             subtitle: '点击选择一个修图方向，指令会记录到资产树',
           )
         else
-          Row(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Expanded(
-                child: Text(
-                  '热门模板',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              if (activeHighlightId != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.electricIndigo.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '已记录 ${appliedLensIds.length} 次',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      '热门模板',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
+                  if (activeHighlightId != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.electricIndigo.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '已记录 ${appliedLensIds.length} 次',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '从常用风格里快速开始，再按需继续细调。',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.45),
+                  fontSize: 11,
+                ),
               ),
             ],
           ),
@@ -487,9 +498,10 @@ class _ChoiceChipCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 34),
+          constraints: const BoxConstraints(minHeight: 38),
           child: Ink(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
               color: selected
                   ? AppTheme.electricIndigo.withValues(alpha: 0.2)
@@ -504,9 +516,13 @@ class _ChoiceChipCard extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (icon != null) ...[
-                  Icon(icon, color: Colors.white70, size: 15),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 1),
+                    child: Icon(icon, color: Colors.white70, size: 15),
+                  ),
                   const SizedBox(width: 6),
                 ],
                 Text(
@@ -515,6 +531,7 @@ class _ChoiceChipCard extends StatelessWidget {
                     color: Colors.white.withValues(alpha: selected ? 0.98 : 0.78),
                     fontSize: 12,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    height: 1,
                   ),
                 ),
               ],

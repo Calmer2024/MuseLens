@@ -141,12 +141,12 @@ class _CompactActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(6),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: filled ? AppTheme.electricIndigo : const Color(0xFF242426),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
           border: filled
               ? null
               : Border.all(color: Colors.white.withValues(alpha: 0.08)),
@@ -155,7 +155,7 @@ class _CompactActionButton extends StatelessWidget {
           label,
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: FontWeight.w700,
           ),
         ),
