@@ -47,6 +47,46 @@ if _ENV_PATH.is_file():
                 os.environ[_k] = str(_v).strip()
 
 
+_STYLE_LORA_MAPPINGS: List[Tuple[Tuple[str, ...], str]] = [
+    (
+        (
+            "宫崎骏",
+            "吉卜力",
+            "ghibli",
+            "日本动漫",
+            "日漫",
+            "anime",
+        ),
+        "Studio Ghibli Style.safetensors",
+    ),
+    (
+        (
+            "赛博朋克",
+            "cyberpunk",
+        ),
+        "cyberpunk style v3.safetensors",
+    ),
+    (
+        (
+            "粘土",
+            "黏土",
+            "clay",
+            "claymation",
+        ),
+        "CLAYMATE_V2.03_.safetensors",
+    ),
+    (
+        (
+            "手绘",
+            "复古手绘",
+            "vintage",
+            "复古",
+        ),
+        "Vintage_styleV2.safetensors",
+    ),
+]
+
+
 class PlannerService:
     def __init__(
         self,
@@ -233,9 +273,9 @@ def _autofill_existing_blueprint_params(
         cand = candidates_by_id.get(step.lens_id) or {}
         for param in cand.get("params") or []:
             name = str(param.get("name") or "")
-            if not name or name in step.params or not _is_content_param(name):
+            if not name or name in step.params:
                 continue
-            value = _resolve_content_param_value(
+            value = _resolve_step_param_value(
                 lens_id=step.lens_id,
                 param_name=name,
                 task_desc=planner_input.task_desc,
@@ -272,7 +312,7 @@ def _filter_autofillable_missing(
     kept_missing: List[MissingParam] = []
     for mp in out.missing_params or []:
         cand = candidates_by_id.get(mp.lens_id) or {}
-        value = _resolve_content_param_value(
+        value = _resolve_step_param_value(
             lens_id=mp.lens_id,
             param_name=mp.param_name,
             task_desc=planner_input.task_desc,
@@ -287,7 +327,7 @@ def _filter_autofillable_missing(
         lens_id = q.param_ref.lens_id
         param_name = q.param_ref.param_name
         cand = candidates_by_id.get(lens_id) or {}
-        value = _resolve_content_param_value(
+        value = _resolve_step_param_value(
             lens_id=lens_id,
             param_name=param_name,
             task_desc=planner_input.task_desc,
@@ -398,7 +438,13 @@ def _build_heuristic_blueprint(
                     input_links[asset_name] = "$user_base_image"
                 continue
 
-            provider = _find_provider_candidate(asset_name, asset_type, candidates, exclude={lens_id})
+            provider = _find_provider_candidate(
+                asset_name,
+                asset_type,
+                candidates,
+                task_desc=planner_input.task_desc,
+                exclude={lens_id},
+            )
             if provider is None:
                 return None
 
@@ -416,7 +462,7 @@ def _build_heuristic_blueprint(
             param_name = str(p.get("name") or "")
             if not param_name:
                 continue
-            value = _resolve_content_param_value(
+            value = _resolve_step_param_value(
                 lens_id=lens_id,
                 param_name=param_name,
                 task_desc=planner_input.task_desc,
@@ -452,8 +498,10 @@ def _build_heuristic_blueprint(
 def _pick_main_candidate(task_desc: str, candidates: List[Dict[str, Any]]) -> Dict[str, Any] | None:
     background_task = _looks_like_background_replacement(task_desc)
     local_task = _looks_like_local_replacement(task_desc)
+    pose_shape_task = _looks_like_pose_or_shape_edit(task_desc)
     relight_task = _looks_like_relighting(task_desc)
     delivery_task = _looks_like_delivery_task(task_desc)
+    style_task = _looks_like_style_transfer(task_desc)
 
     best: Tuple[float, Dict[str, Any]] | None = None
     for cand in candidates:
@@ -469,6 +517,14 @@ def _pick_main_candidate(task_desc: str, candidates: List[Dict[str, Any]]) -> Di
         inputs = cand.get("inputs") or []
         outputs = cand.get("outputs") or []
         text_blob = _candidate_text(cand).lower()
+        input_kinds = {
+            _asset_kind(i.get("name", ""), i.get("type", ""))
+            for i in inputs
+        }
+        has_base_image = "base_image" in input_kinds
+        has_no_inputs = len(inputs) == 0
+        has_style_reference_input = "style_reference" in input_kinds
+        matched_lora_name = _match_style_lora_name(task_desc, cand)
 
         if any(str(o.get("name") or "") == "result_image" for o in outputs):
             score += 0.3
@@ -500,6 +556,21 @@ def _pick_main_candidate(task_desc: str, candidates: List[Dict[str, Any]]) -> Di
             if "inpaint" in text_blob or "inpaint" in lens_id_lower:
                 score += 2.0
 
+        if pose_shape_task:
+            if any(_asset_kind(i.get("name", ""), i.get("type", "")) == "mask" for i in inputs):
+                score -= 4.5
+            if "inpaint" in text_blob or "inpaint" in lens_id_lower:
+                score -= 2.0
+            if any(
+                _asset_kind(i.get("name", ""), i.get("type", "")) in {"pose", "depth", "generic_reference"}
+                for i in inputs
+            ):
+                score += 3.0
+            if "reference" in text_blob or "reference" in lens_id_lower:
+                score += 2.5
+            if "flux_edit" in lens_id_lower or "global edit" in text_blob:
+                score += 1.8
+
         if relight_task:
             if "relight" in text_blob or "relight" in lens_id_lower or "lighting" in text_blob:
                 score += 5.0
@@ -507,6 +578,30 @@ def _pick_main_candidate(task_desc: str, candidates: List[Dict[str, Any]]) -> Di
                 score += 2.0
             if "depth_of_field" in lens_id_lower or "depth of field" in text_blob:
                 score -= 3.0
+
+        if style_task:
+            if has_base_image:
+                score += 4.0
+            if has_no_inputs:
+                score -= 5.0
+            if has_style_reference_input:
+                score -= 8.0
+            if layer == "A4":
+                score += 3.5
+            elif layer == "A2":
+                score += 1.2
+            if "lora" in lens_id_lower or "lora" in text_blob:
+                score += 2.5
+                if matched_lora_name:
+                    score += 5.0
+                else:
+                    score -= 2.5
+            if "flux_edit" in lens_id_lower or "global edit" in text_blob:
+                score += 2.2
+            if "text2image" in lens_id_lower or "text2image" in text_blob:
+                score -= 6.0
+            if "style" in lens_id_lower or "style" in text_blob:
+                score += 1.5
 
         if best is None or score > best[0]:
             best = (score, cand)
@@ -519,6 +614,7 @@ def _find_provider_candidate(
     input_type: str,
     candidates: List[Dict[str, Any]],
     *,
+    task_desc: str,
     exclude: Set[str],
 ) -> Dict[str, Any] | None:
     target_kind = _asset_kind(input_name, input_type)
@@ -530,15 +626,13 @@ def _find_provider_candidate(
         for out in cand.get("outputs") or []:
             out_name = str(out.get("name") or "")
             out_type = str(out.get("type") or "")
-            score = 0.0
-            if out_name == input_name:
-                score = 4.0
-            elif _asset_kind(out_name, out_type) == target_kind:
-                score = 3.0
-            elif _output_can_feed_input(out_name, out_type, input_name, input_type):
-                score = 2.5
-            elif target_kind == "mask" and out_name.endswith("_result") and _asset_kind(out_name, out_type) == "mask":
-                score = 2.0
+            score = _provider_match_score(
+                task_desc=task_desc,
+                input_name=input_name,
+                input_type=input_type,
+                output_name=out_name,
+                output_type=out_type,
+            )
             if score <= 0:
                 continue
             score += float(cand.get("score") or 0.0)
@@ -566,6 +660,61 @@ def _find_output_ref(
     return None
 
 
+def _provider_match_score(
+    *,
+    task_desc: str,
+    input_name: str,
+    input_type: str,
+    output_name: str,
+    output_type: str,
+) -> float:
+    target_kind = _asset_kind(input_name, input_type)
+    output_kind = _asset_kind(output_name, output_type)
+
+    if output_name == input_name:
+        return 4.0
+    if output_kind and output_kind == target_kind:
+        return 3.0
+    if target_kind == "generic_reference":
+        if output_kind in {"pose", "depth", "canny"}:
+            return _reference_constraint_priority(task_desc, output_kind)
+        if output_kind == "style_reference":
+            return 3.2
+        if output_kind == "generic_image":
+            return 2.2
+    if target_kind == "style_reference":
+        if output_kind == "style_reference":
+            return 3.6
+        if output_kind == "generic_image":
+            return 2.2
+    if _output_can_feed_input(output_name, output_type, input_name, input_type):
+        return 2.5
+    if target_kind == "mask" and output_name.endswith("_result") and output_kind == "mask":
+        return 2.0
+    return 0.0
+
+
+def _reference_constraint_priority(task_desc: str, output_kind: str) -> float:
+    if _looks_like_relighting(task_desc):
+        priorities = {"depth": 3.8, "pose": 3.2, "canny": 2.6}
+        return priorities.get(output_kind, 0.0)
+
+    if _looks_like_background_replacement(task_desc):
+        priorities = {"pose": 3.9, "depth": 3.5, "canny": 2.4}
+        return priorities.get(output_kind, 0.0)
+
+    if _looks_like_style_structure_preservation(task_desc):
+        priorities = {"canny": 3.9, "pose": 3.1, "depth": 2.9}
+        return priorities.get(output_kind, 0.0)
+
+    if _looks_like_subject_preservation(task_desc):
+        priorities = {"pose": 3.9, "depth": 3.3, "canny": 2.7}
+        return priorities.get(output_kind, 0.0)
+
+    priorities = {"pose": 3.6, "depth": 3.5, "canny": 3.1}
+    return priorities.get(output_kind, 0.0)
+
+
 def _output_can_feed_input(
     output_name: str,
     output_type: str,
@@ -584,7 +733,7 @@ def _output_can_feed_input(
     return False
 
 
-def _resolve_content_param_value(
+def _resolve_step_param_value(
     *,
     lens_id: str,
     param_name: str,
@@ -593,7 +742,19 @@ def _resolve_content_param_value(
     downstream_candidate: Optional[Dict[str, Any]] = None,
     semantic_cache: Optional[Dict[Tuple[str, str, str], Dict[str, Any]]] = None,
 ) -> Optional[Any]:
-    if not task_desc or not _is_content_param(param_name):
+    if not task_desc:
+        return None
+
+    mapped_value = _derive_non_content_param_value(
+        lens_id=lens_id,
+        param_name=param_name,
+        task_desc=task_desc,
+        candidate=candidate,
+    )
+    if mapped_value not in [None, ""]:
+        return mapped_value
+
+    if not _is_content_param(param_name):
         return None
 
     llm_values = _llm_fill_step_content_params(
@@ -612,6 +773,36 @@ def _resolve_content_param_value(
         task_desc=task_desc,
         candidate=candidate,
     )
+
+
+def _derive_non_content_param_value(
+    *,
+    lens_id: str,
+    param_name: str,
+    task_desc: str,
+    candidate: Dict[str, Any],
+) -> Optional[Any]:
+    lens_id_lower = lens_id.lower()
+    param_name_lower = param_name.lower()
+
+    if param_name_lower == "lora_name" or (
+        "lora" in lens_id_lower and param_name_lower.endswith("lora_name")
+    ):
+        return _match_style_lora_name(task_desc, candidate)
+
+    return None
+
+
+def _match_style_lora_name(task_desc: str, candidate: Dict[str, Any]) -> Optional[str]:
+    candidate_text = _candidate_text(candidate).lower()
+    if "lora" not in candidate_text and "lora" not in str(candidate.get("lens_id") or "").lower():
+        return None
+
+    text = (task_desc or "").lower()
+    for keywords, lora_name in _STYLE_LORA_MAPPINGS:
+        if any(keyword.lower() in text for keyword in keywords):
+            return lora_name
+    return None
 
 
 def _semantic_fill_is_configured() -> bool:
@@ -877,6 +1068,93 @@ def _looks_like_delivery_task(task_desc: str) -> bool:
     return any(k in (task_desc or "") for k in keywords)
 
 
+
+def _looks_like_style_structure_preservation(task_desc: str) -> bool:
+    text = task_desc or ""
+    style_keywords = [
+        "风格",
+        "材质",
+        "笔触",
+        "纹理",
+        "画风",
+        "质感",
+    ]
+    preserve_keywords = [
+        "保留结构",
+        "结构不变",
+        "轮廓不变",
+        "边缘不变",
+        "构图不变",
+    ]
+    return any(k in text for k in style_keywords) and any(k in text for k in preserve_keywords)
+
+
+def _looks_like_subject_preservation(task_desc: str) -> bool:
+    text = task_desc or ""
+    preserve_keywords = [
+        "保留人物",
+        "保留主体",
+        "主体不变",
+        "人物不变",
+        "保持人物",
+        "保持主体",
+    ]
+    return any(k in text for k in preserve_keywords)
+
+
+def _looks_like_pose_or_shape_edit(task_desc: str) -> bool:
+    text = task_desc or ""
+    keywords = [
+        "姿势",
+        "姿態",
+        "坐姿",
+        "站姿",
+        "站直",
+        "坐正",
+        "坐端正",
+        "端正",
+        "抬手",
+        "抬头",
+        "低头",
+        "转头",
+        "转身",
+        "侧身",
+        "伸手",
+        "伸展",
+        "张开",
+        "展开",
+        "弯腰",
+        "弯曲",
+        "挺直",
+        "体态",
+        "形体",
+        "轮廓",
+        "衣服版型",
+        "衣服廓形",
+    ]
+    return any(k in text for k in keywords)
+
+
+def _looks_like_style_transfer(task_desc: str) -> bool:
+    text = (task_desc or "").lower()
+    keywords = [
+        "风格",
+        "画风",
+        "滤镜",
+        "吉卜力",
+        "宫崎骏",
+        "赛博朋克",
+        "粘土",
+        "手绘",
+        "anime",
+        "ghibli",
+        "cyberpunk",
+        "clay",
+        "vintage",
+        "lora",
+        "style",
+    ]
+    return any(keyword in text for keyword in keywords)
 def _has_content_param(candidate: Dict[str, Any]) -> bool:
     return any(_is_content_param(str(p.get("name") or "")) for p in (candidate.get("params") or []))
 

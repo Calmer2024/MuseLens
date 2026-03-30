@@ -322,7 +322,7 @@ class RetrievalService:
     def _is_user_supplied_input(name: str, asset_type: str) -> bool:
         kind = RetrievalService._asset_kind(name, asset_type)
         lname = (name or "").strip().lower()
-        return kind == "base_image" or lname.startswith("ref_image_") or lname == "style_reference_image"
+        return kind == "base_image" or lname == "style_reference_image"
 
     @staticmethod
     def _dependency_match_score(
@@ -345,6 +345,16 @@ class RetrievalService:
                 best = max(best, 4)
             if output_kind and output_kind == input_kind:
                 best = max(best, 3)
+            if input_kind == "generic_reference":
+                if output_kind in {"pose", "depth", "canny"}:
+                    best = max(best, 4)
+                elif output_kind in {"style_reference", "generic_image"}:
+                    best = max(best, 2)
+            if input_kind == "style_reference":
+                if output_kind == "style_reference":
+                    best = max(best, 4)
+                elif output_kind == "generic_image":
+                    best = max(best, 2)
             if input_kind == "mask" and output_name.endswith("_result") and output_kind == "mask":
                 best = max(best, 2)
 
