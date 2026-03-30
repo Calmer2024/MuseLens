@@ -4,12 +4,18 @@ import os
 from typing import Any
 
 from app.lenses.registry import get_lens
+from app.services.lens_ui_control_service import get_lens_tweak_controls
 from app.services.router_stream_service import router_stream_service
 
 
 def build_result_url(filename: str) -> str:
     base_url = (os.getenv("COMFYUI_VIEW_BASE_URL") or "http://127.0.0.1:8188").rstrip("/")
     return f"{base_url}/view?filename={filename}&type=output"
+
+
+def build_input_asset_url(filename: str) -> str:
+    base_url = (os.getenv("COMFYUI_VIEW_BASE_URL") or "http://127.0.0.1:8188").rstrip("/")
+    return f"{base_url}/view?filename={filename}&type=input"
 
 
 def infer_result_filename(blueprint, execution_context: dict[str, str]) -> str | None:
@@ -78,6 +84,7 @@ def build_step_results(blueprint, execution_context: dict[str, str]) -> list[dic
             {
                 "step_id": step.step_id,
                 "lens_id": step.lens_id,
+                "tweak_controls": get_lens_tweak_controls(step.lens_id),
                 "outputs": outputs,
             }
         )

@@ -457,6 +457,14 @@ def _build_heuristic_blueprint(
         for asset in candidate.get("inputs") or []:
             asset_name = str(asset.get("name") or "")
             asset_type = str(asset.get("type") or "")
+            user_asset_ref = _resolve_user_asset_ref(
+                planner_input=planner_input,
+                input_name=asset_name,
+                input_type=asset_type,
+            )
+            if user_asset_ref:
+                input_links[asset_name] = user_asset_ref
+                continue
             if _is_user_supplied_input(asset_name, asset_type):
                 if asset_name == "base_image":
                     input_links[asset_name] = "$user_base_image"
@@ -513,8 +521,11 @@ def _build_heuristic_blueprint(
     if ensure_step(main) is None:
         return None
 
+    initial_inputs = {"user_base_image": "user_base_image"}
+    initial_inputs.update(_get_available_user_assets(planner_input))
+
     return DAGBlueprint(
-        initial_inputs={"user_base_image": "user_base_image"},
+        initial_inputs=initial_inputs,
         steps=steps,
     )
 
@@ -1296,6 +1307,43 @@ def _is_user_supplied_input(name: str, asset_type: str) -> bool:
     kind = _asset_kind(name, asset_type)
     lname = (name or "").strip().lower()
     return kind == "base_image" or lname == "style_reference_image"
+
+
+def _get_available_user_assets(planner_input: PlannerInput) -> Dict[str, str]:
+    session_context = planner_input.session_context or {}
+    raw = session_context.get("available_user_assets") or {}
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        str(k): str(v)
+        for k, v in raw.items()
+        if str(k).strip() and v not in [None, ""]
+    }
+
+
+def _resolve_user_asset_ref(
+    *,
+    planner_input: PlannerInput,
+    input_name: str,
+    input_type: str,
+) -> str | None:
+    user_assets = _get_available_user_assets(planner_input)
+    if not user_assets:
+        return None
+
+    if input_name in user_assets:
+        return f"${input_name}"
+
+    target_kind = _asset_kind(input_name, input_type)
+    aliases_by_kind = {
+        "mask": ["mask", "user_mask", "mask_result", "painted_mask"],
+        "style_reference": ["style_reference_image", "style_image", "reference_style_image"],
+        "generic_reference": ["ref_image_1", "reference_image", "reference_asset"],
+    }
+    for alias in aliases_by_kind.get(target_kind, []):
+        if alias in user_assets:
+            return f"${alias}"
+    return None
 
 
 def _asset_kind(name: str, asset_type: str) -> str:

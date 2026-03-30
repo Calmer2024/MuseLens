@@ -161,6 +161,10 @@ class RouterRouteRequest(BaseModel):
     base_image_meta: Dict[str, Any] = Field(
         default_factory=dict, description="可选：base_image 的元信息（尺寸、来源等）"
     )
+    user_assets: Dict[str, str] = Field(
+        default_factory=dict,
+        description="用户额外提供的资产映射，例如 mask、style_reference_image、ref_image_1 等，可供 blueprint 直接引用。",
+    )
 
     answers: Dict[str, Any] = Field(
         default_factory=dict,
@@ -232,6 +236,10 @@ class RouterStepResult(BaseModel):
 
     step_id: str = Field(..., description="步骤 ID")
     lens_id: str = Field(..., description="执行的透镜 ID")
+    tweak_controls: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="该透镜可用的微调控件定义，供前端在结果出来后继续精调。",
+    )
     outputs: List[RouterStepOutput] = Field(
         default_factory=list,
         description="该步骤所有已捕获的输出结果。",

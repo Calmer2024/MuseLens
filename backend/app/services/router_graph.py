@@ -140,6 +140,7 @@ def _node_plan(state: RouterGraphState) -> Dict[str, Any]:
             "pending_questions": sess.pending_questions or [],
             "lens_history": sess.lens_history or [],
             "previous_blueprint": sess.pending_blueprint,
+            "available_user_assets": ctx.req.user_assets or {},
         },
     )
     planner_out = ctx.router._planner.plan(planner_input)
@@ -310,9 +311,13 @@ def _hydrate_blueprint_initial_inputs(ctx: RouterV2Context, po: PlannerOutput) -
 
     base_image = ctx.req.base_image or ctx.sess.base_image or ""
     if not base_image:
-        return
+        base_inputs = {}
+    else:
+        base_inputs = {"user_base_image": base_image}
 
-    po.blueprint.initial_inputs["user_base_image"] = base_image
+    user_assets = dict(ctx.req.user_assets or {})
+    po.blueprint.initial_inputs.update(base_inputs)
+    po.blueprint.initial_inputs.update(user_assets)
 
 
 def build_router_v2_graph() -> Any:
