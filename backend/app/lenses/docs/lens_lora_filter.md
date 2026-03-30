@@ -21,7 +21,8 @@ params:
       应写成整图风格化提示词，而不是局部替换指令。
       适合补充“手绘感、暖色调、梦幻氛围、霓虹夜景、黏土质感”等整体视觉方向。
     format_rules: |
-      输出一句简洁的整图风格化描述。
+      建议输出英文提示词，因为该透镜实际使用 SDXL + 对应 CLIP 编码，英文风格描述通常更稳定。
+      输出一句简洁的英文整图风格化描述。
   strength_model:
     description: |
       LoRA 对模型侧的影响强度。
@@ -142,4 +143,5 @@ examples:
 
 - config 真实输入只有 `base_image`，没有外部 `depth_map` 输入。
 - workflow 内部包含深度预处理、ControlNet 与 `LoraLoader`，说明结构保护和 LoRA 加载都在透镜内部完成。
+- workflow 的提示词节点是 SDXL 的 `CLIPTextEncode`，因此 `prompt` 更适合直接提供英文风格描述。
 - 因此该透镜不需要额外串联 A1 的 `depth_extract` 才能使用。

@@ -352,3 +352,87 @@ def test_postprocess_uses_llm_semantic_fill_for_segmentation_prompt(monkeypatch)
     ]
     assert out.blueprint.steps[0].params["prompt"] == "女人"
     assert out.blueprint.steps[1].params["prompt"] == planner_input.task_desc
+
+
+def test_postprocess_normalizes_lora_filter_prompt_to_english(monkeypatch):
+    planner_input = PlannerInput(
+        task_desc="帮我把这张图片转成宫崎骏风格",
+        base_image_meta={},
+        candidates=[
+            {
+                "lens_id": "lens_lora_filter",
+                "score": 0.95,
+                "layer": "A4",
+                "description": "基于 LoRA 的整图风格滤镜",
+                "notes": "SDXL style transfer lens",
+                "inputs": [{"name": "base_image", "type": "image"}],
+                "outputs": [{"name": "result_image", "type": "image"}],
+                "params": [
+                    {"name": "lora_name", "type": "text", "required": True},
+                    {"name": "prompt", "type": "text", "required": False},
+                ],
+                "examples": [],
+            },
+        ],
+        session_context={},
+    )
+
+    def fake_llm_fill(*, task_desc, candidate, downstream_candidate, content_param_names):
+        return {"prompt": "宫崎骏动画风格，温暖治愈，保留主体构图"}
+
+    monkeypatch.setattr(planner_service, "_semantic_fill_is_configured", lambda: True)
+    monkeypatch.setattr(planner_service, "_call_llm_semantic_param_fill", fake_llm_fill)
+
+    out = _postprocess_planner_output(
+        PlannerOutput(blueprint=None, missing_params=[], clarification_questions=[], thought=""),
+        planner_input,
+    )
+
+    assert out.blueprint is not None
+    step = out.blueprint.steps[0]
+    assert step.lens_id == "lens_lora_filter"
+    assert step.params["lora_name"] == "Studio Ghibli Style.safetensors"
+    assert "Studio Ghibli" in step.params["prompt"]
+    assert "preserve the subject and composition" in step.params["prompt"]
+
+
+def test_postprocess_falls_back_to_english_prompt_for_lens_style(monkeypatch):
+    planner_input = PlannerInput(
+        task_desc="参考这张风格图，把原图改成柔和绘本风",
+        base_image_meta={},
+        candidates=[
+            {
+                "lens_id": "lens_style",
+                "score": 0.95,
+                "layer": "A4",
+                "description": "基于参考风格图的风格迁移透镜",
+                "notes": "SDXL style reference transfer",
+                "inputs": [
+                    {"name": "base_image", "type": "image"},
+                    {"name": "style_reference_image", "type": "image"},
+                ],
+                "outputs": [{"name": "result_image", "type": "image"}],
+                "params": [{"name": "prompt", "type": "text", "required": False}],
+                "examples": [],
+            },
+        ],
+        session_context={},
+    )
+
+    monkeypatch.setattr(planner_service, "_semantic_fill_is_configured", lambda: True)
+    monkeypatch.setattr(
+        planner_service,
+        "_call_llm_semantic_param_fill",
+        lambda **kwargs: {"prompt": "柔和绘本风，保留主体"},
+    )
+
+    out = _postprocess_planner_output(
+        PlannerOutput(blueprint=None, missing_params=[], clarification_questions=[], thought=""),
+        planner_input,
+    )
+
+    assert out.blueprint is not None
+    step = out.blueprint.steps[0]
+    assert step.lens_id == "lens_style"
+    assert "follow the style reference image" in step.params["prompt"]
+    assert "preserve the main subject and overall composition" in step.params["prompt"]

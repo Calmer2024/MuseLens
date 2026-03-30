@@ -6,6 +6,28 @@ Router层设计
 - 对外只做“编排决策”（返回蓝图或追问），不直接执行 ComfyUI。
 对应入口：POST /api/v1/router/route（backend/app/api/v1/endpoints/router.py）。
 
+0.1 近期主要更新（本轮对话落地）
+- 新增闭环调试入口 `/api/v1/router/route_and_run`：先走 Router 编排，再在 `ready` 时直接执行；返回里补充了 `executed`、`execution_context`、`result_filename`、`result_url`、`execution_error`，便于联调 Planner -> Compiler -> ComfyUI 全链路。
+- Retrieval 做了“依赖扩展”增强：不再只按用户任务检索主 Lens，也会把主 Lens 所需的上游资产提供者一并召回，例如 `sam2_matting -> flux_inpaint`、`depth_extract -> relighting`、`pose/depth/canny -> flux_reference` 这类链路。`ref_image_*` 也不再一律被当作必须由用户上传。
+- Planner 后处理增强：当 LLM 返回的 `PlannerOutput` 不完整时，会先尝试补全已有 blueprint 的参数；若仍不足，再根据候选 Lens、输入输出槽位和任务类型做 heuristic DAG 恢复，避免“选对透镜但 blueprint 为空”的情况。
+- Planner 的上游提供者选择改成“任务感知”评分，而不是只看输入输出类型匹配。当前经验规则大致是：
+  - 背景替换 / 场景替换：`pose > depth > canny`
+  - 光影调整 / relighting：`depth > pose > canny`
+  - 风格结构保留：`canny` 可以更高
+  - 人物主体保持：`pose` 权重更高
+- 风格化任务增加了更通用的偏好逻辑：优先选“基于原图编辑”的 Lens，而不是误走 `text2image`。同时补了风格到 `lora_name` 的自动映射；当没有对应 LoRA、也没有 `style_reference_image` 时，应优先考虑 `lens_flux_edit`，而不是让 `lens_style` 因缺少必需输入而在校验阶段失败。
+- 当前已落地的 LoRA 映射包括：
+  - 宫崎骏 / 吉卜力 / Ghibli / 日本动漫 / anime -> `Studio Ghibli Style.safetensors`
+  - 赛博朋克 / cyberpunk -> `cyberpunk style v3.safetensors`
+  - 粘土 / 黏土 / clay / claymation -> `CLAYMATE_V2.03_.safetensors`
+  - 手绘 / 复古 / vintage -> `Vintage_styleV2.safetensors`
+- 对“姿态变化 / 形体变化”类任务补了额外偏好：这类任务不再默认套 `mask + inpaint`，因为局部遮罩很容易限制新姿态的可生长区域；现在会降低纯遮罩链路分数，提高 reference/edit 类链路的优先级。
+- Blueprint 静态校验更严格了：`blueprint_validator.py` 现在会检查必需输入槽位是否真的被满足，例如 `ref_image_1`、`style_reference_image` 这类缺失会直接报 `MISSING_REQUIRED_INPUT`，避免进入执行期后才发现链路不完整。
+- Compiler / Comfy 执行层补了资产衔接能力：执行时会跟踪资产的 `filename/subfolder/type`，并在下游步骤读取上游产物前，把需要继续消费的图片从 Comfy `output` 搬到 `input`。同时 `/prompt` 失败时会带回更完整的 ComfyUI 错误文本，步骤级报错也会附带 `step_id` / `lens_id`。
+- Docker 与 ComfyUI 目录挂载也做了联调修复：后端运行在 Docker 内时，不再假设能直接访问宿主机的 Comfy 路径，而是通过 `.env` 中的 `COMFYUI_INPUT_DIR`、`COMFYUI_OUTPUT_DIR` 映射到容器内统一路径，保证编排结果里的中间资产能被连续消费。
+- 透镜知识库也同步做了修缮，尤其是 `lens_lora_filter`：文档与示例改成基于实际工作流和当前真实可用的 4 个 LoRA 来写，方便 Retrieval 命中、Planner 正确补参，也避免“文档写得像能做，实际工作流并不支持”的偏差。
+- 当前 Router 的边界仍然是：优先靠 Lens 内部文档、examples、参数 schema 和 Planner prompt 协同解决问题，尽量避免针对某个中文关键词做一次性硬编码；只有在通用规则仍兜不住时，才考虑继续补更细的任务偏好。
+
 ---
 1. 4层结构
 下面按“理想分层”对照“当前实现”来讲：

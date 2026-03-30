@@ -86,6 +86,30 @@ _STYLE_LORA_MAPPINGS: List[Tuple[Tuple[str, ...], str]] = [
     ),
 ]
 
+_ENGLISH_PROMPT_LENS_IDS: Set[str] = {
+    "lens_lora_filter",
+    "lens_style",
+}
+
+_STYLE_PROMPT_TEMPLATES: Dict[str, str] = {
+    "Studio Ghibli Style.safetensors": (
+        "Studio Ghibli inspired hand-drawn animation aesthetic, soft warm natural lighting, "
+        "clean colors, dreamy whimsical atmosphere, preserve the subject and composition"
+    ),
+    "cyberpunk style v3.safetensors": (
+        "cyberpunk neon city atmosphere, futuristic lighting, glossy reflections, "
+        "night scene mood, preserve the main subject and composition"
+    ),
+    "CLAYMATE_V2.03_.safetensors": (
+        "claymation texture, handcrafted clay figure feel, soft studio lighting, "
+        "preserve the subject and overall composition"
+    ),
+    "Vintage_styleV2.safetensors": (
+        "vintage hand-drawn illustration look, textured strokes, nostalgic warm tones, "
+        "preserve the original scene and composition"
+    ),
+}
+
 
 class PlannerService:
     def __init__(
@@ -765,13 +789,28 @@ def _resolve_step_param_value(
     )
     llm_value = llm_values.get(param_name)
     if llm_value not in [None, ""]:
-        return llm_value
+        normalized_value = _normalize_content_param_value(
+            lens_id=lens_id,
+            param_name=param_name,
+            task_desc=task_desc,
+            candidate=candidate,
+            value=llm_value,
+        )
+        if normalized_value not in [None, ""]:
+            return normalized_value
 
-    return _derive_param_value(
+    derived_value = _derive_param_value(
         lens_id=lens_id,
         param_name=param_name,
         task_desc=task_desc,
         candidate=candidate,
+    )
+    return _normalize_content_param_value(
+        lens_id=lens_id,
+        param_name=param_name,
+        task_desc=task_desc,
+        candidate=candidate,
+        value=derived_value,
     )
 
 
@@ -883,8 +922,17 @@ def _call_llm_semantic_param_fill(
         "Never invent asset links, step ids, file names, masks, or structural bindings.\n"
         "Return values only for the requested content parameters.\n"
         "If the lens is a segmentation or matting step, output a concise localization target phrase, not the whole user instruction.\n"
+        "If a requested parameter is marked as requiring English, output natural English prompt text instead of Chinese.\n"
         "If a value cannot be inferred confidently from the task and lens docs, omit it from param_values."
     )
+    param_language_hints = {
+        param_name: _preferred_param_language(
+            lens_id=str(candidate.get("lens_id") or ""),
+            param_name=param_name,
+            candidate=candidate,
+        )
+        for param_name in content_param_names
+    }
     user = {
         "task_desc": task_desc,
         "candidate": {
@@ -906,6 +954,7 @@ def _call_llm_semantic_param_fill(
         if downstream_candidate
         else None,
         "content_param_names": content_param_names,
+        "param_language_hints": param_language_hints,
     }
 
     payload: Dict[str, Any] = {
@@ -971,6 +1020,86 @@ def _derive_param_value(
         return target or None
 
     return task_desc.strip()
+
+
+def _normalize_content_param_value(
+    *,
+    lens_id: str,
+    param_name: str,
+    task_desc: str,
+    candidate: Dict[str, Any],
+    value: Optional[Any],
+) -> Optional[Any]:
+    if value in [None, ""] or not isinstance(value, str):
+        return value
+
+    if _preferred_param_language(lens_id=lens_id, param_name=param_name, candidate=candidate) != "en":
+        return value
+
+    normalized = value.strip()
+    if normalized and not _contains_cjk(normalized):
+        return normalized
+
+    english_fallback = _derive_english_prompt_value(
+        lens_id=lens_id,
+        param_name=param_name,
+        task_desc=task_desc,
+        candidate=candidate,
+    )
+    return english_fallback or normalized
+
+
+def _preferred_param_language(
+    *,
+    lens_id: str,
+    param_name: str,
+    candidate: Dict[str, Any],
+) -> str:
+    if param_name not in {"prompt", "positive_prompt", "negative_prompt"}:
+        return "auto"
+
+    lens_id_lower = lens_id.lower()
+    if lens_id_lower in _ENGLISH_PROMPT_LENS_IDS:
+        return "en"
+
+    candidate_text = _candidate_text(candidate).lower()
+    if "sdxl" in candidate_text and "clip" in candidate_text and "style" in lens_id_lower:
+        return "en"
+
+    return "auto"
+
+
+def _derive_english_prompt_value(
+    *,
+    lens_id: str,
+    param_name: str,
+    task_desc: str,
+    candidate: Dict[str, Any],
+) -> Optional[str]:
+    if param_name not in {"prompt", "positive_prompt", "negative_prompt"}:
+        return None
+
+    lens_id_lower = lens_id.lower()
+    if lens_id_lower == "lens_lora_filter":
+        lora_name = _match_style_lora_name(task_desc, candidate)
+        if lora_name and lora_name in _STYLE_PROMPT_TEMPLATES:
+            return _STYLE_PROMPT_TEMPLATES[lora_name]
+        return (
+            "stylized full-image redraw, preserve the main subject and original composition, "
+            "clean visual design, cohesive artistic atmosphere"
+        )
+
+    if lens_id_lower == "lens_style":
+        return (
+            "preserve the main subject and overall composition, follow the style reference image, "
+            "transfer the reference texture, color mood, and artistic atmosphere naturally"
+        )
+
+    return None
+
+
+def _contains_cjk(text: str) -> bool:
+    return bool(re.search(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]", text or ""))
 
 
 def _extract_edit_target(task_desc: str) -> str:

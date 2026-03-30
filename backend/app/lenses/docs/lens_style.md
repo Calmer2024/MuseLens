@@ -10,6 +10,7 @@ params:
     required: false
     format_rules: |
       建议写成对风格图的补充说明，而不是完全替代风格图。
+      建议输出英文提示词，因为该透镜实际使用 SDXL + CLIP / IPAdapter 侧编码，英文补充描述通常更稳定。
   ipadapter_weight:
     description: |
       风格参考图对结果的影响强度。
@@ -87,4 +88,5 @@ examples:
 
 - config 真实输入为 `base_image` 和 `style_reference_image`。
 - workflow 中包含 `DepthAnythingV2Preprocessor`、`IPAdapterModelLoader`、`IPAdapterAdvanced` 和 `ControlNetApplyAdvanced`。
+- workflow 中正负提示词节点为 SDXL `CLIPTextEncode`，因此 `prompt` 更适合使用英文补充说明。
 - 说明它是“风格参考驱动 + 内部结构约束”的整体风格迁移透镜。
