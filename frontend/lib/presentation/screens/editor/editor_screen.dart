@@ -4,6 +4,9 @@ import 'dart:ui' as ui;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
+import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/local_media_store.dart';
@@ -17,7 +20,7 @@ import '../../widgets/editor/editor_tools_panel.dart';
 import '../../widgets/editor/image_history_tree.dart';
 import '../../widgets/shared/adaptive_media.dart';
 
-enum ToolType { none, crop, adjust, lens }
+enum ToolType { none, crop, adjust, lens, templates }
 
 class EditorScreen extends ConsumerStatefulWidget {
   const EditorScreen({
@@ -44,7 +47,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   String? _initialImagePath;
   String? _projectError;
 
-  ToolType _activeTool = ToolType.none;
+  ToolType _activeTool = ToolType.templates;
   double _cropAspectRatio = -1;
   String _activeAdjustParam = '曝光';
   double _adjustValue = 0.0;
@@ -305,6 +308,148 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     }
   }
 
+  Future<void> _applyCropPreset(double ratio) async {
+    setState(() => _cropAspectRatio = ratio);
+    await _applyImageTransform(
+      lensId: ratio == -1 ? 'free_crop' : 'crop_${ratio.toString().replaceAll('.', '_')}',
+      lensName: ratio == -1
+          ? '自由裁剪'
+          : ratio == 0
+              ? '原图比例'
+              : '比例裁剪',
+      tagLabel: ratio == -1
+          ? '自由裁剪'
+          : ratio == 0
+              ? '原图比例'
+              : _cropLabel(ratio),
+      userPrompt: ratio == -1
+          ? '自由裁剪'
+          : ratio == 0
+              ? '恢复为原图比例'
+              : '裁剪为 ${_cropLabel(ratio)}',
+      transformer: (source) {
+        final targetRatio = _resolveCropAspectRatio(ratio, source);
+        return _cropImageToRatio(source, targetRatio, freeCrop: ratio == -1);
+      },
+    );
+  }
+
+  Future<void> _applyMirror() async {
+    await _applyImageTransform(
+      lensId: 'mirror_horizontal',
+      lensName: '镜像',
+      tagLabel: '镜像',
+      userPrompt: '水平镜像当前画面',
+      transformer: (source) => img.flipHorizontal(source.clone()),
+    );
+  }
+
+  Future<void> _applyFlip() async {
+    await _applyImageTransform(
+      lensId: 'flip_vertical',
+      lensName: '翻转',
+      tagLabel: '翻转',
+      userPrompt: '垂直翻转当前画面',
+      transformer: (source) => img.flipVertical(source.clone()),
+    );
+  }
+
+  Future<void> _applyImageTransform({
+    required String lensId,
+    required String lensName,
+    required String tagLabel,
+    required String userPrompt,
+    required img.Image Function(img.Image source) transformer,
+  }) async {
+    final project = _project;
+    final currentNodeId = _currentNodeId;
+    final currentPath = _normalizeProjectImagePath(
+      _displayedImagePath ?? _initialImagePath,
+    );
+    if (project == null || currentNodeId == null || currentPath == null) {
+      _showError(StateError('当前没有可编辑的画面'), '当前没有可编辑的画面');
+      return;
+    }
+
+    setState(() => _isGenerating = true);
+
+    try {
+      final bytes = await _loadEditableBytes(currentPath);
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) {
+        throw StateError('当前图片格式暂不支持编辑');
+      }
+
+      final transformed = transformer(decoded);
+      final encoded = Uint8List.fromList(img.encodePng(transformed));
+      final savedPath = await LocalMediaStore.persistBytes(
+        encoded,
+        folder: 'asset_tree',
+        prefix: lensId,
+        extension: '.png',
+      );
+
+      await _createDerivedNode(
+        projectId: project.projectId,
+        parentNodeId: currentNodeId,
+        imagePath: savedPath,
+        width: transformed.width,
+        height: transformed.height,
+        fileSize: encoded.lengthInBytes,
+        lensId: lensId,
+        lensName: lensName,
+        userPrompt: userPrompt,
+        tagLabel: tagLabel,
+      );
+    } catch (error) {
+      _showError(error, '图片处理失败');
+    } finally {
+      if (mounted) {
+        setState(() => _isGenerating = false);
+      }
+    }
+  }
+
+  Future<void> _createDerivedNode({
+    required String projectId,
+    required String parentNodeId,
+    required String imagePath,
+    required int width,
+    required int height,
+    required int fileSize,
+    required String lensId,
+    required String lensName,
+    required String userPrompt,
+    required String tagLabel,
+  }) async {
+    final repository = ref.read(assetTreeRepositoryProvider);
+    final created = await repository.createChildNode(
+          projectId: projectId,
+          input: CreateAssetTreeChildNodeInput(
+            parentNodeId: parentNodeId,
+            imageUrl: imagePath,
+            thumbnailUrl: imagePath,
+            width: width,
+            height: height,
+            fileSize: fileSize,
+            format: 'png',
+            lensId: lensId,
+            lensName: lensName,
+            userPrompt: userPrompt,
+            generationParams: {
+              'tool': lensId,
+            },
+            metadata: const {'source': 'local_edit'},
+            status: 'completed',
+          ),
+        );
+    await repository.addNodeTag(
+      nodeId: created.node.nodeId,
+      input: AddAssetTreeTagInput(label: tagLabel),
+    );
+    await _loadProject(projectId, preferredNodeId: created.node.nodeId);
+  }
+
   Future<void> _selectNode(String nodeId) async {
     final project = _project;
     final tree = _tree;
@@ -344,6 +489,43 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
         onRefreshProject: () => _loadProject(project.projectId),
       ),
     );
+  }
+
+  Future<void> _exportToGallery() async {
+    final currentPath = _normalizeProjectImagePath(
+      _displayedImagePath ?? _initialImagePath,
+    );
+    if (currentPath == null) {
+      _showError(StateError('当前没有可导出的画面'), '当前没有可导出的画面');
+      return;
+    }
+
+    try {
+      dynamic result;
+      if (isAdaptiveLocalFilePath(currentPath)) {
+        result = await ImageGallerySaverPlus.saveFile(
+          normalizeAdaptiveFilePath(currentPath),
+          name: 'muse_${DateTime.now().millisecondsSinceEpoch}',
+        );
+      } else {
+        final bytes = await _loadEditableBytes(currentPath);
+        result = await ImageGallerySaverPlus.saveImage(
+          bytes,
+          quality: 100,
+          name: 'muse_${DateTime.now().millisecondsSinceEpoch}',
+        );
+      }
+
+      final success = result is Map && result['isSuccess'] == true;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? '已导出到相册' : '导出已提交，请检查系统相册'),
+        ),
+      );
+    } catch (error) {
+      _showError(error, '导出失败');
+    }
   }
 
   Future<void> _showAssetTreeManager() async {
@@ -558,6 +740,84 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
   String _buildDefaultProjectName() => '编辑项目';
 
+  Future<Uint8List> _loadEditableBytes(String path) async {
+    if (isAdaptiveLocalFilePath(path)) {
+      return File(normalizeAdaptiveFilePath(path)).readAsBytes();
+    }
+    final data = await rootBundle.load(path);
+    return data.buffer.asUint8List();
+  }
+
+  double _resolveCropAspectRatio(double ratio, img.Image source) {
+    if (ratio == -1) {
+      return source.width / source.height;
+    }
+    if (ratio == 0) {
+      final originalBytes = widget.selectedImage.readAsBytesSync();
+      final original = img.decodeImage(originalBytes);
+      if (original != null) {
+        return original.width / original.height;
+      }
+      return source.width / source.height;
+    }
+    return ratio;
+  }
+
+  img.Image _cropImageToRatio(
+    img.Image source,
+    double targetRatio, {
+    bool freeCrop = false,
+  }) {
+    final sourceRatio = source.width / source.height;
+    if (freeCrop) {
+      final cropWidth = (source.width * 0.9).round();
+      final cropHeight = (source.height * 0.9).round();
+      final offsetX = ((source.width - cropWidth) / 2).round();
+      final offsetY = ((source.height - cropHeight) / 2).round();
+      return img.copyCrop(
+        source,
+        x: offsetX,
+        y: offsetY,
+        width: cropWidth,
+        height: cropHeight,
+      );
+    }
+
+    if ((sourceRatio - targetRatio).abs() < 0.01) {
+      return source.clone();
+    }
+
+    if (sourceRatio > targetRatio) {
+      final cropWidth = (source.height * targetRatio).round();
+      final offsetX = ((source.width - cropWidth) / 2).round();
+      return img.copyCrop(
+        source,
+        x: offsetX,
+        y: 0,
+        width: cropWidth,
+        height: source.height,
+      );
+    }
+
+    final cropHeight = (source.width / targetRatio).round();
+    final offsetY = ((source.height - cropHeight) / 2).round();
+    return img.copyCrop(
+      source,
+      x: 0,
+      y: offsetY,
+      width: source.width,
+      height: cropHeight,
+    );
+  }
+
+  String _cropLabel(double ratio) {
+    if ((ratio - 1).abs() < 0.001) return '1:1';
+    if ((ratio - (3 / 4)).abs() < 0.001) return '3:4';
+    if ((ratio - (9 / 16)).abs() < 0.001) return '9:16';
+    if ((ratio - (16 / 9)).abs() < 0.001) return '16:9';
+    return '比例裁剪';
+  }
+
   String? _normalizeProjectImagePath(String? path) {
     final trimmed = path?.trim() ?? '';
     if (trimmed.isEmpty) return null;
@@ -626,9 +886,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   }
 
   void _showExportHint() {
-    final currentPath = _normalizeProjectImagePath(_displayedImagePath);
-    final message = currentPath == null ? '当前没有可导出的画面' : '导出入口已预留，当前画面已就绪';
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    _exportToGallery();
   }
 
   @override
@@ -705,8 +963,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                   currentImagePath: _displayedImagePath,
                   isGenerating: busy,
                   activeTool: _activeTool,
-                  onFlipHorizontal: () {},
-                  onMirror: () {},
+                  onFlipHorizontal: _applyFlip,
+                  onMirror: _applyMirror,
                 ),
               ),
               EditorToolsPanel(
@@ -715,14 +973,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                 isGenerating: busy,
                 appliedLensIds: _appliedLensIds,
                 activeHighlightId: _activeHighlightId,
-                onToolChanged: (tool) => setState(() {
-                  _activeTool = _activeTool == tool ? ToolType.none : tool;
-                }),
+                onToolChanged: (tool) => setState(() => _activeTool = tool),
                 onSendPrompt: () => _handleUserCommand(_promptController.text),
                 onClosePanel: () => setState(() => _activeTool = ToolType.none),
                 cropAspectRatio: _cropAspectRatio,
-                onCropRatioChanged: (ratio) =>
-                    setState(() => _cropAspectRatio = ratio),
+                onCropRatioChanged: _applyCropPreset,
                 activeAdjustParam: _activeAdjustParam,
                 adjustValue: _adjustValue,
                 onAdjustParamChanged: (param) => setState(() {

@@ -129,6 +129,7 @@ class EditorToolsPanel extends StatelessWidget {
       ToolType.crop => _buildCropPanel(),
       ToolType.adjust => _buildAdjustPanel(),
       ToolType.lens => _buildLensPanel(),
+      ToolType.templates => _buildLensPanel(showTitle: false),
       ToolType.none => _buildLensPanel(showTitle: false),
     };
   }
@@ -299,26 +300,19 @@ class EditorToolsPanel extends StatelessWidget {
   Widget _buildToolTabs() {
     final items = <(ToolType, IconData, String)>[
       (ToolType.lens, Icons.auto_awesome_outlined, 'AI 修图'),
+      (ToolType.templates, Icons.local_fire_department_outlined, '热门模板'),
       (ToolType.crop, Icons.crop_outlined, '裁剪'),
       (ToolType.adjust, Icons.tune_rounded, '调节'),
-      (ToolType.none, Icons.close_rounded, '收起'),
     ];
 
     return SizedBox(
       height: 48,
       child: Row(
         children: items.map((item) {
-          final selected = activeTool == item.$1 ||
-              (item.$1 == ToolType.lens && activeTool == ToolType.none);
+          final selected = activeTool == item.$1;
           return Expanded(
             child: GestureDetector(
-              onTap: () {
-                if (item.$1 == ToolType.none) {
-                  onClosePanel();
-                } else {
-                  onToolChanged(item.$1);
-                }
-              },
+              onTap: () => onToolChanged(item.$1),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -492,35 +486,39 @@ class _ChoiceChipCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: selected
-                ? AppTheme.electricIndigo.withValues(alpha: 0.2)
-                : const Color(0xFF17171D),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 34),
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
               color: selected
-                  ? AppTheme.electricIndigo
-                  : Colors.white.withValues(alpha: 0.08),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, color: Colors.white70, size: 15),
-                const SizedBox(width: 6),
-              ],
-              Text(
-                label,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: selected ? 0.98 : 0.78),
-                  fontSize: 12,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                ),
+                  ? AppTheme.electricIndigo.withValues(alpha: 0.2)
+                  : const Color(0xFF17171D),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selected
+                    ? AppTheme.electricIndigo
+                    : Colors.white.withValues(alpha: 0.08),
               ),
-            ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, color: Colors.white70, size: 15),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: selected ? 0.98 : 0.78),
+                    fontSize: 12,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
