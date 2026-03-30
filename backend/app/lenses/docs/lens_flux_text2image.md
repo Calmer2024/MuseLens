@@ -2,74 +2,80 @@
 lens_id: lens_flux_text2image
 layer: A2
 description: |
-  基于 FLUX.2 的纯文本生图透镜。不依赖输入原图，直接根据文字描述生成全新画面，适合作为从零生成的起点。
-
+  纯文本生图透镜。它不依赖原图，直接根据 prompt、分辨率和采样参数生成全新的结果图，适合作为无中生有的起点。
 params:
   prompt:
     description: |
-      描述希望生成的主体、场景、风格、构图和光照。
+      描述希望生成的主体、场景、风格、镜头和光照。
     required: true
-    default: ""
     decision_rules: |
-      如果用户没有给出主体或场景，只说“来一张图”“帮我生成一下”，应判定为 missing。
-      当用户已经说明主体、场景或风格要求时，可以直接使用。
+      如果用户只说“随便生成一张”而没有给出主题，应判定为 missing。
     format_rules: |
-      建议用一句完整描述，包含主体 + 场景 + 风格或光照关键词。
+      建议用一句完整提示词描述主体、环境和视觉风格。
   width:
     description: |
       生成图像宽度。
     required: false
-    default: 1024
     format_rules: |
-      输出为正整数。
+      输出正整数像素值。
   height:
     description: |
       生成图像高度。
     required: false
-    default: 1024
     format_rules: |
-      输出为正整数。
+      输出正整数像素值。
   steps:
     description: |
-      控制采样步数。
+      采样步数。
     required: false
-    default: 20
     format_rules: |
-      输出为正整数。
+      输出正整数。
   cfg:
     description: |
-      控制文本提示对生成结果的引导强度。
+      文本引导强度。
     required: false
-    default: 5
     format_rules: |
-      输出为正数。
+      输出正数。
   noise_seed:
     description: |
-      控制随机种子，用于复现结果或探索不同构图。
+      随机种子。
     required: false
-    default: 280988996286171
     format_rules: |
-      输出为整数。
-
+      输出整数。
 examples:
-  - nl_desc: "生成一张雨夜街头的赛博朋克少女海报，纵向构图。"
+  - nl_desc: 生成一张黄昏海边的电影感人像海报
     params_example:
-      prompt: "cyberpunk girl on a rainy night street, neon reflections, poster composition, cinematic lighting"
+      prompt: cinematic portrait by the seaside at dusk, warm golden light, detailed skin, soft wind
       width: 1024
       height: 1536
-      steps: 20
-      cfg: 5
-      noise_seed: 280988996286171
-  - nl_desc: "生成一张极简白底产品图，主体是一只陶瓷花瓶。"
+      steps: 24
+      cfg: 5.0
+      noise_seed: 5001
+  - nl_desc: 生成一张赛博朋克雨夜街道场景图
     params_example:
-      prompt: "minimal ceramic vase product shot, clean white background, soft studio lighting"
-      width: 1024
+      prompt: cyberpunk rainy street at night, neon signs, wet reflections, cinematic composition
+      width: 1536
       height: 1024
-      steps: 18
-      cfg: 4.5
-      noise_seed: 280988996286172
+      steps: 26
+      cfg: 5.5
+      noise_seed: 5002
 ---
 
-使用建议（可选正文）：
-- 当用户没有上传底图，而是希望从零开始生成画面时，通常触发这个 lens。
-- `width` 与 `height` 可以用于控制比例，例如海报、方图或横幅。
+## 适用任务
+
+- 用户没有上传原图，只想根据文字直接生成图片。
+- 作为新画面的起点，再接后续风格化、放大或水印透镜。
+
+## 不适用任务
+
+- 不适合“修改这张图”“保留原图构图”这类图生图任务。
+- 不能消费 `base_image`、`mask`、`depth_map` 等任何上游资产。
+
+## 上下游衔接
+
+- 当前透镜可作为生成起点，后续可接 `lens_upscale_4x`、`lens_watermark` 等 A5 透镜。
+
+## 实现依据
+
+- config 没有任何输入资产，只接受参数。
+- workflow 是标准文本到图像生成链，不依赖原图。

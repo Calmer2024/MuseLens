@@ -2,92 +2,95 @@
 lens_id: lens_upscale_4x
 layer: A5
 description: |
-  对输入图像执行高清放大与细节增强。该透镜结合 Ultimate SD Upscale 与 UltraSharp 放大模型，在提升分辨率的同时补充纹理细节、改善模糊和噪点。
-
+  交付阶段的清晰化与放大透镜。输入结果图后，使用 Ultimate SD Upscale 和放大模型提升分辨率、补充细节，并输出更适合交付的高清图。
 params:
   upscale_by:
     description: |
-      控制放大倍数。
+      放大倍数。
     required: false
-    default: 2
     format_rules: |
-      输出为大于 1 的数值。
+      输出正数。
   prompt:
     description: |
-      正向细节增强提示词，用于引导放大时补充更理想的材质和纹理。
+      描述放大时希望补充的细节方向，例如皮肤纹理、布料纹理、建筑细节或写实程度。
     required: false
-    default: "masterpiece, best quality, ultra detailed, 8k, highres"
-    decision_rules: |
-      如果用户只是单纯想提高画质，不强调具体纹理方向，可以沿用默认值。
-      如果用户明确提到“皮肤更细腻”“布料纹理更清楚”“建筑细节更清晰”等，可以补充到该参数。
     format_rules: |
-      输出为简洁的纹理或细节增强描述。
+      建议写细节增强方向，不要写大幅语义改图指令。
   denoise:
     description: |
-      控制放大时的重绘幅度，值越高，新增细节越多，但原图变化也可能更明显。
+      放大过程中的重绘幅度，值越高越容易补新细节，也越可能改变原图。
     required: false
-    default: 0.2
     format_rules: |
-      输出为 0.0 到 1.0 的浮点数，常见安全范围建议 0.15 到 0.35。
+      输出 0 到 1 左右的浮点数。
   steps:
     description: |
-      控制采样步数。
+      采样步数。
     required: false
-    default: 20
     format_rules: |
-      输出为正整数。
+      输出正整数。
   cfg:
     description: |
-      控制提示词引导强度。
+      文本引导强度。
     required: false
-    default: 8
     format_rules: |
-      输出为正数。
+      输出正数。
   tile_width:
     description: |
-      控制分块放大时的 tile 宽度。
+      分块宽度。
     required: false
-    default: 512
     format_rules: |
-      输出为正整数。
+      输出正整数。
   tile_height:
     description: |
-      控制分块放大时的 tile 高度。
+      分块高度。
     required: false
-    default: 512
     format_rules: |
-      输出为正整数。
+      输出正整数。
   seed:
     description: |
-      控制随机种子。
+      随机种子。
     required: false
-    default: 360100058416338
     format_rules: |
-      输出为整数。
-
+      输出整数。
 examples:
-  - nl_desc: "把这张图放大并补一点真实细节，尽量不要改动原来的内容。"
+  - nl_desc: 把最终成图放大并补充皮肤和服装细节，尽量保持原画面不变
     params_example:
-      upscale_by: 2
-      prompt: "high quality detail enhancement, preserve original content, clean texture"
-      denoise: 0.2
-      steps: 20
-      cfg: 8
-      tile_width: 512
-      tile_height: 512
-      seed: 360100058416338
-  - nl_desc: "帮我做高清放大，衣服和头发的细节更清楚一点。"
-    params_example:
-      upscale_by: 2
-      prompt: "sharp hair strands, clearer fabric texture, high quality details, preserve subject"
+      upscale_by: 4
+      prompt: enhance skin texture and clothing details, preserve the original composition
       denoise: 0.25
-      steps: 22
-      cfg: 8
-      tile_width: 512
-      tile_height: 512
-      seed: 360100058416339
+      steps: 20
+      cfg: 4.5
+      tile_width: 1024
+      tile_height: 1024
+      seed: 9001
+  - nl_desc: 把建筑场景图做高清放大，补充砖墙和窗框细节
+    params_example:
+      upscale_by: 4
+      prompt: enhance brick texture and window details, keep architectural structure
+      denoise: 0.3
+      steps: 20
+      cfg: 4.8
+      tile_width: 1024
+      tile_height: 1024
+      seed: 9002
 ---
 
-使用建议（可选正文）：
-- 适合放在生成链路的末尾，作为交付前的清晰度增强步骤。
-- 如果用户强调“高清化”“超清放大”“补细节”，可以优先考虑这个 lens。
+## 适用任务
+
+- 作为链路末端的高清交付、清晰化和细节补充。
+- 用户要求“放大”“更清晰”“补细节”时优先考虑。
+
+## 不适用任务
+
+- 不适合承担主语义编辑任务。
+- 不适合替换主体、修改光线方向或局部重绘。
+
+## 上下游衔接
+
+- 通常放在主生成或主编辑透镜之后。
+- 之后若还要版权标识，可继续接 `lens_watermark`。
+
+## 实现依据
+
+- config 只有 `base_image` 输入。
+- workflow 中包含 `UpscaleModelLoader` 和 `UltimateSDUpscale`，符合“交付增强”定位。
