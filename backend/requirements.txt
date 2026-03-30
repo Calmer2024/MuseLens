@@ -27,3 +27,6 @@ uvicorn==0.39.0
 watchfiles==1.1.1
 websocket-client>=1.6.0
 websockets==15.0.1
+
+langgraph==0.2.76
+langchain-core==0.3.51

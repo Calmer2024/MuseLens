@@ -37,6 +37,7 @@ class LensDoc:
     description: str = ""
     params: Dict[str, LensParamDoc] = None  # type: ignore[assignment]
     examples: List[Dict[str, Any]] = None  # type: ignore[assignment]
+    body: str = ""
 
 
 _CACHE: Dict[str, Tuple[float, LensDoc]] = {}
@@ -194,6 +195,7 @@ def load_lens_doc(lens_id: str) -> Optional[LensDoc]:
         description=description,
         params=params,
         examples=examples,
+        body=body,
     )
 
     _CACHE[path] = (mtime, doc)

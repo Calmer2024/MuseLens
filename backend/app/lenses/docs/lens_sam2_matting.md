@@ -2,26 +2,41 @@
 lens_id: lens_sam2_matting
 layer: A1
 description: |
-  先做主体/目标的分割与抠图（matting）。它的输出会作为后续替换背景（inpaint）所需的 mask 或分割结果。
-
+  使用 Grounding DINO + SAM2 按文本目标自动分割图像中的对象，并输出遮罩 `mask_result`。它适合作为局部编辑链路的上游遮罩生成步骤。
 params:
   prompt:
     description: |
-      要抠出的目标物体的自然语言描述（例如“水杯/人物/猫”等）。
+      要分割的目标对象描述，例如 woman、person、cup、sky、car。
     required: true
-    default: ""
     decision_rules: |
-      仅当 prompt 能明确指向“画面中要替换的目标物体”时才认为足够确定。
-      如果用户只说“换背景/重绘一下”，但没有说明要抠出的具体对象，则返回 missing，并要求用户指出目标物体。
+      如果用户想做局部替换或局部编辑，但没有说清楚要选中哪个对象，应判定为 missing。
     format_rules: |
-      用中文或英文都可以，但尽量具体到物体类别（避免模糊形容词）。
+      输出简短目标词或短语，尽量直接对应需要分割的对象。
 examples:
-  - nl_desc: "把水杯从照片里抠出来，后面用新背景替换。"
+  - nl_desc: 选中图片中的女人，供后续替换主体使用
     params_example:
-      prompt: "a glass cup"
+      prompt: woman
+  - nl_desc: 选中天空区域，后面用来改成晚霞
+    params_example:
+      prompt: sky
 ---
 
-使用建议（正文可选）：
-- prompt 应尽量贴近用户“想替换掉画面中哪个物体”的描述。
-- 如果出现误抠，通常需要追问更精确的对象（例如“左边的水杯/桌上的杯子”等）。
+## 适用任务
 
+- 需要自动找出某个对象或区域，再交给局部重绘透镜处理。
+- 适合“把图中的人换掉”“只改天空”“擦掉杯子后重画”等任务。
+
+## 不适用任务
+
+- 不直接生成最终编辑结果，只输出遮罩。
+- 如果用户任务是全局风格化或整体光影重构，不应单独把这个透镜当最终方案。
+
+## 上下游衔接
+
+- 最常见下游是 `lens_flux_inpaint`。
+- 也可作为任何需要 `mask` 输入的局部编辑透镜上游。
+
+## 实现依据
+
+- config 真实输入只有 `base_image`，参数只有 `prompt`。
+- workflow 使用 `SAM2ModelLoader` 和 `GroundingDinoSAM2Segment`，说明它是文本引导分割透镜。

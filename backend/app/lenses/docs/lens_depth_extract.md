@@ -1,25 +1,31 @@
 ---
 lens_id: lens_depth_extract
-layer: A3
+layer: A1
 description: |
-  从输入图提取深度信息（depth），为后续支持基于深度的分层/遮罩生成提供基础。
-
-params:
-  prompt:
-    description: |
-      可选的辅助描述，用于指导深度提取的风格/边界偏好（如果工作流支持）。
-    required: false
-    default: ""
-    decision_rules: |
-      如果用户没有任何与深度质量相关的偏好（如“更干净边缘/更平滑/更保留细节”），则不需要追问。
-    format_rules: |
-      若提供，尽量简短（1 句以内），描述你希望 depth 边界/纹理的偏好。
+  使用 Depth Anything V2 从输入图像估计深度图，输出 `depth_map` 供下游透镜做空间结构约束。它是分析透镜，不直接负责生成最终效果图。
 examples:
-  - nl_desc: "提取一张适合分层处理的深度图，边缘要干净。"
-    params_example:
-      prompt: "clean edges, preserve subtle details"
+  - nl_desc: 先提取一张深度图，后面用于控制光影或景深
+    params_example: {}
+  - nl_desc: 保留画面空间关系，先做 depth map
+    params_example: {}
 ---
 
-使用建议（正文可选）：
-- 典型用途是先获得深度，再给其它 lens 做分层遮罩或基于深度的替换。
+## 适用任务
 
+- 为下游提供空间体积关系和前后景层次。
+- 常用于全局 relighting、景深模拟或参考约束重绘。
+
+## 不适用任务
+
+- 不生成最终视觉成图。
+- 没有 `prompt`，不能按文字决定提取哪一部分。
+- 不负责边缘线稿、姿态骨架或遮罩分割。
+
+## 上下游衔接
+
+- 常见下游是 `lens_relighting`、`lens_depth_of_field`、`lens_flux_reference`、`lens_flux_two_reference`。
+
+## 实现依据
+
+- config layer 真实为 `A1`，且没有任何参数。
+- workflow 使用 `DepthAnythingV2Preprocessor`，输出类型为 `depth_map`。

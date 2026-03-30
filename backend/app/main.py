@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -18,6 +19,7 @@ from app.api.v1.endpoints import chat as chat_endpoint
 from app.core.database import init_db, SessionLocal
 from app.lenses import registry
 from app.models.lens_model import LensRecord
+from app.services.lens_embedding_sync import sync_lens_embeddings
 
 
 # ============================================================
@@ -40,6 +42,21 @@ async def lifespan(app: FastAPI):
             registry.seed_builtin_lenses_into_db(db)
 
         registry.reload_registry(db)
+
+        # 3. 若启用 pgvector，则在启动时自愈 embeddings 表与全量向量数据
+        if os.getenv("MUSELENS_RAG_BACKEND", "").lower() == "pgvector":
+            pg_dsn = os.getenv("MUSELENS_PG_DSN")
+            if not pg_dsn:
+                print("[Startup] 警告：MUSELENS_RAG_BACKEND=pgvector 但未设置 MUSELENS_PG_DSN，跳过 embeddings 同步。")
+            else:
+                table_name = os.getenv("MUSELENS_RAG_PGVECTOR_TABLE", "lens_embeddings")
+                count = sync_lens_embeddings(
+                    dsn=pg_dsn,
+                    table_name=table_name,
+                    registry=registry.LENS_REGISTRY,
+                    include_examples=True,
+                )
+                print(f"[Startup] 已同步 {count} 条 lens embeddings 到表 {table_name}。")
     finally:
         db.close()
 

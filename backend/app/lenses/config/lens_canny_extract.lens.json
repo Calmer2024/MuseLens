@@ -1,0 +1,21 @@
+{
+  "lens_id": "lens_canny_extract",
+  "layer": "A1",
+  "description": "A1 边缘线稿提取：从输入图像中提取 canny 边缘图，作为下游重绘与结构约束的参考资产。",
+  "workflow_file": "lens_canny_extract.json",
+  "inputs": [
+    {
+      "name": "base_image",
+      "type": "image",
+      "mapping": { "node_id": "1", "field_name": "image" }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "canny_map",
+      "type": "image",
+      "mapping": { "node_id": "6", "field_name": "images" }
+    }
+  ],
+  "params": []
+}

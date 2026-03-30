@@ -1,31 +1,19 @@
 from __future__ import annotations
 
 """
-基于 PostgreSQL + pgvector 的 Lens 向量表同步工具。
-
-目标：
-- 从当前 LENS_REGISTRY 中抽取每个透镜的文本描述；
-- 使用与 PgVectorLensRAGClient 一致的 encode_text_to_vector 生成向量；
-- 将结果写入 / 更新到 PostgreSQL 中的 lens_embeddings 表；
-- 确保在透镜数量增多时，只需“新增透镜配置 + 重新跑一次同步”即可扩展。
+Sync lens embeddings into PostgreSQL + pgvector.
 """
 
 import json
-from typing import Callable, Dict, Iterable, List, Any
-
+from typing import Any, Callable, Dict, Iterable, List
 
 from app.lenses.registry import LENS_REGISTRY
 from app.schemas.lens import LensTemplate
+from app.services.lens_docs_service import load_lens_doc
 from app.services.rag_client import EMBEDDING_DIM, default_encode_text_to_vector
 
 
 def _load_lens_examples_from_db(lens_ids: Iterable[str]) -> Dict[str, List[Dict[str, Any]]]:
-    """
-    从后端数据库读取 lens_examples，为 pgvector embedding corpus 提供 few-shot 语料。
-
-    说明：
-    - 该查询对测试/离线场景应保持“失败可忽略”（当表不存在/DB不可用时返回空）。
-    """
     try:
         from app.core.database import SessionLocal
         from app.models.lens_example_model import LensExampleRecord
@@ -47,7 +35,6 @@ def _load_lens_examples_from_db(lens_ids: Iterable[str]) -> Dict[str, List[Dict[
         finally:
             db.close()
     except Exception:
-        # 避免影响 pgvector 同步主流程
         return {}
 
     examples_by_id: Dict[str, List[Dict[str, Any]]] = {}
@@ -63,29 +50,46 @@ def _build_lens_corpus(
     *,
     examples: List[Dict[str, Any]] | None = None,
 ) -> str:
-    """
-    为单个 Lens 构造用于编码的文本语料。
-    默认包含：
-    - lens_id
-    - layer
-    - description
-    - 所有参数名称与描述
-    """
-    parts: List[str] = [
-        tmpl.lens_id,
-        tmpl.layer.value,
-        tmpl.description or "",
-    ]
+    parts: List[str] = [tmpl.lens_id, tmpl.layer.value, tmpl.description or ""]
+
+    for asset in tmpl.inputs:
+        parts.append(asset.name)
+        parts.append(asset.type.value)
+    for asset in tmpl.outputs:
+        parts.append(asset.name)
+        parts.append(asset.type.value)
+
     for p in tmpl.params:
         parts.append(p.name)
         if p.description:
             parts.append(p.description)
-    # 将 few-shot examples 纳入语料，让向量更贴近自然语言意图
+
+    doc = load_lens_doc(tmpl.lens_id)
+    if doc:
+        if doc.description:
+            parts.append(doc.description)
+        if doc.body:
+            parts.append(doc.body)
+        for pdoc in (doc.params or {}).values():
+            parts.append(pdoc.name)
+            if pdoc.description:
+                parts.append(pdoc.description)
+            if pdoc.decision_rules:
+                parts.append(pdoc.decision_rules)
+            if pdoc.format_rules:
+                parts.append(pdoc.format_rules)
+        for ex in doc.examples or []:
+            nl_desc = str(ex.get("nl_desc") or "")
+            if nl_desc:
+                parts.append(nl_desc)
+            params_example = ex.get("params_example") or {}
+            if params_example:
+                parts.append(json.dumps(params_example, ensure_ascii=False))
+
     for ex in examples or []:
         nl_desc = str(ex.get("nl_desc") or "")
         if nl_desc:
             parts.append(nl_desc)
-
         params_example = ex.get("params_example") or {}
         if params_example:
             parts.append(json.dumps(params_example, ensure_ascii=False))
@@ -94,27 +98,14 @@ def _build_lens_corpus(
 
 
 def _to_vector_literal(vec: Iterable[float]) -> str:
-    """
-    将 Python 序列转换为 pgvector 文本字面量形式：
-    [0.1,0.2,0.3]
-    """
     return "[" + ",".join(str(float(v)) for v in vec) + "]"
 
 
 def ensure_lens_embeddings_schema(dsn: str, table_name: str = "lens_embeddings") -> None:
-    """
-    确保 pgvector 扩展和 lens_embeddings 表存在。
-
-    注意：
-    - 默认使用 EMBEDDING_DIM 作为向量维度；
-    - 使用 ivfflat 索引，lists 参数可根据数据量调整。
-    """
     try:
         import psycopg  # type: ignore
-    except ImportError as exc:  # pragma: no cover - 仅在缺依赖时触发
-        raise RuntimeError(
-            "ensure_lens_embeddings_schema 需要 psycopg 支持，请在后端环境中安装。"
-        ) from exc
+    except ImportError as exc:
+        raise RuntimeError("ensure_lens_embeddings_schema 需要 psycopg 支持。") from exc
 
     create_sql = f"""
     CREATE EXTENSION IF NOT EXISTS vector;
@@ -134,7 +125,7 @@ def ensure_lens_embeddings_schema(dsn: str, table_name: str = "lens_embeddings")
 
     with psycopg.connect(dsn) as conn:  # type: ignore[attr-defined]
         with conn.cursor() as cur:
-            cur.execute(create_sql)  # type: ignore[arg-type]
+            cur.execute(create_sql)
         conn.commit()
 
 
@@ -145,18 +136,10 @@ def sync_lens_embeddings(
     registry: Dict[str, LensTemplate] | None = None,
     include_examples: bool = True,
 ) -> int:
-    """
-    将给定 registry（默认使用全局 LENS_REGISTRY）中的所有透镜
-    同步到 PostgreSQL + pgvector 表中。
-
-    返回成功 upsert 的条目数量。
-    """
     try:
         import psycopg  # type: ignore
-    except ImportError as exc:  # pragma: no cover - 仅在缺依赖时触发
-        raise RuntimeError(
-            "sync_lens_embeddings 需要 psycopg 支持，请在后端环境中安装。"
-        ) from exc
+    except ImportError as exc:
+        raise RuntimeError("sync_lens_embeddings 需要 psycopg 支持。") from exc
 
     reg = LENS_REGISTRY if registry is None else registry
     if not reg:
@@ -190,9 +173,8 @@ def sync_lens_embeddings(
                     "description": tmpl.description,
                     "layer": tmpl.layer.value,
                 }
-                cur.execute(upsert_sql, params)  # type: ignore[arg-type]
+                cur.execute(upsert_sql, params)
                 count += 1
         conn.commit()
 
     return count
-

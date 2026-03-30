@@ -1,0 +1,57 @@
+{
+  "lens_id": "lens_depth_of_field",
+  "layer": "A3",
+  "description": "A3 光学景深模拟：基于原图与深度图模拟焦平面、散景、暗角和光晕效果，输出具备真实镜头感的成片。",
+  "workflow_file": "lens_depth_of_field.json",
+  "inputs": [
+    {
+      "name": "base_image",
+      "type": "image",
+      "mapping": { "node_id": "78", "field_name": "image" }
+    },
+    {
+      "name": "depth_map",
+      "type": "depth_map",
+      "mapping": { "node_id": "206", "field_name": "image" }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result_image",
+      "type": "image",
+      "mapping": { "node_id": "207", "field_name": "images" }
+    }
+  ],
+  "params": [
+    {
+      "name": "dof_focus_point",
+      "type": "float",
+      "description": "控制对焦平面在深度图中的位置，通常取值 0.0 到 1.0。",
+      "mapping": { "node_id": "205", "field_name": "dof_focus_point" }
+    },
+    {
+      "name": "dof_intensity",
+      "type": "float",
+      "description": "控制景深虚化强度，值越高，离焦区域越明显。",
+      "mapping": { "node_id": "205", "field_name": "dof_intensity" }
+    },
+    {
+      "name": "dof_sharpness_radius",
+      "type": "float",
+      "description": "控制清晰区域的宽度，值越大，焦内范围越宽。",
+      "mapping": { "node_id": "205", "field_name": "dof_sharpness_radius" }
+    },
+    {
+      "name": "vignette_intensity",
+      "type": "float",
+      "description": "控制画面边缘暗角强度。",
+      "mapping": { "node_id": "205", "field_name": "vignette_intensity" }
+    },
+    {
+      "name": "halation_strength",
+      "type": "float",
+      "description": "控制高光外扩形成的光晕感。",
+      "mapping": { "node_id": "205", "field_name": "halation_strength" }
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "lens_id": "lens_flux_text2image",
+  "layer": "A2",
+  "description": "A2 基础文本生图：仅根据文本提示生成全新图像，作为无中生有的起点。",
+  "workflow_file": "lens_flux_text2image.json",
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result_image",
+      "type": "image",
+      "mapping": { "node_id": "12", "field_name": "images" }
+    }
+  ],
+  "params": [
+    {
+      "name": "prompt",
+      "type": "text",
+      "description": "描述希望生成的主体、场景、风格和光照。",
+      "mapping": { "node_id": "16", "field_name": "value" }
+    },
+    {
+      "name": "width",
+      "type": "int",
+      "description": "生成图像宽度。",
+      "mapping": { "node_id": "6", "field_name": "value" }
+    },
+    {
+      "name": "height",
+      "type": "int",
+      "description": "生成图像高度。",
+      "mapping": { "node_id": "7", "field_name": "value" }
+    },
+    {
+      "name": "steps",
+      "type": "int",
+      "description": "控制采样步数。",
+      "mapping": { "node_id": "2", "field_name": "steps" }
+    },
+    {
+      "name": "cfg",
+      "type": "float",
+      "description": "控制文本提示对生成结果的引导强度。",
+      "mapping": { "node_id": "3", "field_name": "cfg" }
+    },
+    {
+      "name": "noise_seed",
+      "type": "int",
+      "description": "控制随机种子，用于复现或探索不同构图。",
+      "mapping": { "node_id": "8", "field_name": "noise_seed" }
+    }
+  ]
+}
