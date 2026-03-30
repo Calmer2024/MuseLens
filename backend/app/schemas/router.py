@@ -175,6 +175,14 @@ class RouterRouteAndRunRequest(RouterRouteRequest):
         default=True,
         description="当 Router 返回 ready 且带 blueprint 时，是否立即执行生图。",
     )
+    async_execution: bool = Field(
+        default=False,
+        description="是否以异步流式方式执行。为 true 时，接口会先返回 blueprint，由 WebSocket 推送执行进度与中间图。",
+    )
+    stream_id: Optional[str] = Field(
+        default=None,
+        description="流式执行通道 ID。当前端已连接 `/api/v1/router/ws/run/{stream_id}` 时可传入。",
+    )
 
 
 class RouterRouteAndRunResponse(RouterResponse):
@@ -196,6 +204,14 @@ class RouterRouteAndRunResponse(RouterResponse):
     execution_error: Optional[str] = Field(
         default=None,
         description="执行阶段的错误信息；编排成功但执行失败时使用。",
+    )
+    execution_started: bool = Field(
+        default=False,
+        description="是否已经成功启动执行任务。异步流式执行时用于告知前端开始监听 WebSocket 事件。",
+    )
+    stream_id: Optional[str] = Field(
+        default=None,
+        description="本次执行关联的流式通道 ID。",
     )
     step_results: List["RouterStepResult"] = Field(
         default_factory=list,
