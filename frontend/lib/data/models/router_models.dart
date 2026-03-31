@@ -212,17 +212,26 @@ class RouterStepResult {
   const RouterStepResult({
     required this.stepId,
     required this.lensId,
+    required this.tweakControls,
     required this.outputs,
   });
 
   final String stepId;
   final String lensId;
+  final List<Map<String, dynamic>> tweakControls;
   final List<RouterStepOutput> outputs;
 
   factory RouterStepResult.fromJson(Map<String, dynamic> json) {
     return RouterStepResult(
       stepId: json['step_id']?.toString() ?? '',
       lensId: json['lens_id']?.toString() ?? '',
+      tweakControls: (json['tweak_controls'] as List<dynamic>? ?? const <dynamic>[])
+          .map(
+            (item) => Map<String, dynamic>.from(
+              item as Map<String, dynamic>,
+            ),
+          )
+          .toList(),
       outputs: (json['outputs'] as List<dynamic>? ?? const <dynamic>[])
           .map((item) => RouterStepOutput.fromJson(item as Map<String, dynamic>))
           .toList(),
@@ -282,6 +291,8 @@ class RouterRouteAndRunResponse extends RouterResponse {
     required this.resultFilename,
     required this.resultUrl,
     required this.executionError,
+    required this.executionStarted,
+    required this.streamId,
     required this.stepResults,
   });
 
@@ -290,9 +301,51 @@ class RouterRouteAndRunResponse extends RouterResponse {
   final String? resultFilename;
   final String? resultUrl;
   final String? executionError;
+  final bool executionStarted;
+  final String? streamId;
   final List<RouterStepResult> stepResults;
 
   bool get hasExecutionError => executionError != null && executionError!.trim().isNotEmpty;
+
+  RouterRouteAndRunResponse copyWith({
+    String? sessionId,
+    RouterStatus? status,
+    String? thoughtProcess,
+    List<RouterClarifyQuestion>? questions,
+    RouterBlueprint? blueprint,
+    Map<String, dynamic>? extra,
+    bool? executed,
+    Map<String, dynamic>? executionContext,
+    String? resultFilename,
+    Object? resultUrl = _routerUnset,
+    Object? executionError = _routerUnset,
+    bool? executionStarted,
+    Object? streamId = _routerUnset,
+    List<RouterStepResult>? stepResults,
+  }) {
+    return RouterRouteAndRunResponse(
+      sessionId: sessionId ?? this.sessionId,
+      status: status ?? this.status,
+      thoughtProcess: thoughtProcess ?? this.thoughtProcess,
+      questions: questions ?? this.questions,
+      blueprint: blueprint ?? this.blueprint,
+      extra: extra ?? this.extra,
+      executed: executed ?? this.executed,
+      executionContext: executionContext ?? this.executionContext,
+      resultFilename: resultFilename ?? this.resultFilename,
+      resultUrl: identical(resultUrl, _routerUnset)
+          ? this.resultUrl
+          : resultUrl as String?,
+      executionError: identical(executionError, _routerUnset)
+          ? this.executionError
+          : executionError as String?,
+      executionStarted: executionStarted ?? this.executionStarted,
+      streamId: identical(streamId, _routerUnset)
+          ? this.streamId
+          : streamId as String?,
+      stepResults: stepResults ?? this.stepResults,
+    );
+  }
 
   factory RouterRouteAndRunResponse.fromJson(Map<String, dynamic> json) {
     return RouterRouteAndRunResponse(
@@ -315,9 +368,25 @@ class RouterRouteAndRunResponse extends RouterResponse {
       resultFilename: json['result_filename']?.toString(),
       resultUrl: json['result_url']?.toString(),
       executionError: json['execution_error']?.toString(),
+      executionStarted: json['execution_started'] as bool? ?? false,
+      streamId: json['stream_id']?.toString(),
       stepResults: (json['step_results'] as List<dynamic>? ?? const <dynamic>[])
           .map((item) => RouterStepResult.fromJson(item as Map<String, dynamic>))
           .toList(),
     );
   }
 }
+
+class RouterStreamIdResult {
+  const RouterStreamIdResult({required this.streamId});
+
+  final String streamId;
+
+  factory RouterStreamIdResult.fromJson(Map<String, dynamic> json) {
+    return RouterStreamIdResult(
+      streamId: json['stream_id']?.toString() ?? '',
+    );
+  }
+}
+
+const Object _routerUnset = Object();

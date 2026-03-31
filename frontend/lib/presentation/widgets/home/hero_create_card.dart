@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
 import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'package:image_picker/image_picker.dart';
-// 根据你的实际路径引入意向顾问界面
-import '../../screens/create/consultant_screen.dart';
+import '../../screens/editor/editor_screen.dart';
 
 class HeroCreateCard extends StatefulWidget {
   const HeroCreateCard({super.key});
@@ -201,8 +201,8 @@ class _HeroCreateCardState extends State<HeroCreateCard>
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => ConsultantScreen(
-                                selectedImagePath: image.path,
+                              builder: (context) => EditorScreen(
+                                selectedImage: File(image.path),
                               ),
                             ),
                           );

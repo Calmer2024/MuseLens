@@ -31,6 +31,7 @@ class EditorToolsPanel extends StatelessWidget {
     required this.activeTool,
     required this.promptController,
     required this.isGenerating,
+    required this.onOpenAiChat,
     required this.onToolChanged,
     required this.onSendPrompt,
     required this.cropAspectRatio,
@@ -48,6 +49,7 @@ class EditorToolsPanel extends StatelessWidget {
   final ToolType activeTool;
   final TextEditingController promptController;
   final bool isGenerating;
+  final VoidCallback onOpenAiChat;
   final ValueChanged<ToolType> onToolChanged;
   final VoidCallback onSendPrompt;
   final double cropAspectRatio;
@@ -61,7 +63,14 @@ class EditorToolsPanel extends StatelessWidget {
   final List<String> appliedLensIds;
   final String? activeHighlightId;
 
-  final List<LensTool> _lenses = const <LensTool>[
+  final List<LensTool> _templates = const <LensTool>[
+    LensTool(id: 'template_ghibli', name: '宫崎骏风格', icon: Icons.auto_awesome),
+    LensTool(id: 'template_clean', name: '背景清理', icon: Icons.cleaning_services_outlined),
+    LensTool(id: 'template_portrait', name: '人像通透', icon: Icons.face_6_outlined),
+    LensTool(id: 'template_light', name: '电影光影', icon: Icons.flare_outlined),
+  ];
+
+  final List<LensTool> _toolbox = const <LensTool>[
     LensTool(id: 'lens_matting', name: '智能抠图', icon: Icons.layers_clear),
     LensTool(id: 'lens_crop', name: '智能裁剪', icon: Icons.crop_free),
     LensTool(id: 'lens_upscale', name: '超清修复', icon: Icons.high_quality),
@@ -124,12 +133,108 @@ class EditorToolsPanel extends StatelessWidget {
 
   Widget _buildActivePanel() {
     return switch (activeTool) {
+      ToolType.aiChat => _buildAiChatPanel(),
+      ToolType.aiToolbox => _buildLensPanel(
+          title: 'AI 工具箱',
+          subtitle: '局部替换、背景处理、光影控制都放在这里',
+          tools: _toolbox,
+        ),
       ToolType.crop => _buildCropPanel(),
       ToolType.adjust => _buildAdjustPanel(),
-      ToolType.lens => _buildLensPanel(),
-      ToolType.templates => _buildLensPanel(showTitle: false),
-      ToolType.none => _buildLensPanel(showTitle: false),
+      ToolType.templates => _buildLensPanel(
+          title: '热门模板',
+          subtitle: '从常用风格快速开始，再继续细调',
+          tools: _templates,
+          compactHeader: true,
+        ),
+      ToolType.none => _buildAiChatPanel(),
     };
+  }
+
+  Widget _buildAiChatPanel() {
+    return Column(
+      key: const ValueKey<String>('ai-chat'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _PanelTitle(
+          title: 'AI 修图',
+          subtitle: '进入黑色对话修图界面，让 AI 自动编排并出图',
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF121217),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF7C60FF), AppTheme.electricIndigo],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '对话式 AI 修图',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '适合风格化、替换主体、局部重绘等复杂需求。',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.56),
+                        fontSize: 11,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              FilledButton(
+                onPressed: isGenerating ? null : onOpenAiChat,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.electricIndigo,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(82, 38),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text(
+                  '进入',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildCropPanel() {
@@ -224,16 +329,21 @@ class EditorToolsPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildLensPanel({bool showTitle = true}) {
+  Widget _buildLensPanel({
+    required String title,
+    required String subtitle,
+    required List<LensTool> tools,
+    bool compactHeader = false,
+  }) {
     return Column(
-      key: ValueKey<String>('lens-$showTitle'),
+      key: ValueKey<String>('lens-$title'),
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (showTitle)
-          const _PanelTitle(
-            title: 'AI 模板',
-            subtitle: '点击选择一个修图方向，指令会记录到资产树',
+        if (!compactHeader)
+          _PanelTitle(
+            title: title,
+            subtitle: subtitle,
           )
         else
           Column(
@@ -241,10 +351,10 @@ class EditorToolsPanel extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      '热门模板',
-                      style: TextStyle(
+                      title,
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -274,7 +384,7 @@ class EditorToolsPanel extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                '从常用风格里快速开始，再按需继续细调。',
+                subtitle,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.45),
                   fontSize: 11,
@@ -287,10 +397,10 @@ class EditorToolsPanel extends StatelessWidget {
           height: 72,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: _lenses.length,
+            itemCount: tools.length,
             separatorBuilder: (_, _) => const SizedBox(width: 10),
             itemBuilder: (context, index) {
-              final lens = _lenses[index];
+              final lens = tools[index];
               final selected = selectedLensId == lens.id;
               final used = appliedLensIds.contains(lens.id);
               final highlighted = activeHighlightId == lens.id;
@@ -310,7 +420,8 @@ class EditorToolsPanel extends StatelessWidget {
 
   Widget _buildToolTabs() {
     final items = <(ToolType, IconData, String)>[
-      (ToolType.lens, Icons.auto_awesome_outlined, 'AI 修图'),
+      (ToolType.aiChat, Icons.chat_bubble_outline_rounded, 'AI 修图'),
+      (ToolType.aiToolbox, Icons.widgets_outlined, 'AI工具箱'),
       (ToolType.templates, Icons.local_fire_department_outlined, '热门模板'),
       (ToolType.crop, Icons.crop_outlined, '裁剪'),
       (ToolType.adjust, Icons.tune_rounded, '调节'),
@@ -318,53 +429,64 @@ class EditorToolsPanel extends StatelessWidget {
 
     return SizedBox(
       height: 48,
-      child: Row(
-        children: items.map((item) {
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: items.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final item = items[index];
           final selected = activeTool == item.$1;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => onToolChanged(item.$1),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+          return GestureDetector(
+            onTap: () => onToolChanged(item.$1),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: selected
+                    ? AppTheme.electricIndigo.withValues(alpha: 0.18)
+                    : Colors.white.withValues(alpha: 0.03),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: selected
+                      ? AppTheme.electricIndigo.withValues(alpha: 0.8)
+                      : Colors.white.withValues(alpha: 0.06),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     item.$2,
-                    size: 20,
+                    size: 18,
                     color: selected
                         ? Colors.white
                         : Colors.white.withValues(alpha: 0.45),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(width: 6),
                   Text(
                     item.$3,
                     style: TextStyle(
                       color: selected
                           ? Colors.white
                           : Colors.white.withValues(alpha: 0.45),
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: selected ? 22 : 0,
-                    height: 2,
-                    decoration: BoxDecoration(
-                      color: AppTheme.electricIndigo,
-                      borderRadius: BorderRadius.circular(999),
                     ),
                   ),
                 ],
               ),
             ),
           );
-        }).toList(),
+        },
       ),
     );
   }
 
   Widget _buildChatInput() {
+    if (activeTool == ToolType.aiChat ||
+        activeTool == ToolType.crop ||
+        activeTool == ToolType.adjust) {
+      return const SizedBox.shrink();
+    }
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
       decoration: BoxDecoration(
@@ -435,7 +557,7 @@ class EditorToolsPanel extends StatelessWidget {
   }
 
   String _lensNameById(String id) {
-    for (final lens in _lenses) {
+    for (final lens in <LensTool>[..._templates, ..._toolbox]) {
       if (lens.id == id) return lens.name;
     }
     return 'AI 修图';

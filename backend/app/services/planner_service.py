@@ -166,10 +166,16 @@ class PlannerService:
         headers = {"Authorization": f"Bearer {self._api_key}"}
         url = f"{self._base_url}/chat/completions"
 
-        with httpx.Client(timeout=self._timeout_s) as client:
-            resp = client.post(url, headers=headers, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
+        try:
+            with httpx.Client(timeout=self._timeout_s) as client:
+                resp = client.post(url, headers=headers, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+        except Exception as exc:
+            return _build_planner_resilient_fallback(
+                planner_input,
+                reason=f"Planner LLM request failed: {exc}",
+            )
 
         try:
             choice0 = data["choices"][0]
@@ -190,9 +196,10 @@ class PlannerService:
                 out = _fallback_missing_questions(out, planner_input)
             return _postprocess_planner_output(out, planner_input)
         except Exception as exc:
-            raise RuntimeError(
-                f"PlannerService output parse failed: {exc}; raw={data}"
-            ) from exc
+            return _build_planner_resilient_fallback(
+                planner_input,
+                reason=f"PlannerService output parse failed: {exc}",
+            )
 
 
 class MockPlannerService:
@@ -219,6 +226,19 @@ class SequenceMockPlannerService:
 
     def is_configured(self) -> bool:
         return True
+
+
+def _build_planner_resilient_fallback(
+    planner_input: PlannerInput,
+    *,
+    reason: str,
+) -> PlannerOutput:
+    print(f"[Planner] {reason}")
+    out = PlannerOutput(
+        thought="外部规划器暂不可用，已自动切换到本地启发式编排模式。"
+    )
+    out = _fallback_missing_questions(out, planner_input)
+    return _postprocess_planner_output(out, planner_input)
 
 
 def _fallback_missing_questions(out: PlannerOutput, planner_input: PlannerInput) -> PlannerOutput:

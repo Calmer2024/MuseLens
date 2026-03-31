@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
@@ -5,7 +7,9 @@ import 'dart:ui';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:web_socket_channel/io.dart';
 
+import '../../../core/constants/api_constants.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/router_provider.dart';
 import '../../../core/theme/app_theme.dart';
@@ -18,9 +22,11 @@ class ConsultantScreen extends ConsumerStatefulWidget {
   const ConsultantScreen({
     super.key,
     required this.selectedImagePath,
+    this.returnDraftToPrevious = false,
   });
 
   final String selectedImagePath;
+  final bool returnDraftToPrevious;
 
   @override
   ConsumerState<ConsultantScreen> createState() => _ConsultantScreenState();
@@ -36,7 +42,11 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
 
   String? _uploadedBaseImageName;
   String? _activeSessionId;
+  String? _activeStreamId;
   String? _lastPrompt;
+  int? _activeResultMessageIndex;
+  IOWebSocketChannel? _streamChannel;
+  StreamSubscription<dynamic>? _streamSubscription;
 
   bool _isUploadingBaseImage = false;
   bool _isSending = false;
@@ -68,6 +78,7 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
     for (final controller in _answerControllers.values) {
       controller.dispose();
     }
+    unawaited(_closeStreamChannel());
     super.dispose();
   }
 
@@ -104,6 +115,7 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
     _textController.clear();
     _lastPrompt = prompt;
     _activeSessionId = null;
+    _activeResultMessageIndex = null;
     _clearPendingQuestions();
 
     _appendMessage(
@@ -123,6 +135,8 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
 
   Future<void> _submitClarificationAnswers() async {
     if (_isSending || _pendingQuestions.isEmpty) return;
+
+    _activeResultMessageIndex = null;
 
     final answers = <String, dynamic>{};
     for (final question in _pendingQuestions) {
@@ -151,6 +165,96 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
     );
   }
 
+  Uri _buildRouterWsUri(String streamId) {
+    final baseUri = Uri.parse(ApiConstants.baseUrl);
+    final scheme = baseUri.scheme == 'https' ? 'wss' : 'ws';
+    return baseUri.replace(
+      scheme: scheme,
+      path: '/api/v1/router/ws/run/$streamId',
+      query: null,
+      fragment: null,
+    );
+  }
+
+  Future<void> _closeStreamChannel({bool clearIdentifiers = true}) async {
+    await _streamSubscription?.cancel();
+    _streamSubscription = null;
+    await _streamChannel?.sink.close();
+    _streamChannel = null;
+    if (clearIdentifiers) {
+      _activeStreamId = null;
+      _activeResultMessageIndex = null;
+    }
+  }
+
+  Future<String?> _prepareStreamChannel() async {
+    await _closeStreamChannel(clearIdentifiers: false);
+    final streamId = (await ref.read(routerRepositoryProvider).createStreamId()).streamId;
+    if (streamId.isEmpty) {
+      return null;
+    }
+
+    final channel = IOWebSocketChannel.connect(_buildRouterWsUri(streamId));
+    _streamChannel = channel;
+    _activeStreamId = streamId;
+    _streamSubscription = channel.stream.listen(
+      _handleStreamEventData,
+      onError: (Object error) {
+        if (!mounted) return;
+        _updateActiveResultMessage((current) {
+          final nextExtra = Map<String, dynamic>.from(current.extra);
+          nextExtra['stream_state'] = '实时通道连接异常';
+          return current.copyWith(
+            extra: nextExtra,
+            executionError: current.executionError ?? error.toString(),
+          );
+        });
+      },
+      onDone: () {
+        if (!mounted) return;
+        _streamChannel = null;
+        _streamSubscription = null;
+      },
+      cancelOnError: false,
+    );
+    return streamId;
+  }
+
+  Map<String, dynamic> _normalizeLoopbackUrls(Map<String, dynamic> data) {
+    return _normalizeNode(data) as Map<String, dynamic>;
+  }
+
+  dynamic _normalizeNode(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return value.map<String, dynamic>(
+        (key, nested) => MapEntry<String, dynamic>(key, _normalizeNode(nested)),
+      );
+    }
+    if (value is List<dynamic>) {
+      return value.map<dynamic>(_normalizeNode).toList();
+    }
+    if (value is String) {
+      return _rewriteLocalUrl(value);
+    }
+    return value;
+  }
+
+  String _rewriteLocalUrl(String raw) {
+    final uri = Uri.tryParse(raw);
+    if (uri == null) return raw;
+    final host = uri.host.trim();
+    if (host != '127.0.0.1' && host != 'localhost') {
+      return raw;
+    }
+
+    final baseUri = Uri.parse(ApiConstants.baseUrl);
+    final updated = uri.replace(
+      host: baseUri.host,
+      port: uri.hasPort ? uri.port : baseUri.port,
+    );
+    return updated.toString();
+  }
+
   Future<void> _runRouterRequest({
     required String? userMessage,
     required String? sessionId,
@@ -165,6 +269,13 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
     final userId = ref.read(authProvider)?.userId.toString() ?? '';
     setState(() => _isSending = true);
     try {
+      String? streamId;
+      try {
+        streamId = await _prepareStreamChannel();
+      } catch (_) {
+        await _closeStreamChannel();
+        streamId = null;
+      }
       final response = await ref.read(routerRepositoryProvider).routeAndRun(
             userId: userId,
             sessionId: sessionId,
@@ -173,12 +284,15 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
             baseImageMeta: const <String, dynamic>{},
             answers: answers,
             executeWhenReady: true,
+            asyncExecution: streamId != null,
+            streamId: streamId,
           );
 
       if (!mounted) return;
       setState(() => _activeSessionId = response.sessionId);
       _handleRouterResponse(response);
     } catch (error) {
+      await _closeStreamChannel();
       _appendMessage(
         _ChatMessage(
           role: _ChatRole.assistant,
@@ -207,6 +321,7 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
 
     switch (response.status) {
       case RouterStatus.needClarification:
+        unawaited(_closeStreamChannel());
         _bindPendingQuestions(response.questions);
         final questionText = response.questions.map((item) => item.prompt).join('\n');
         _appendMessage(
@@ -219,18 +334,33 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
         break;
       case RouterStatus.ready:
         _clearPendingQuestions();
+        final nextExtra = Map<String, dynamic>.from(response.extra);
+        if (response.executionStarted) {
+          nextExtra['stream_state'] = '透镜流程已启动，正在实时生成';
+        }
+        final seededResponse = response.copyWith(
+          extra: nextExtra,
+          streamId: response.streamId ?? _activeStreamId,
+          stepResults: response.stepResults.isEmpty
+              ? _seedStepResults(response.blueprint)
+              : response.stepResults,
+        );
         final index = _appendMessage(
           _ChatMessage(
             role: _ChatRole.assistant,
             kind: _ChatMessageKind.result,
-            response: response,
+            response: seededResponse,
           ),
         );
-        if (!response.hasExecutionError && response.resultUrl != null) {
-          Future<void>.microtask(() => _cacheResultForMessage(index, response));
+        _activeResultMessageIndex = index;
+        if (!seededResponse.executionStarted &&
+            !seededResponse.hasExecutionError &&
+            seededResponse.resultUrl != null) {
+          Future<void>.microtask(() => _cacheResultForMessage(index, seededResponse));
         }
         break;
       case RouterStatus.failed:
+        unawaited(_closeStreamChannel());
         _clearPendingQuestions();
         _appendMessage(
           _ChatMessage(
@@ -241,6 +371,7 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
         );
         break;
       case RouterStatus.unknown:
+        unawaited(_closeStreamChannel());
         _appendMessage(
           const _ChatMessage(
             role: _ChatRole.assistant,
@@ -250,6 +381,195 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
         );
         break;
     }
+  }
+
+  List<RouterStepResult> _seedStepResults(RouterBlueprint? blueprint) {
+    if (blueprint == null) {
+      return const <RouterStepResult>[];
+    }
+    return blueprint.steps
+        .map(
+          (step) => RouterStepResult(
+            stepId: step.stepId,
+            lensId: step.lensId,
+            tweakControls: const <Map<String, dynamic>>[],
+            outputs: const <RouterStepOutput>[],
+          ),
+        )
+        .toList();
+  }
+
+  void _handleStreamEventData(dynamic event) {
+    try {
+      final dynamic decoded = event is String ? jsonDecode(event) : event;
+      if (decoded is! Map<String, dynamic>) {
+        return;
+      }
+      _handleStreamEvent(_normalizeLoopbackUrls(decoded));
+    } catch (_) {}
+  }
+
+  void _handleStreamEvent(Map<String, dynamic> event) {
+    if (!mounted) return;
+    final name = event['event']?.toString() ?? '';
+    switch (name) {
+      case 'connected':
+        return;
+      case 'blueprint_ready':
+        _updateActiveResultMessage((current) {
+          final blueprint = event['blueprint'] is Map<String, dynamic>
+              ? RouterBlueprint.fromJson(event['blueprint'] as Map<String, dynamic>)
+              : current.blueprint;
+          return current.copyWith(
+            blueprint: blueprint,
+            stepResults: current.stepResults.isEmpty
+                ? _seedStepResults(blueprint)
+                : current.stepResults,
+          );
+        });
+        return;
+      case 'execution_started':
+        _updateActiveResultMessage((current) {
+          final nextExtra = Map<String, dynamic>.from(current.extra);
+          nextExtra['stream_state'] = '开始执行透镜流程';
+          return current.copyWith(
+            executionStarted: true,
+            extra: nextExtra,
+          );
+        });
+        return;
+      case 'step_started':
+        final stepIndex = event['step_index'];
+        final totalSteps = event['total_steps'];
+        final lensId = event['lens_id']?.toString() ?? '';
+        _updateActiveResultMessage((current) {
+          final nextExtra = Map<String, dynamic>.from(current.extra);
+          nextExtra['current_step_id'] = event['step_id']?.toString();
+          nextExtra['stream_state'] = '正在执行 ${stepIndex ?? ''}/${totalSteps ?? ''} · $lensId';
+          return current.copyWith(
+            executionStarted: true,
+            extra: nextExtra,
+          );
+        });
+        return;
+      case 'step_completed':
+        final stepId = event['step_id']?.toString() ?? '';
+        final lensId = event['lens_id']?.toString() ?? '';
+        final outputs = (event['outputs'] as List<dynamic>? ?? const <dynamic>[])
+            .map((item) => RouterStepOutput.fromJson(item as Map<String, dynamic>))
+            .toList();
+        _updateActiveResultMessage((current) {
+          final nextExtra = Map<String, dynamic>.from(current.extra);
+          nextExtra['current_step_id'] = stepId;
+          nextExtra['stream_state'] = '$lensId 已输出 ${outputs.length} 张过程图';
+          return current.copyWith(
+            executionStarted: true,
+            extra: nextExtra,
+            stepResults: _mergeStepResults(
+              current.stepResults,
+              RouterStepResult(
+                stepId: stepId,
+                lensId: lensId,
+                tweakControls: _existingTweakControls(current.stepResults, stepId),
+                outputs: outputs,
+              ),
+            ),
+          );
+        });
+        _scheduleScrollToBottom();
+        return;
+      case 'execution_completed':
+        _updateActiveResultMessage((current) {
+          final nextExtra = Map<String, dynamic>.from(current.extra);
+          nextExtra['stream_state'] = '执行完成';
+          nextExtra.remove('current_step_id');
+          return current.copyWith(
+            executed: true,
+            executionStarted: true,
+            executionContext: Map<String, dynamic>.from(
+              event['execution_context'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+            ),
+            resultFilename: event['result_filename']?.toString(),
+            resultUrl: event['result_url']?.toString(),
+            extra: nextExtra,
+            stepResults: (event['step_results'] as List<dynamic>? ?? const <dynamic>[])
+                .map((item) => RouterStepResult.fromJson(item as Map<String, dynamic>))
+                .toList(),
+          );
+        });
+        final index = _activeResultMessageIndex;
+        final response = index != null && index < _messages.length
+            ? _messages[index].response
+            : null;
+        if (index != null && response != null && response.resultUrl != null) {
+          Future<void>.microtask(() => _cacheResultForMessage(index, response));
+        }
+        unawaited(_closeStreamChannel(clearIdentifiers: false));
+        return;
+      case 'execution_failed':
+        _updateActiveResultMessage((current) {
+          final nextExtra = Map<String, dynamic>.from(current.extra);
+          nextExtra['stream_state'] = '执行失败';
+          nextExtra.remove('current_step_id');
+          return current.copyWith(
+            executionError: event['error']?.toString() ?? '执行失败',
+            extra: nextExtra,
+          );
+        });
+        unawaited(_closeStreamChannel(clearIdentifiers: false));
+        return;
+    }
+  }
+
+  List<Map<String, dynamic>> _existingTweakControls(
+    List<RouterStepResult> steps,
+    String stepId,
+  ) {
+    for (final step in steps) {
+      if (step.stepId == stepId) {
+        return step.tweakControls;
+      }
+    }
+    return const <Map<String, dynamic>>[];
+  }
+
+  List<RouterStepResult> _mergeStepResults(
+    List<RouterStepResult> steps,
+    RouterStepResult incoming,
+  ) {
+    final next = List<RouterStepResult>.from(steps);
+    final index = next.indexWhere((step) => step.stepId == incoming.stepId);
+    if (index == -1) {
+      next.add(incoming);
+      return next;
+    }
+    next[index] = RouterStepResult(
+      stepId: incoming.stepId,
+      lensId: incoming.lensId.isEmpty ? next[index].lensId : incoming.lensId,
+      tweakControls: incoming.tweakControls.isEmpty
+          ? next[index].tweakControls
+          : incoming.tweakControls,
+      outputs: incoming.outputs.isEmpty ? next[index].outputs : incoming.outputs,
+    );
+    return next;
+  }
+
+  void _updateActiveResultMessage(
+    RouterRouteAndRunResponse Function(RouterRouteAndRunResponse current) update,
+  ) {
+    final index = _activeResultMessageIndex;
+    if (index == null || index < 0 || index >= _messages.length) {
+      return;
+    }
+    final current = _messages[index].response;
+    if (current == null) {
+      return;
+    }
+    setState(() {
+      _messages[index] = _messages[index].copyWith(
+        response: update(current),
+      );
+    });
   }
 
   Future<void> _cacheResultForMessage(
@@ -368,6 +688,22 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
   }
 
   void _openEditorWithDraft(String draftPath, RouterRouteAndRunResponse response) {
+    if (widget.returnDraftToPrevious) {
+      Navigator.pop(
+        context,
+        ConsultantDraftResult(
+          draftImagePath: draftPath,
+          prompt: _lastPrompt,
+          lensId: response.blueprint?.steps.isNotEmpty == true
+              ? response.blueprint!.steps.last.lensId
+              : 'router_generate',
+          lensName: 'AI 修图',
+          tagLabel: 'AI 草稿',
+        ),
+      );
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -952,6 +1288,22 @@ enum _ChatRole { assistant, user }
 
 enum _ChatMessageKind { text, imagePreview, result, error }
 
+class ConsultantDraftResult {
+  const ConsultantDraftResult({
+    required this.draftImagePath,
+    required this.prompt,
+    required this.lensId,
+    required this.lensName,
+    required this.tagLabel,
+  });
+
+  final String draftImagePath;
+  final String? prompt;
+  final String lensId;
+  final String lensName;
+  final String tagLabel;
+}
+
 class _ChatMessage {
   const _ChatMessage({
     required this.role,
@@ -971,13 +1323,14 @@ class _ChatMessage {
 
   _ChatMessage copyWith({
     String? localResultPath,
+    RouterRouteAndRunResponse? response,
   }) {
     return _ChatMessage(
       role: role,
       kind: kind,
       text: text,
       imagePath: imagePath,
-      response: response,
+      response: response ?? this.response,
       localResultPath: localResultPath ?? this.localResultPath,
     );
   }
@@ -1128,6 +1481,8 @@ class _ResultBubble extends StatelessWidget {
     final retrievedLenses = (response.extra['retrieved_lenses'] as List<dynamic>? ?? const <dynamic>[])
         .map((item) => item.toString())
         .toList();
+    final streamState = response.extra['stream_state']?.toString();
+    final currentStepId = response.extra['current_step_id']?.toString();
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1158,7 +1513,11 @@ class _ResultBubble extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                response.executed ? '已执行' : '已编排',
+                response.executed
+                    ? '已执行'
+                    : response.executionStarted
+                        ? '执行中'
+                        : '已编排',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.58),
                   fontSize: 12,
@@ -1166,6 +1525,17 @@ class _ResultBubble extends StatelessWidget {
               ),
             ],
           ),
+          if (streamState != null && streamState.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              streamState,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.72),
+                fontSize: 12,
+                height: 1.45,
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           if (resultImage != null)
             ClipRRect(
@@ -1202,7 +1572,7 @@ class _ResultBubble extends StatelessWidget {
               const SizedBox(width: 8),
               _MetricPill(
                 label: response.stepResults.isEmpty
-                    ? '暂无过程图'
+                    ? (response.executionStarted ? '等待过程图' : '暂无过程图')
                     : '${response.stepResults.length} 个过程节点',
               ),
             ],
@@ -1239,7 +1609,12 @@ class _ResultBubble extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            ...response.stepResults.map((step) => _StepResultCard(step: step)),
+            ...response.stepResults.map(
+              (step) => _StepResultCard(
+                step: step,
+                isActive: currentStepId != null && currentStepId == step.stepId,
+              ),
+            ),
           ],
           const SizedBox(height: 14),
           SizedBox(
@@ -1255,7 +1630,9 @@ class _ResultBubble extends StatelessWidget {
                 ),
               ),
               child: Text(
-                onOpenEditor == null ? '正在准备修图草稿...' : '进入修图',
+                onOpenEditor == null
+                    ? (response.executionStarted ? '正在生成修图草稿...' : '正在准备修图草稿...')
+                    : '进入修图',
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
@@ -1267,9 +1644,13 @@ class _ResultBubble extends StatelessWidget {
 }
 
 class _StepResultCard extends StatelessWidget {
-  const _StepResultCard({required this.step});
+  const _StepResultCard({
+    required this.step,
+    this.isActive = false,
+  });
 
   final RouterStepResult step;
+  final bool isActive;
 
   @override
   Widget build(BuildContext context) {
@@ -1277,9 +1658,15 @@ class _StepResultCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
+        color: isActive
+            ? AppTheme.electricIndigo.withValues(alpha: 0.12)
+            : Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(
+          color: isActive
+              ? AppTheme.electricIndigo.withValues(alpha: 0.6)
+              : Colors.white.withValues(alpha: 0.06),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1300,6 +1687,16 @@ class _StepResultCard extends StatelessWidget {
               fontSize: 11,
             ),
           ),
+          if (step.outputs.isEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              isActive ? '正在生成当前步骤的结果...' : '等待执行或等待过程图回传',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.62),
+                fontSize: 12,
+              ),
+            ),
+          ],
           if (step.outputs.isNotEmpty) ...[
             const SizedBox(height: 10),
             SizedBox(
