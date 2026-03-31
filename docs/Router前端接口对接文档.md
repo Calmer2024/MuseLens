@@ -1313,3 +1313,162 @@ Router 返回的 `status` 只有三种：
 - 已支持：单透镜微调控件
 - 已支持：工作流中某一步的步骤级微调
 - 暂未完整支持：工作流中间步骤修改后的整条后半链自动续跑
+
+### 13.11 MuseDNA 模板导出接口
+
+为了让前端支持“复用当前执行流”或“分享当前执行流模板”，后端新增：
+
+- `POST /api/v1/router/export-musedna`
+- `POST /api/v1/router/run-musedna`
+
+用途：
+
+- 前端把当前执行流的 `blueprint` 传给后端
+- 后端返回一个清洗后的 MuseDNA 模板
+- 这个模板会保留完整 `steps`
+- 但会把 `initial_inputs` 里的真实文件名去掉，改成可复用占位符
+
+这意味着：
+
+- 原始 blueprint 可能是：
+
+```json
+{
+  "initial_inputs": {
+    "user_base_image": "upload.png",
+    "mask": "mask_xxx.png"
+  },
+  "steps": [
+    {
+      "step_id": "s1",
+      "lens_id": "lens_flux_inpaint",
+      "input_links": {
+        "base_image": "$user_base_image",
+        "mask": "$mask"
+      },
+      "params": {
+        "prompt": "remove the masked people"
+      }
+    }
+  ]
+}
+```
+
+- 导出的 MuseDNA 会变成：
+
+```json
+{
+  "musedna": {
+    "initial_inputs": {
+      "user_base_image": "{{user_base_image}}",
+      "mask": "{{mask}}"
+    },
+    "steps": [
+      {
+        "step_id": "s1",
+        "lens_id": "lens_flux_inpaint",
+        "input_links": {
+          "base_image": "$user_base_image",
+          "mask": "$mask"
+        },
+        "params": {
+          "prompt": "remove the masked people"
+        }
+      }
+    ]
+  },
+  "sanitized_input_keys": [
+    "user_base_image",
+    "mask"
+  ]
+}
+```
+
+前端推荐用法：
+
+1. 用户执行完一次工作流
+2. 前端从 `route_and_run` 响应中拿到 `blueprint`
+3. 调 `POST /api/v1/router/export-musedna`
+4. 把返回的 `musedna` 保存为模板、收藏项或分享内容
+5. 当用户之后想复用这个模板时，调 `POST /api/v1/router/run-musedna`
+
+请求示例：
+
+```json
+{
+  "blueprint": {
+    "initial_inputs": {
+      "user_base_image": "upload.png"
+    },
+    "steps": [
+      {
+        "step_id": "step_1_flux_edit",
+        "lens_id": "lens_flux_edit",
+        "input_links": {
+          "base_image": "$user_base_image"
+        },
+        "params": {
+          "prompt": "golden sunset lighting from the upper right"
+        }
+      }
+    ]
+  }
+}
+```
+
+`run-musedna` 的用途：
+
+- 不经过 Router
+- 不做对话理解
+- 不做透镜检索
+- 不做重新编排
+- 前端直接提交：
+  - `musedna`
+  - 实际资产 `input_assets`
+- 后端把占位符绑定成真实资产后，直接执行
+
+示例：
+
+```json
+{
+  "musedna": {
+    "initial_inputs": {
+      "user_base_image": "{{user_base_image}}",
+      "mask": "{{mask}}"
+    },
+    "steps": [
+      {
+        "step_id": "s1",
+        "lens_id": "lens_flux_inpaint",
+        "input_links": {
+          "base_image": "$user_base_image",
+          "mask": "$mask"
+        },
+        "params": {
+          "prompt": "remove the masked people"
+        }
+      }
+    ]
+  },
+  "input_assets": {
+    "user_base_image": "upload.png",
+    "mask": "mask_xxx.png"
+  },
+  "execute_when_ready": true,
+  "async_execution": false,
+  "stream_id": null
+}
+```
+
+前端理解方式：
+
+- `export-musedna` 是“导出模板”
+- `run-musedna` 是“执行模板”
+
+这样 MuseDNA 才形成完整闭环：
+
+1. `route_and_run` 生成并执行一次
+2. `export-musedna` 导出模板
+3. 用户收藏/分享模板
+4. 之后前端收集新的图片和资产
+5. `run-musedna` 直接复用执行

@@ -723,3 +723,125 @@ def test_new_stream_id_endpoint(client):
     assert isinstance(body["stream_id"], str)
     assert len(body["stream_id"]) >= 8
 
+
+def test_export_musedna_endpoint_sanitizes_initial_inputs(client):
+    resp = client.post(
+        "/api/v1/router/export-musedna",
+        json={
+            "blueprint": {
+                "initial_inputs": {
+                    "user_base_image": "upload.png",
+                    "mask": "mask_xxx.png",
+                },
+                "steps": [
+                    {
+                        "step_id": "s1",
+                        "lens_id": "lens_flux_inpaint",
+                        "input_links": {
+                            "base_image": "$user_base_image",
+                            "mask": "$mask",
+                        },
+                        "params": {
+                            "prompt": "remove the masked people",
+                        },
+                    }
+                ],
+            }
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["sanitized_input_keys"] == ["user_base_image", "mask"]
+    assert body["musedna"]["initial_inputs"]["user_base_image"] == "{{user_base_image}}"
+    assert body["musedna"]["initial_inputs"]["mask"] == "{{mask}}"
+    assert body["musedna"]["steps"][0]["input_links"]["base_image"] == "$user_base_image"
+    assert body["musedna"]["steps"][0]["input_links"]["mask"] == "$mask"
+
+
+def test_run_musedna_endpoint_executes_bound_template(client, monkeypatch):
+    import app.api.v1.endpoints.router as router_endpoint
+
+    captured = {}
+
+    async def _fake_execute(blueprint):
+        captured["blueprint"] = blueprint.model_dump()
+        return {
+            "user_base_image": "upload.png",
+            "mask": "mask.png",
+            "s1.result_image": "result.png",
+        }
+
+    monkeypatch.setattr(router_endpoint.compiler, "execute_blueprint", _fake_execute)
+
+    resp = client.post(
+        "/api/v1/router/run-musedna",
+        json={
+            "musedna": {
+                "initial_inputs": {
+                    "user_base_image": "{{user_base_image}}",
+                    "mask": "{{mask}}",
+                },
+                "steps": [
+                    {
+                        "step_id": "s1",
+                        "lens_id": "lens_flux_inpaint",
+                        "input_links": {
+                            "base_image": "$user_base_image",
+                            "mask": "$mask",
+                        },
+                        "params": {
+                            "prompt": "remove the masked people",
+                        },
+                    }
+                ],
+            },
+            "input_assets": {
+                "user_base_image": "upload.png",
+                "mask": "mask.png",
+            },
+            "execute_when_ready": True,
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ready"
+    assert body["executed"] is True
+    assert body["result_filename"] == "result.png"
+    assert captured["blueprint"]["initial_inputs"]["user_base_image"] == "upload.png"
+    assert captured["blueprint"]["initial_inputs"]["mask"] == "mask.png"
+
+
+def test_run_musedna_endpoint_returns_error_when_assets_missing(client):
+    resp = client.post(
+        "/api/v1/router/run-musedna",
+        json={
+            "musedna": {
+                "initial_inputs": {
+                    "user_base_image": "{{user_base_image}}",
+                    "mask": "{{mask}}",
+                },
+                "steps": [
+                    {
+                        "step_id": "s1",
+                        "lens_id": "lens_flux_inpaint",
+                        "input_links": {
+                            "base_image": "$user_base_image",
+                            "mask": "$mask",
+                        },
+                        "params": {
+                            "prompt": "remove the masked people",
+                        },
+                    }
+                ],
+            },
+            "input_assets": {
+                "user_base_image": "upload.png",
+            },
+            "execute_when_ready": True,
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "failed"
+    assert "mask" in body["execution_error"]
+

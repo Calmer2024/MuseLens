@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import os
 import uuid
 
@@ -18,6 +19,9 @@ from app.schemas.router import (
     RouterBaseImageUploadResponse,
     RouterAnswerRequest,
     RouterCompileRequest,
+    RouterMuseDNAExportRequest,
+    RouterMuseDNAExportResponse,
+    RouterMuseDNARunRequest,
     RouterRouteAndRunRequest,
     RouterRouteAndRunResponse,
     RouterRouteRequest,
@@ -38,6 +42,34 @@ from app.services.router_service import router_service
 
 router = APIRouter()
 compiler = MuseDNACompiler(input_dir=COMFYUI_INPUT_DIR, output_dir=COMFYUI_OUTPUT_DIR)
+
+
+def _export_musedna_template(blueprint) -> tuple[dict, list[str]]:
+    musedna = copy.deepcopy(blueprint.model_dump())
+    initial_inputs = dict(musedna.get("initial_inputs") or {})
+    sanitized_keys = list(initial_inputs.keys())
+    musedna["initial_inputs"] = {key: f"{{{{{key}}}}}" for key in sanitized_keys}
+    return musedna, sanitized_keys
+
+
+def _bind_musedna_template(musedna, input_assets: dict[str, str]):
+    blueprint = copy.deepcopy(musedna)
+    initial_inputs = dict(blueprint.initial_inputs or {})
+    bound_inputs: dict[str, str] = {}
+    missing_inputs: list[str] = []
+
+    for key, value in initial_inputs.items():
+        if isinstance(value, str) and value == f"{{{{{key}}}}}":
+            actual = (input_assets or {}).get(key)
+            if not actual:
+                missing_inputs.append(key)
+                continue
+            bound_inputs[key] = actual
+        else:
+            bound_inputs[key] = value
+
+    blueprint.initial_inputs = bound_inputs
+    return blueprint, missing_inputs
 
 
 @router.post("/upload-base-image", response_model=RouterBaseImageUploadResponse)
@@ -88,6 +120,105 @@ def route(req: RouterRouteRequest, db: Session = Depends(get_db)) -> RouterRespo
 @router.get("/stream/new")
 def new_stream_id() -> dict[str, str]:
     return {"stream_id": str(uuid.uuid4())}
+
+
+@router.post("/export-musedna", response_model=RouterMuseDNAExportResponse)
+def export_musedna(req: RouterMuseDNAExportRequest) -> RouterMuseDNAExportResponse:
+    musedna_dict, sanitized_keys = _export_musedna_template(req.blueprint)
+    return RouterMuseDNAExportResponse(
+        musedna=req.blueprint.__class__.model_validate(musedna_dict),
+        sanitized_input_keys=sanitized_keys,
+    )
+
+
+@router.post("/run-musedna", response_model=RouterRouteAndRunResponse)
+async def run_musedna(req: RouterMuseDNARunRequest) -> RouterRouteAndRunResponse:
+    bound_blueprint, missing_inputs = _bind_musedna_template(req.musedna, req.input_assets)
+    payload = {
+        "session_id": f"musedna-{uuid.uuid4()}",
+        "status": RouterStatus.READY,
+        "thought_process": "MuseDNA template inputs were bound successfully.",
+        "questions": [],
+        "blueprint": bound_blueprint,
+        "extra": {
+            "template_mode": True,
+            "input_asset_keys": list((req.input_assets or {}).keys()),
+        },
+        "executed": False,
+        "execution_context": {},
+        "result_filename": None,
+        "result_url": None,
+        "execution_error": None,
+        "execution_started": False,
+        "stream_id": req.stream_id,
+        "step_results": [],
+    }
+
+    if missing_inputs:
+        payload.update(
+            {
+                "status": RouterStatus.FAILED,
+                "thought_process": "MuseDNA template is missing required concrete input assets.",
+                "blueprint": None,
+                "execution_error": f"Missing required MuseDNA input assets: {', '.join(missing_inputs)}",
+            }
+        )
+        return RouterRouteAndRunResponse(**payload)
+
+    if not req.execute_when_ready:
+        return RouterRouteAndRunResponse(**payload)
+
+    stream_id = req.stream_id
+    if req.async_execution and not stream_id:
+        payload["execution_error"] = "async_execution=true requires stream_id. Please connect websocket first."
+        return RouterRouteAndRunResponse(**payload)
+
+    if req.async_execution and stream_id:
+        await router_stream_service.emit(
+            stream_id,
+            {
+                "event": "blueprint_ready",
+                "session_id": payload["session_id"],
+                "stream_id": stream_id,
+                "status": RouterStatus.READY.value,
+                "blueprint": bound_blueprint.model_dump(),
+            },
+        )
+        asyncio.create_task(
+            run_blueprint_with_stream_events(
+                compiler=compiler,
+                blueprint=bound_blueprint,
+                session_id=payload["session_id"],
+                stream_id=stream_id,
+            )
+        )
+        payload["execution_started"] = True
+        return RouterRouteAndRunResponse(**payload)
+
+    try:
+        final_context = await execute_blueprint_with_optional_stream(
+            compiler=compiler,
+            blueprint=bound_blueprint,
+            session_id=payload["session_id"],
+            stream_id=stream_id,
+        )
+        result_filename = infer_result_filename(bound_blueprint, final_context)
+        payload.update(
+            {
+                "executed": True,
+                "execution_started": True,
+                "execution_context": final_context,
+                "result_filename": result_filename,
+                "result_url": build_result_url(result_filename) if result_filename else None,
+                "step_results": build_step_results(bound_blueprint, final_context),
+            }
+        )
+        if not result_filename:
+            payload["execution_error"] = "MuseDNA executed, but no result image was found in execution context."
+    except Exception as exc:
+        payload["execution_error"] = str(exc)
+
+    return RouterRouteAndRunResponse(**payload)
 
 
 @router.post("/route_and_run", response_model=RouterRouteAndRunResponse)

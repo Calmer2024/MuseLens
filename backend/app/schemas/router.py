@@ -231,6 +231,44 @@ class RouterBaseImageUploadResponse(BaseModel):
     file_size: int = Field(..., description="文件大小，单位字节")
 
 
+class RouterMuseDNAExportRequest(BaseModel):
+    """Export a reusable MuseDNA template from a blueprint."""
+
+    blueprint: DAGBlueprint = Field(..., description="The current execution blueprint to sanitize.")
+
+
+class RouterMuseDNAExportResponse(BaseModel):
+    """Sanitized MuseDNA template for reuse or sharing."""
+
+    musedna: DAGBlueprint = Field(..., description="Blueprint template with sanitized initial inputs.")
+    sanitized_input_keys: List[str] = Field(
+        default_factory=list,
+        description="Initial input keys that were converted to reusable placeholders.",
+    )
+
+
+class RouterMuseDNARunRequest(BaseModel):
+    """Run a MuseDNA template directly without Router planning."""
+
+    musedna: DAGBlueprint = Field(..., description="Reusable MuseDNA template.")
+    input_assets: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Concrete input assets for template placeholders, such as user_base_image/mask/ref_image_1.",
+    )
+    execute_when_ready: bool = Field(
+        default=True,
+        description="Whether to execute immediately after binding input assets.",
+    )
+    async_execution: bool = Field(
+        default=False,
+        description="Whether to execute in async streaming mode.",
+    )
+    stream_id: Optional[str] = Field(
+        default=None,
+        description="Stream id used when async_execution=true.",
+    )
+
+
 class RouterStepOutput(BaseModel):
     """单个步骤某个输出槽位的可展示结果。"""
 
