@@ -201,7 +201,7 @@ def _build_share_payload(
         payload = {
             "title": lens.name,
             "summary": (lens.description or "").strip()[:120],
-            "cover_url": None,
+            "cover_url": lens.cover_image_url,
             "author_id": author.user_id if author else lens.author_id,
             "author_name": author.nickname if author else None,
             "metadata": {
@@ -211,7 +211,11 @@ def _build_share_payload(
                 "price": str(lens.price),
                 "is_official": lens.is_official,
                 "rating": str(lens.rating),
+                "apply_count": lens.apply_count,
+                "preview_asset_node_id": lens.preview_asset_node_id,
                 "latest_version": latest_version.version if latest_version else None,
+                "required_inputs": list(latest_version.required_inputs or []) if latest_version else [],
+                "published_from": latest_version.published_from if latest_version else None,
             },
         }
         return "preset", "market_lens", str(lens.lens_id), payload

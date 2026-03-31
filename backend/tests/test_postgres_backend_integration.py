@@ -183,13 +183,15 @@ def test_postgres_user_community_market_roundtrip(client, postgres_test_db):
     )
     assert comment_resp.status_code == 201
 
-    delete_forbidden_resp = client.delete(
+    delete_forbidden_resp = client.request(
+        "DELETE",
         f"/api/v1/community/posts/{post['post_id']}",
         json={"user_id": author["user_id"]},
     )
     assert delete_forbidden_resp.status_code == 403
 
-    delete_resp = client.delete(
+    delete_resp = client.request(
+        "DELETE",
         f"/api/v1/community/posts/{post['post_id']}",
         json={"user_id": user["user_id"]},
     )
@@ -211,35 +213,100 @@ def test_postgres_user_community_market_roundtrip(client, postgres_test_db):
     assert post_resp.status_code == 201
     post = post_resp.json()
 
-    lens_resp = client.post(
-        "/api/v1/market/lenses",
+    project_resp = client.post(
+        "/api/v1/asset-tree/projects",
         json={
-            "lens_key": "lens_pg_market_v1",
-            "name": "数据库市场透镜",
-            "description": "测试市场链路",
+            "name": "pg-market-project",
+            "description": "PostgreSQL 市场集成测试项目",
+        },
+    )
+    assert project_resp.status_code == 200
+    project = project_resp.json()
+
+    root_resp = client.post(
+        f"/api/v1/asset-tree/projects/{project['project_id']}/root-node",
+        json={
+            "image_url": "s3://bucket/market_root.png",
+            "thumbnail_url": "s3://bucket/market_root_thumb.png",
+            "width": 1024,
+            "height": 768,
+            "format": "png",
+            "metadata": {"source": "upload"},
+        },
+    )
+    assert root_resp.status_code == 201
+    root_node = root_resp.json()
+
+    blueprint = {
+        "initial_inputs": {
+            "base_image": "author_source.png",
+        },
+        "steps": [
+            {
+                "step_id": "step_pg_market_edit",
+                "lens_id": "lens_pg_market_demo",
+                "input_links": {
+                    "base_image": "$base_image",
+                },
+                "params": {
+                    "prompt": "clean and bright portrait look",
+                    "strength": 0.45,
+                },
+            }
+        ],
+    }
+    child_resp = client.post(
+        f"/api/v1/asset-tree/projects/{project['project_id']}/nodes",
+        json={
+            "parent_node_id": root_node["node_id"],
+            "image_url": "s3://bucket/market_child.png",
+            "thumbnail_url": "s3://bucket/market_child_thumb.png",
+            "width": 1024,
+            "height": 768,
+            "format": "png",
+            "lens_id": "lens_pg_market_demo",
+            "lens_name": "市场蓝图示例",
+            "user_prompt": "提亮并保留自然肤色",
+            "parameters": {"strength": 0.45},
+            "muse_dna": blueprint,
+            "generation_params": {"strength": 0.45},
+            "status": "completed",
+            "metadata": {"source": "generation"},
+        },
+    )
+    assert child_resp.status_code == 201
+    asset_node = child_resp.json()["node"]
+
+    publish_resp = client.post(
+        "/api/v1/market/lenses/publish-from-node",
+        json={
+            "lens_key": "lens_pg_market_blueprint_v1",
+            "name": "数据库市场 blueprint preset",
+            "description": "测试 PostgreSQL 下的市场蓝图发布与应用链路",
             "author_id": author["user_id"],
+            "source_asset_node_id": asset_node["node_id"],
             "category": "integration",
             "price": "1.99",
             "is_official": False,
             "status": "active",
-        },
-    )
-    assert lens_resp.status_code == 201
-    lens = lens_resp.json()
-
-    version_resp = client.post(
-        f"/api/v1/market/lenses/{lens['lens_id']}/versions",
-        json={
             "version": "1.0.0",
-            "base_workflow": {"nodes": []},
+            "base_workflow": {"kind": "shared_blueprint"},
             "parameters": {"strength": {"type": "float"}},
             "ui_schema": {"layout": "slider"},
             "changelog": "首次发布",
-            "is_latest": True,
         },
     )
-    assert version_resp.status_code == 201
-    version = version_resp.json()
+    assert publish_resp.status_code == 201
+    published = publish_resp.json()
+    lens = published["lens"]
+    version = published["version"]
+
+    assert lens["cover_image_url"] == asset_node["thumbnail_url"]
+    assert lens["preview_asset_node_id"] == asset_node["node_id"]
+    assert version["source_asset_node_id"] == asset_node["node_id"]
+    assert version["required_inputs"] == ["base_image"]
+    assert version["blueprint"]["initial_inputs"]["base_image"] == ""
+    assert version["published_from"] == "asset_node"
 
     install_resp = client.post(
         f"/api/v1/market/lenses/{lens['lens_id']}/install",
@@ -253,9 +320,37 @@ def test_postgres_user_community_market_roundtrip(client, postgres_test_db):
     )
     assert review_resp.status_code == 200
 
+    apply_resp = client.post(
+        f"/api/v1/market/lenses/{lens['lens_id']}/apply",
+        json={
+            "user_id": user["user_id"],
+            "initial_inputs": {"base_image": "consumer_upload.png"},
+            "param_overrides": {
+                "step_pg_market_edit": {
+                    "strength": 0.7,
+                }
+            },
+        },
+    )
+    assert apply_resp.status_code == 200
+    apply_payload = apply_resp.json()
+    assert apply_payload["executed"] is False
+    assert apply_payload["required_inputs"] == ["base_image"]
+    assert apply_payload["blueprint"]["initial_inputs"]["base_image"] == "consumer_upload.png"
+    assert apply_payload["blueprint"]["steps"][0]["params"]["strength"] == 0.7
+    assert apply_payload["lens"]["apply_count"] == 1
+
+    detail_resp = client.get(f"/api/v1/market/lenses/{lens['lens_id']}")
+    assert detail_resp.status_code == 200
+    detail = detail_resp.json()
+    assert detail["install_count"] == 1
+    assert detail["apply_count"] == 1
+    assert detail["rating_count"] == 1
+    assert detail["versions"][0]["required_inputs"] == ["base_image"]
+
     installed_resp = client.get(f"/api/v1/market/users/{user['user_id']}/installed")
     assert installed_resp.status_code == 200
-    assert installed_resp.json()[0]["lens_key"] == "lens_pg_market_v1"
+    assert installed_resp.json()[0]["lens_key"] == "lens_pg_market_blueprint_v1"
 
 
 @pytest.mark.integration
