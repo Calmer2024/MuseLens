@@ -391,11 +391,151 @@ GET /api/v1/community/tags
 /api/v1/market
 ```
 
-### 1. 创建市场透镜
+### 1. 先理解当前透镜市场的实现
+
+当前版本里，透镜市场的核心语义已经不是“展示一个抽象透镜信息”，而是：
+
+- 用户把自己已经跑通的一份修图 blueprint 分享到市场
+- 其他用户可以查看这个 preset 的介绍、安装、收藏、评价
+- 其他用户也可以直接把这份 blueprint 应用到自己的图片上
+
+前端可以把市场里的一个条目理解成两层结构：
+
+- `MarketLens`
+  - 市场卡片本体
+  - 负责承载名称、描述、封面、作者、评分、安装次数、应用次数这些“市场层信息”
+- `MarketLensVersion`
+  - 某个市场 preset 的具体版本
+  - 负责承载真正可复用的 `blueprint`
+  - 一个市场条目可以有多个版本
+
+当前最重要的几个字段：
+
+- `cover_image_url`
+  - 市场卡片封面图
+- `preview_asset_node_id`
+  - 该 preset 对应的预览资产节点，前端可用它回跳资产树或做预览
+- `blueprint`
+  - 真正可执行的 DAGBlueprint 快照
+- `required_inputs`
+  - 应用该 preset 时必须由调用方补充的输入槽位
+- `published_from`
+  - 当前版本的来源，可能是 `manual`、`asset_node`、`editor_episode`
+- `install_count`
+  - 被多少人安装
+- `apply_count`
+  - 被多少次直接应用
+
+### 2. 前端一定要知道的设计细节
+
+当作者把自己的资产节点发布到市场时，后端会对 blueprint 做一次“可分享化处理”：
+
+- 会保留 `initial_inputs` 里的输入槽位名
+- 会清空作者原本实际使用的输入值
+- 会把这些槽位名提取到 `required_inputs`
+
+这样做的原因是：
+
+- 不能把作者本地实际图片文件名直接分享给别人
+- 其他用户应用时，应该由他们自己重新提供输入资源
+
+所以前端在“应用 preset”时的正确做法是：
+
+1. 先读取 `required_inputs`
+2. 让用户上传或选择对应资源
+3. 再调用 `/apply`
+
+补充说明：
+
+- 当前后端不会在市场接口里帮前端上传文件
+- `initial_inputs` 里传的值，本质上是执行引擎可识别的资源标识字符串
+- 常见做法是先通过你们已有上传链路拿到文件名或内部路径，再传给市场 `apply` 接口
+
+### 3. 前端推荐调用顺序
+
+推荐把市场接入分成四类页面或动作：
+
+1. 作者发布 preset
+   - 优先调用 `POST /api/v1/market/lenses/publish-from-node`
+2. 用户浏览市场
+   - 调用 `GET /api/v1/market/lenses`
+   - 进入详情页时调用 `GET /api/v1/market/lenses/{lens_id}`
+3. 用户点击“直接应用”
+   - 调用 `POST /api/v1/market/lenses/{lens_id}/apply`
+4. 用户点击“安装 / 收藏 / 评价”
+   - 分别调用 install / favorite / reviews 接口
+
+### 4. 从资产节点发布 preset，推荐使用这个接口
+
+```text
+POST /api/v1/market/lenses/publish-from-node
+```
+
+这个接口适合“作者在资产树里已经有一份完成结果，现在希望把它作为可复用 preset 发到市场”的场景。
+
+请求体示例：
+
+```json
+{
+  "lens_key": "shared_portrait_blueprint_v1",
+  "name": "人像提亮 preset",
+  "description": "把作者的修图 blueprint 发布到市场",
+  "author_id": 1,
+  "source_asset_node_id": "550e8400-e29b-41d4-a716-446655440000",
+  "category": "portrait",
+  "price": "0.00",
+  "is_official": false,
+  "status": "active",
+  "version": "1.0.0",
+  "changelog": "首次分享",
+  "parameters": {
+    "strength": {
+      "type": "float"
+    }
+  },
+  "ui_schema": {
+    "layout": "slider"
+  },
+  "base_workflow": {
+    "kind": "shared_blueprint"
+  }
+}
+```
+
+说明：
+
+- `source_asset_node_id` 必传，表示要从哪个资产节点提取 `muse_dna / blueprint`
+- 这个接口会一次性完成两件事：
+  - 创建 `MarketLens`
+  - 创建第一个 `MarketLensVersion`
+- 当前这是最推荐前端接入的发布方式
+
+返回重点：
+
+- `lens.cover_image_url`
+- `lens.preview_asset_node_id`
+- `version.blueprint`
+- `version.required_inputs`
+- `version.published_from`
+
+前端需要特别注意：
+
+- 返回的 `version.blueprint.initial_inputs` 里对应值通常已经被清空
+- 真正应用时不要直接拿这个空 blueprint 执行
+- 应该先引导用户补齐 `required_inputs`，再调用 `/apply`
+
+### 5. 创建市场 preset 元数据
 
 ```text
 POST /api/v1/market/lenses
 ```
+
+这个接口只创建市场条目本体，不会自动创建 blueprint 版本。
+
+适用场景：
+
+- 后台管理手动建条目
+- 先占一个市场坑位，稍后再补版本
 
 请求体示例：
 
@@ -408,22 +548,36 @@ POST /api/v1/market/lenses
   "category": "portrait",
   "price": "9.90",
   "is_official": false,
+  "cover_image_url": "https://example.com/cover.png",
+  "preview_asset_node_id": "550e8400-e29b-41d4-a716-446655440000",
   "status": "active"
 }
 ```
 
 说明：
 
-- `lens_key` 是市场透镜的业务唯一键
-- 这里的 `lens_id` 是市场表里的整数主键，不是运行时 Lens 的 `lens_id`
+- `lens_key` 是市场 preset 的业务唯一键
+- 这里的 `lens_id` 是市场表里的整数主键，不是运行时 Lens 注册表里的 `lens_id`
+- 如果你希望这个 preset 能被别人直接应用，后续还必须再创建版本
 
-### 2. 更新市场透镜
+### 6. 更新市场 preset
 
 ```text
 PATCH /api/v1/market/lenses/{lens_id}
 ```
 
-### 3. 列出市场透镜
+可更新字段包括：
+
+- `name`
+- `description`
+- `category`
+- `price`
+- `is_official`
+- `cover_image_url`
+- `preview_asset_node_id`
+- `status`
+
+### 7. 列出市场 preset
 
 ```text
 GET /api/v1/market/lenses
@@ -435,7 +589,15 @@ GET /api/v1/market/lenses
 - `status`
 - `is_official`
 
-### 4. 获取透镜详情
+返回重点：
+
+- 市场卡片基础信息
+- `install_count`
+- `apply_count`
+- `rating`
+- `cover_image_url`
+
+### 8. 获取市场 preset 详情
 
 ```text
 GET /api/v1/market/lenses/{lens_id}
@@ -443,23 +605,56 @@ GET /api/v1/market/lenses/{lens_id}
 
 返回通常包含：
 
-- 透镜基本信息
+- 市场条目基本信息
 - `versions`
 - `reviews`
 
-### 5. 创建透镜版本
+前端详情页最应该关注的字段：
+
+- `versions[].version`
+- `versions[].required_inputs`
+- `versions[].published_from`
+- `versions[].source_asset_node_id`
+- `versions[].parameters`
+- `versions[].ui_schema`
+
+### 9. 创建 preset 版本
 
 ```text
 POST /api/v1/market/lenses/{lens_id}/versions
 ```
 
-请求体示例：
+这个接口用于给已有市场条目补一个新版本。
+
+有两种常见用法：
+
+- 直接传 `blueprint`
+- 传 `source_asset_node_id`，让后端从资产节点生成可分享版本
+
+更推荐的发布方式依然是前面的 `publish-from-node`，因为它一步就能完成条目和版本创建。
+
+请求体示例一，手动传 blueprint：
 
 ```json
 {
   "version": "1.0.0",
-  "base_workflow": {
-    "nodes": []
+  "blueprint": {
+    "initial_inputs": {
+      "base_image": "author_source.png"
+    },
+    "steps": [
+      {
+        "step_id": "step_1_shared_edit",
+        "lens_id": "lens_shared_demo",
+        "input_links": {
+          "base_image": "$base_image"
+        },
+        "params": {
+          "prompt": "bright clean portrait look",
+          "strength": 0.45
+        }
+      }
+    ]
   },
   "parameters": {
     "strength": {
@@ -474,7 +669,126 @@ POST /api/v1/market/lenses/{lens_id}/versions
 }
 ```
 
-### 6. 安装透镜
+请求体示例二，从资产节点生成版本：
+
+```json
+{
+  "version": "1.0.0",
+  "source_asset_node_id": "550e8400-e29b-41d4-a716-446655440000",
+  "parameters": {
+    "strength": {
+      "type": "float"
+    }
+  },
+  "ui_schema": {
+    "layout": "slider"
+  },
+  "changelog": "首次发布",
+  "is_latest": true
+}
+```
+
+说明：
+
+- 返回后的 `blueprint` 仍然会经过分享化处理
+- 也就是说，作者自己的原始输入不会原样保留
+- 前端如果只是消费市场功能，通常不需要自己拼装 `blueprint`
+
+### 10. 直接应用 market preset，这是当前最关键的接口
+
+```text
+POST /api/v1/market/lenses/{lens_id}/apply
+```
+
+这个接口的作用不是“安装到我的列表”，而是：
+
+- 取出某个市场版本对应的 blueprint
+- 校验调用方是否补齐了 `required_inputs`
+- 按需覆盖 step 参数
+- 返回可执行 blueprint
+- 或者直接执行
+
+请求体示例一，只准备 blueprint，不立刻执行：
+
+```json
+{
+  "user_id": 2,
+  "initial_inputs": {
+    "base_image": "consumer_upload.png"
+  },
+  "param_overrides": {
+    "step_1_shared_edit": {
+      "strength": 0.8
+    }
+  },
+  "execute_now": false
+}
+```
+
+请求体示例二，立即同步执行：
+
+```json
+{
+  "user_id": 2,
+  "initial_inputs": {
+    "base_image": "consumer_upload.png"
+  },
+  "execute_now": true
+}
+```
+
+请求体示例三，异步流式执行：
+
+```json
+{
+  "user_id": 2,
+  "initial_inputs": {
+    "base_image": "consumer_upload.png"
+  },
+  "execute_now": true,
+  "async_execution": true,
+  "stream_id": "market_apply_stream_001"
+}
+```
+
+字段说明：
+
+- `version_id`
+  - 可选
+  - 不传时默认使用最新版本
+- `initial_inputs`
+  - 必须补齐 `required_inputs` 中列出的全部输入槽位
+- `param_overrides`
+  - 以 `step_id` 为 key，覆盖某一步的参数
+- `execute_now`
+  - `false` 时只返回可执行 blueprint
+  - `true` 时后端会直接执行
+- `async_execution`
+  - 只有在 `execute_now=true` 时才有意义
+  - 设为 `true` 时必须同时传 `stream_id`
+
+返回重点：
+
+- `required_inputs`
+- `blueprint`
+- `executed`
+- `execution_started`
+- `result_filename`
+- `result_url`
+- `step_results`
+
+当前实现的一个很重要特点：
+
+- 市场 `apply` 是直接使用市场版本里保存的 blueprint
+- 不会重新走 Router 规划一遍
+- 所以它更像“直接套用作者分享出来的修图流程”
+
+安装和应用的区别：
+
+- 安装：把这个 preset 放进“我的已安装预设”列表，不执行
+- 应用：把这个 preset 对应的 blueprint 真的拿出来给当前用户使用
+
+### 11. 安装 preset
 
 ```text
 POST /api/v1/market/lenses/{lens_id}/install
@@ -494,25 +808,49 @@ POST /api/v1/market/lenses/{lens_id}/install
 - `version_id` 可选
 - 不传时后端会优先安装 `is_latest=true` 的版本
 
-### 7. 卸载透镜
+### 12. 卸载 preset
 
 ```text
 DELETE /api/v1/market/lenses/{lens_id}/install
 ```
 
-### 8. 收藏透镜
+请求体仍然需要带 JSON：
+
+```json
+{
+  "user_id": 2
+}
+```
+
+### 13. 收藏 preset
 
 ```text
 POST /api/v1/market/lenses/{lens_id}/favorite
 ```
 
-### 9. 取消收藏透镜
+请求体：
+
+```json
+{
+  "user_id": 2
+}
+```
+
+### 14. 取消收藏 preset
 
 ```text
 DELETE /api/v1/market/lenses/{lens_id}/favorite
 ```
 
-### 10. 创建或更新评价
+请求体：
+
+```json
+{
+  "user_id": 2
+}
+```
+
+### 15. 创建或更新评价
 
 ```text
 POST /api/v1/market/lenses/{lens_id}/reviews
@@ -532,17 +870,40 @@ POST /api/v1/market/lenses/{lens_id}/reviews
 
 - 同一用户对同一透镜只保留一条评价
 
-### 11. 获取用户已安装透镜
+### 16. 获取用户已安装 preset
 
 ```text
 GET /api/v1/market/users/{user_id}/installed
 ```
 
-### 12. 获取用户收藏透镜
+### 17. 获取用户收藏 preset
 
 ```text
 GET /api/v1/market/users/{user_id}/favorites
 ```
+
+### 18. 给前端的联调建议
+
+如果前端要做一个完整的市场链路，建议按下面方式接：
+
+1. 发布页
+   - 如果来源是资产树成品，直接调用 `publish-from-node`
+2. 市场列表页
+   - 调用 `GET /lenses`
+   - 展示 `name`、`description`、`cover_image_url`、`rating`、`install_count`、`apply_count`
+3. 详情页
+   - 调用 `GET /lenses/{lens_id}`
+   - 重点读取 `versions[0].required_inputs`
+4. 应用弹窗
+   - 根据 `required_inputs` 动态渲染输入表单
+   - 用户提交后调用 `/apply`
+5. 如果用户只是想收藏或装到自己的列表
+   - 不要调用 `/apply`
+   - 直接调用 `favorite` 或 `install`
+
+一句话总结当前实现：
+
+- 透镜市场当前卖的不是一个抽象概念，而是一份可以被别人直接复用的修图 blueprint preset
 
 ---
 
@@ -679,6 +1040,19 @@ POST /api/v1/chat/conversations/{conversation_id}/messages
 
 - `share_type=preset` 时，`market_lens_id` 和 `asset_node_id` 二选一
 - 后端会把分享内容转成统一卡片结构，前端优先直接渲染 `share`
+- 如果分享的是市场 preset，当前返回卡片里会额外带上这些市场相关元数据：
+  - `metadata.market_lens_id`
+  - `metadata.lens_key`
+  - `metadata.category`
+  - `metadata.price`
+  - `metadata.is_official`
+  - `metadata.rating`
+  - `metadata.apply_count`
+  - `metadata.preview_asset_node_id`
+  - `metadata.latest_version`
+  - `metadata.required_inputs`
+  - `metadata.published_from`
+- 前端如果想在聊天卡片里直接展示“可直接应用”“需要上传几张图”“来源于资产树发布”等提示，可以直接使用这些字段
 
 ### 10. 标记会话已读
 
