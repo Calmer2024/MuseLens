@@ -278,50 +278,46 @@ def test_postgres_user_community_market_roundtrip(client, postgres_test_db):
     asset_node = child_resp.json()["node"]
 
     publish_resp = client.post(
-        "/api/v1/market/lenses/publish-from-node",
+        "/api/v1/market/templates/publish-from-node",
         json={
-            "lens_key": "lens_pg_market_blueprint_v1",
-            "name": "数据库市场 blueprint preset",
-            "description": "测试 PostgreSQL 下的市场蓝图发布与应用链路",
             "author_id": author["user_id"],
-            "source_asset_node_id": asset_node["node_id"],
+            "title": "数据库模板市场蓝图",
+            "description": "测试 PostgreSQL 下的模板发布与应用链路",
+            "result_asset_node_id": asset_node["node_id"],
+            "tag_names": ["postgres", "template"],
             "category": "integration",
-            "price": "1.99",
-            "is_official": False,
             "status": "active",
-            "version": "1.0.0",
-            "base_workflow": {"kind": "shared_blueprint"},
-            "parameters": {"strength": {"type": "float"}},
-            "ui_schema": {"layout": "slider"},
-            "changelog": "首次发布",
         },
     )
     assert publish_resp.status_code == 201
     published = publish_resp.json()
-    lens = published["lens"]
+    lens = published["template"]
     version = published["version"]
 
+    assert lens["title"] == "数据库模板市场蓝图"
     assert lens["cover_image_url"] == asset_node["thumbnail_url"]
-    assert lens["preview_asset_node_id"] == asset_node["node_id"]
+    assert lens["result_asset_node_id"] == asset_node["node_id"]
+    assert lens["original_image_url"] == root_node["image_url"]
+    assert sorted(lens["tag_names"]) == ["postgres", "template"]
     assert version["source_asset_node_id"] == asset_node["node_id"]
     assert version["required_inputs"] == ["base_image"]
-    assert version["blueprint"]["initial_inputs"]["base_image"] == ""
+    assert version["musedna"]["initial_inputs"]["base_image"] == ""
     assert version["published_from"] == "asset_node"
 
-    install_resp = client.post(
-        f"/api/v1/market/lenses/{lens['lens_id']}/install",
-        json={"user_id": user["user_id"], "version_id": version["version_id"]},
+    favorite_resp = client.post(
+        f"/api/v1/market/templates/{lens['template_id']}/favorite",
+        json={"user_id": user["user_id"]},
     )
-    assert install_resp.status_code == 200
+    assert favorite_resp.status_code == 200
 
     review_resp = client.post(
-        f"/api/v1/market/lenses/{lens['lens_id']}/reviews",
+        f"/api/v1/market/lenses/{lens['template_id']}/reviews",
         json={"user_id": user["user_id"], "rating": 4, "content": "可以正常安装使用"},
     )
     assert review_resp.status_code == 200
 
     apply_resp = client.post(
-        f"/api/v1/market/lenses/{lens['lens_id']}/apply",
+        f"/api/v1/market/templates/{lens['template_id']}/apply",
         json={
             "user_id": user["user_id"],
             "initial_inputs": {"base_image": "consumer_upload.png"},
@@ -336,21 +332,25 @@ def test_postgres_user_community_market_roundtrip(client, postgres_test_db):
     apply_payload = apply_resp.json()
     assert apply_payload["executed"] is False
     assert apply_payload["required_inputs"] == ["base_image"]
-    assert apply_payload["blueprint"]["initial_inputs"]["base_image"] == "consumer_upload.png"
-    assert apply_payload["blueprint"]["steps"][0]["params"]["strength"] == 0.7
-    assert apply_payload["lens"]["apply_count"] == 1
+    assert apply_payload["musedna"]["initial_inputs"]["base_image"] == "consumer_upload.png"
+    assert apply_payload["musedna"]["steps"][0]["params"]["strength"] == 0.7
+    assert apply_payload["template"]["apply_count"] == 1
 
-    detail_resp = client.get(f"/api/v1/market/lenses/{lens['lens_id']}")
+    detail_resp = client.get(f"/api/v1/market/templates/{lens['template_id']}")
     assert detail_resp.status_code == 200
     detail = detail_resp.json()
-    assert detail["install_count"] == 1
+    assert detail["favorite_count"] == 1
     assert detail["apply_count"] == 1
     assert detail["rating_count"] == 1
-    assert detail["versions"][0]["required_inputs"] == ["base_image"]
+    assert detail["current_version"]["required_inputs"] == ["base_image"]
 
-    installed_resp = client.get(f"/api/v1/market/users/{user['user_id']}/installed")
-    assert installed_resp.status_code == 200
-    assert installed_resp.json()[0]["lens_key"] == "lens_pg_market_blueprint_v1"
+    published_resp = client.get(f"/api/v1/market/users/{author['user_id']}/templates/published")
+    assert published_resp.status_code == 200
+    assert published_resp.json()[0]["template_id"] == lens["template_id"]
+
+    favorites_resp = client.get(f"/api/v1/market/users/{user['user_id']}/templates/favorites")
+    assert favorites_resp.status_code == 200
+    assert favorites_resp.json()[0]["template_id"] == lens["template_id"]
 
 
 @pytest.mark.integration

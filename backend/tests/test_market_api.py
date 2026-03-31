@@ -49,29 +49,29 @@ def client(test_db):
 def seeded_users(test_db):
     author = user_service.create_user(
         test_db,
-        username="market_author",
+        username="template_author",
         password="pass123456",
-        nickname="市场作者",
-        email="market_author@example.com",
+        nickname="模板作者",
+        email="template_author@example.com",
     )
     consumer = user_service.create_user(
         test_db,
-        username="market_consumer",
+        username="template_consumer",
         password="pass123456",
-        nickname="市场用户",
-        email="market_consumer@example.com",
+        nickname="模板用户",
+        email="template_consumer@example.com",
     )
     return author, consumer
 
 
-def _shared_blueprint() -> dict:
+def _shared_musedna() -> dict:
     return {
         "initial_inputs": {
             "base_image": "author_source.png",
         },
         "steps": [
             {
-                "step_id": "step_1_shared_edit",
+                "step_id": "step_1_template_edit",
                 "lens_id": "lens_shared_demo",
                 "input_links": {
                     "base_image": "$base_image",
@@ -85,10 +85,10 @@ def _shared_blueprint() -> dict:
     }
 
 
-def _create_asset_node_with_blueprint(client: TestClient) -> tuple[dict, dict, dict]:
+def _create_asset_node_with_musedna(client: TestClient) -> tuple[dict, dict, dict]:
     project_resp = client.post(
         "/api/v1/asset-tree/projects",
-        json={"name": "市场发布项目", "description": "用于发布市场 preset"},
+        json={"name": "模板发布项目", "description": "用于模板市场测试"},
     )
     assert project_resp.status_code == 200
     project = project_resp.json()
@@ -107,135 +107,138 @@ def _create_asset_node_with_blueprint(client: TestClient) -> tuple[dict, dict, d
     assert root_resp.status_code == 201
     root = root_resp.json()
 
-    blueprint = _shared_blueprint()
-    preset_node_resp = client.post(
+    result_node_resp = client.post(
         f"/api/v1/asset-tree/projects/{project['project_id']}/nodes",
         json={
             "parent_node_id": root["node_id"],
-            "image_url": "s3://bucket/shared_result.png",
-            "thumbnail_url": "s3://bucket/shared_result_thumb.png",
+            "image_url": "s3://bucket/template_result.png",
+            "thumbnail_url": "s3://bucket/template_result_thumb.png",
             "width": 1200,
             "height": 800,
             "format": "png",
             "lens_id": "lens_shared_demo",
-            "lens_name": "共享调色 preset",
-            "user_prompt": "提升亮度并保持肤色自然",
+            "lens_name": "奶油人像模板",
+            "user_prompt": "提亮并保持肤色自然",
             "parameters": {"strength": 0.45},
-            "muse_dna": blueprint,
+            "muse_dna": _shared_musedna(),
             "generation_params": {"strength": 0.45},
             "status": "completed",
             "metadata": {"source": "generation"},
         },
     )
-    assert preset_node_resp.status_code == 201
-    return project, root, preset_node_resp.json()["node"]
+    assert result_node_resp.status_code == 201
+    return project, root, result_node_resp.json()["node"]
 
 
-def test_market_publish_from_asset_node_install_favorite_review_flow(client, seeded_users):
+def test_template_publish_from_node_search_favorite_and_update_flow(client, seeded_users):
     author, consumer = seeded_users
-    _, _, preset_node = _create_asset_node_with_blueprint(client)
+    _, root_node, result_node = _create_asset_node_with_musedna(client)
 
     publish_resp = client.post(
-        "/api/v1/market/lenses/publish-from-node",
+        "/api/v1/market/templates/publish-from-node",
         json={
-            "lens_key": "shared_portrait_blueprint_v1",
-            "name": "人像提亮 preset",
-            "description": "把作者的修图 blueprint 发布到市场",
             "author_id": author.user_id,
-            "source_asset_node_id": preset_node["node_id"],
+            "title": "奶油人像模板",
+            "description": "快速得到干净透亮的人像效果",
+            "result_asset_node_id": result_node["node_id"],
+            "tag_names": ["人像", "奶油肌"],
             "category": "portrait",
-            "price": "0.00",
-            "is_official": False,
             "status": "active",
-            "version": "1.0.0",
-            "changelog": "首次分享",
-            "parameters": {"strength": {"type": "float"}},
-            "ui_schema": {"layout": "slider"},
-            "base_workflow": {"kind": "shared_blueprint"},
         },
     )
     assert publish_resp.status_code == 201
-    published = publish_resp.json()
-    lens = published["lens"]
-    version = published["version"]
+    payload = publish_resp.json()
+    template = payload["template"]
+    version = payload["version"]
 
-    assert lens["cover_image_url"] == preset_node["thumbnail_url"]
-    assert lens["preview_asset_node_id"] == preset_node["node_id"]
-    assert version["source_asset_node_id"] == preset_node["node_id"]
+    assert template["title"] == "奶油人像模板"
+    assert template["original_image_url"] == root_node["image_url"]
+    assert template["result_image_url"] == result_node["image_url"]
+    assert template["result_asset_node_id"] == result_node["node_id"]
+    assert sorted(template["tag_names"]) == ["人像", "奶油肌"]
     assert version["required_inputs"] == ["base_image"]
-    assert version["blueprint"]["initial_inputs"]["base_image"] == ""
-    assert version["published_from"] == "asset_node"
+    assert version["musedna"]["initial_inputs"]["base_image"] == ""
 
-    install_resp = client.post(
-        f"/api/v1/market/lenses/{lens['lens_id']}/install",
-        json={"user_id": consumer.user_id, "version_id": version["version_id"]},
-    )
-    assert install_resp.status_code == 200
+    list_resp = client.get("/api/v1/market/templates", params={"q": "奶油"})
+    assert list_resp.status_code == 200
+    assert list_resp.json()[0]["template_id"] == template["template_id"]
+
+    tag_filter_resp = client.get("/api/v1/market/templates", params={"tag_name": "人像"})
+    assert tag_filter_resp.status_code == 200
+    assert tag_filter_resp.json()[0]["template_id"] == template["template_id"]
+
+    detail_resp = client.get(f"/api/v1/market/templates/{template['template_id']}")
+    assert detail_resp.status_code == 200
+    detail = detail_resp.json()
+    assert detail["current_version"]["required_inputs"] == ["base_image"]
+    assert detail["author"]["nickname"] == "模板作者"
+    assert sorted(detail["tag_names"]) == ["人像", "奶油肌"]
 
     favorite_resp = client.post(
-        f"/api/v1/market/lenses/{lens['lens_id']}/favorite",
+        f"/api/v1/market/templates/{template['template_id']}/favorite",
         json={"user_id": consumer.user_id},
     )
     assert favorite_resp.status_code == 200
 
-    review_resp = client.post(
-        f"/api/v1/market/lenses/{lens['lens_id']}/reviews",
-        json={"user_id": consumer.user_id, "rating": 5, "content": "这个 preset 可以直接复用"},
-    )
-    assert review_resp.status_code == 200
+    favorite_list_resp = client.get(f"/api/v1/market/users/{consumer.user_id}/templates/favorites")
+    assert favorite_list_resp.status_code == 200
+    assert favorite_list_resp.json()[0]["template_id"] == template["template_id"]
 
-    detail_resp = client.get(f"/api/v1/market/lenses/{lens['lens_id']}")
-    assert detail_resp.status_code == 200
-    detail = detail_resp.json()
-    assert detail["install_count"] == 1
-    assert detail["apply_count"] == 0
-    assert Decimal(detail["rating"]) == Decimal("5.00")
-    assert detail["rating_count"] == 1
-    assert detail["cover_image_url"] == preset_node["thumbnail_url"]
-    assert detail["versions"][0]["required_inputs"] == ["base_image"]
+    published_list_resp = client.get(f"/api/v1/market/users/{author.user_id}/templates/published")
+    assert published_list_resp.status_code == 200
+    assert published_list_resp.json()[0]["template_id"] == template["template_id"]
 
-    installed_resp = client.get(f"/api/v1/market/users/{consumer.user_id}/installed")
-    assert installed_resp.status_code == 200
-    assert installed_resp.json()[0]["lens_id"] == lens["lens_id"]
+    tags_resp = client.get("/api/v1/market/templates/tags")
+    assert tags_resp.status_code == 200
+    assert {item["name"] for item in tags_resp.json()} == {"人像", "奶油肌"}
 
-    favorites_resp = client.get(f"/api/v1/market/users/{consumer.user_id}/favorites")
-    assert favorites_resp.status_code == 200
-    assert favorites_resp.json()[0]["lens_id"] == lens["lens_id"]
-
-
-def test_market_apply_blueprint_prepares_executable_blueprint(client, seeded_users):
-    author, consumer = seeded_users
-    create_resp = client.post(
-        "/api/v1/market/lenses",
+    republish_resp = client.post(
+        "/api/v1/market/templates/publish",
         json={
-            "lens_key": "shared_apply_blueprint_v1",
-            "name": "可直接应用的 preset",
-            "description": "测试市场 blueprint 应用准备",
+            "template_id": template["template_id"],
             "author_id": author.user_id,
+            "title": "奶油人像模板 Pro",
+            "description": "更新了一版更柔和的风格",
+            "musedna": _shared_musedna(),
+            "tag_names": ["人像", "柔光"],
             "category": "portrait",
-            "price": "0.00",
-            "is_official": False,
-            "status": "active",
+            "original_image_url": root_node["image_url"],
+            "result_image_url": "s3://bucket/template_result_v2.png",
+            "result_thumbnail_url": "s3://bucket/template_result_v2_thumb.png",
         },
     )
-    assert create_resp.status_code == 201
-    lens_id = create_resp.json()["lens_id"]
+    assert republish_resp.status_code == 201
+    republished = republish_resp.json()
+    assert republished["template"]["title"] == "奶油人像模板 Pro"
+    assert republished["version"]["version"] == "1.0.1"
 
-    version_resp = client.post(
-        f"/api/v1/market/lenses/{lens_id}/versions",
+    updated_detail_resp = client.get(f"/api/v1/market/templates/{template['template_id']}")
+    updated_detail = updated_detail_resp.json()
+    assert updated_detail["current_version"]["version"] == "1.0.1"
+    assert sorted(updated_detail["tag_names"]) == ["人像", "柔光"]
+    assert updated_detail["favorite_count"] == 1
+
+
+def test_template_publish_and_apply_flow(client, seeded_users):
+    author, consumer = seeded_users
+    publish_resp = client.post(
+        "/api/v1/market/templates/publish",
         json={
-            "version": "1.0.0",
-            "blueprint": _shared_blueprint(),
-            "parameters": {"strength": {"type": "float"}},
-            "ui_schema": {"layout": "slider"},
-            "changelog": "首次发布",
-            "is_latest": True,
+            "author_id": author.user_id,
+            "title": "青透人像模板",
+            "description": "让肤色更干净通透",
+            "musedna": _shared_musedna(),
+            "tag_names": ["人像", "清透"],
+            "category": "portrait",
+            "original_image_url": "s3://bucket/original.png",
+            "result_image_url": "s3://bucket/result.png",
         },
     )
-    assert version_resp.status_code == 201
+    assert publish_resp.status_code == 201
+    template = publish_resp.json()["template"]
 
     missing_resp = client.post(
-        f"/api/v1/market/lenses/{lens_id}/apply",
+        f"/api/v1/market/templates/{template['template_id']}/apply",
         json={
             "user_id": consumer.user_id,
             "initial_inputs": {},
@@ -245,14 +248,14 @@ def test_market_apply_blueprint_prepares_executable_blueprint(client, seeded_use
     assert "缺少必须的输入资源" in missing_resp.json()["detail"]
 
     apply_resp = client.post(
-        f"/api/v1/market/lenses/{lens_id}/apply",
+        f"/api/v1/market/templates/{template['template_id']}/apply",
         json={
             "user_id": consumer.user_id,
             "initial_inputs": {
                 "base_image": "consumer_upload.png",
             },
             "param_overrides": {
-                "step_1_shared_edit": {
+                "step_1_template_edit": {
                     "strength": 0.8,
                 }
             },
@@ -262,50 +265,39 @@ def test_market_apply_blueprint_prepares_executable_blueprint(client, seeded_use
     payload = apply_resp.json()
     assert payload["executed"] is False
     assert payload["required_inputs"] == ["base_image"]
-    assert payload["blueprint"]["initial_inputs"]["base_image"] == "consumer_upload.png"
-    assert payload["blueprint"]["steps"][0]["params"]["strength"] == 0.8
-    assert payload["lens"]["apply_count"] == 1
+    assert payload["musedna"]["initial_inputs"]["base_image"] == "consumer_upload.png"
+    assert payload["musedna"]["steps"][0]["params"]["strength"] == 0.8
+    assert payload["template"]["apply_count"] == 1
 
 
-def test_market_apply_blueprint_can_execute_with_mocked_compiler(client, seeded_users, monkeypatch):
+def test_template_apply_execute_with_mocked_compiler(client, seeded_users, monkeypatch):
     author, consumer = seeded_users
-    create_resp = client.post(
-        "/api/v1/market/lenses",
+    publish_resp = client.post(
+        "/api/v1/market/templates/publish",
         json={
-            "lens_key": "shared_execute_blueprint_v1",
-            "name": "执行型 preset",
-            "description": "测试直接执行市场 blueprint",
             "author_id": author.user_id,
+            "title": "执行型模板",
+            "description": "测试直接执行模板 MuseDNA",
+            "musedna": _shared_musedna(),
+            "tag_names": ["测试"],
             "category": "portrait",
-            "price": "0.00",
-            "is_official": False,
-            "status": "active",
+            "original_image_url": "s3://bucket/original.png",
+            "result_image_url": "s3://bucket/result.png",
         },
     )
-    lens_id = create_resp.json()["lens_id"]
-
-    client.post(
-        f"/api/v1/market/lenses/{lens_id}/versions",
-        json={
-            "version": "1.0.0",
-            "blueprint": _shared_blueprint(),
-            "parameters": {},
-            "ui_schema": {},
-            "changelog": "首次发布",
-            "is_latest": True,
-        },
-    )
+    assert publish_resp.status_code == 201
+    template = publish_resp.json()["template"]
 
     async def _fake_execute(blueprint, progress_callback=None, step_started_callback=None):
         return {
             "base_image": blueprint.initial_inputs["base_image"],
-            "step_1_shared_edit.result_image": "market_apply_result.png",
+            "step_1_template_edit.result_image": "template_apply_result.png",
         }
 
     monkeypatch.setattr(market_endpoint.compiler, "execute_blueprint", _fake_execute)
 
     apply_resp = client.post(
-        f"/api/v1/market/lenses/{lens_id}/apply",
+        f"/api/v1/market/templates/{template['template_id']}/apply",
         json={
             "user_id": consumer.user_id,
             "initial_inputs": {
@@ -318,7 +310,9 @@ def test_market_apply_blueprint_can_execute_with_mocked_compiler(client, seeded_
     payload = apply_resp.json()
     assert payload["executed"] is True
     assert payload["execution_started"] is True
-    assert payload["result_filename"] == "market_apply_result.png"
+    assert payload["result_filename"] == "template_apply_result.png"
     assert payload["result_url"] is not None
-    assert payload["step_results"][0]["step_id"] == "step_1_shared_edit"
-    assert payload["step_results"][0]["outputs"][0]["filename"] == "market_apply_result.png"
+    assert payload["step_results"][0]["step_id"] == "step_1_template_edit"
+    assert payload["step_results"][0]["outputs"][0]["filename"] == "template_apply_result.png"
+    assert Decimal(payload["template"]["rating"]) == Decimal("0.00")
+

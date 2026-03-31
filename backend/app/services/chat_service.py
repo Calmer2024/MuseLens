@@ -201,7 +201,7 @@ def _build_share_payload(
         payload = {
             "title": lens.name,
             "summary": (lens.description or "").strip()[:120],
-            "cover_url": lens.cover_image_url,
+            "cover_url": lens.result_thumbnail_url or lens.result_image_url or lens.cover_image_url,
             "author_id": author.user_id if author else lens.author_id,
             "author_name": author.nickname if author else None,
             "metadata": {
@@ -212,7 +212,11 @@ def _build_share_payload(
                 "is_official": lens.is_official,
                 "rating": str(lens.rating),
                 "apply_count": lens.apply_count,
+                "favorite_count": lens.favorite_count,
                 "preview_asset_node_id": lens.preview_asset_node_id,
+                "original_image_url": lens.original_image_url,
+                "result_image_url": lens.result_image_url,
+                "result_asset_node_id": lens.result_asset_node_id,
                 "latest_version": latest_version.version if latest_version else None,
                 "required_inputs": list(latest_version.required_inputs or []) if latest_version else [],
                 "published_from": latest_version.published_from if latest_version else None,

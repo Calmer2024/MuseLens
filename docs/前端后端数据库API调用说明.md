@@ -383,7 +383,7 @@ GET /api/v1/community/tags
 
 ---
 
-## 五、透镜市场接口
+## 五、模板市场接口
 
 统一前缀：
 
@@ -391,158 +391,347 @@ GET /api/v1/community/tags
 /api/v1/market
 ```
 
-### 1. 创建市场透镜
+说明：
+
+- 这个模块现在的真实业务语义已经是“模板市场”
+- 历史上路由前缀仍叫 `market`
+- 新接入请优先使用 `/templates/...` 这组接口
+- `/lenses/...` 仍然保留，主要用于兼容旧代码
+
+### 1. 先理解当前模板市场的数据结构
+
+前端可以把模板市场里的一个模板理解成两层：
+
+- 模板卡片
+  - 负责展示标题、作者、原图、结果图、标签、收藏数、应用数
+- 模板版本
+  - 负责保存真正可复用的 `MuseDNA`
+  - 一个模板可以有多个版本，前端详情页通常取 `current_version`
+
+当前模板卡片最重要的字段：
+
+- `template_id`
+- `title`
+- `description`
+- `author`
+- `original_image_url`
+- `result_image_url`
+- `tag_names`
+- `favorite_count`
+- `apply_count`
+
+当前模板版本最重要的字段：
+
+- `version`
+- `musedna`
+- `required_inputs`
+- `published_from`
+
+### 2. Router 返回 MuseDNA 之后，前端推荐怎么接
+
+典型业务流程：
+
+1. 用户完成一次 AI 修图
+2. Router 或执行链路已经返回可复用的 `MuseDNA`
+3. 前端弹窗询问用户是否“发布到模板市场”
+4. 如果用户同意：
+   - 已有资产树结果节点：优先调用 `POST /api/v1/market/templates/publish-from-node`
+   - 没有结果节点，只有 `MuseDNA + 原图地址 + 结果图地址`：调用 `POST /api/v1/market/templates/publish`
+
+### 3. 一个非常重要的实现细节
+
+后端在保存模板版本时，会把 `MuseDNA.initial_inputs` 做“可复用化处理”：
+
+- 保留输入槽位名
+- 清空作者当时实际使用的输入值
+- 把这些输入槽位收集到 `required_inputs`
+
+这样做的意义是：
+
+- 不把作者自己的真实输入文件名直接暴露给别人
+- 其他用户点击“应用模板”时，必须重新上传或选择自己的图片
+
+所以前端在“应用模板”弹窗中，一定要先读取：
+
+- `current_version.required_inputs`
+
+再根据这些输入槽位渲染上传表单。
+
+### 4. 从资产节点发布模板，这是最推荐的接口
 
 ```text
-POST /api/v1/market/lenses
+POST /api/v1/market/templates/publish-from-node
 ```
+
+适用场景：
+
+- 用户已经在资产树里得到了一张结果图
+- 结果节点里已经带有 `muse_dna`
+- 希望一键生成模板卡片
 
 请求体示例：
 
 ```json
 {
-  "lens_key": "lens_market_portrait_v1",
-  "name": "人像柔光",
-  "description": "适合人像氛围增强",
   "author_id": 1,
+  "title": "奶油人像模板",
+  "description": "快速得到干净透亮的人像效果",
+  "result_asset_node_id": "550e8400-e29b-41d4-a716-446655440000",
+  "tag_names": ["人像", "奶油肌"],
   "category": "portrait",
-  "price": "9.90",
-  "is_official": false,
   "status": "active"
 }
 ```
 
 说明：
 
-- `lens_key` 是市场透镜的业务唯一键
-- 这里的 `lens_id` 是市场表里的整数主键，不是运行时 Lens 的 `lens_id`
+- `result_asset_node_id` 必传
+- 后端会自动从结果节点推导：
+  - `result_image_url`
+  - `original_image_url`
+  - `source_project_id`
+  - `result_asset_node_id`
+  - `MuseDNA`
+- 如果传了 `template_id`，表示更新已有模板卡片并新增一个最新版本
 
-### 2. 更新市场透镜
+返回重点：
 
-```text
-PATCH /api/v1/market/lenses/{lens_id}
-```
+- `template`
+- `version`
+- `version.required_inputs`
+- `version.musedna`
 
-### 3. 列出市场透镜
-
-```text
-GET /api/v1/market/lenses
-```
-
-支持查询参数：
-
-- `category`
-- `status`
-- `is_official`
-
-### 4. 获取透镜详情
+### 5. 直接发布模板
 
 ```text
-GET /api/v1/market/lenses/{lens_id}
+POST /api/v1/market/templates/publish
 ```
 
-返回通常包含：
+适用场景：
 
-- 透镜基本信息
-- `versions`
-- `reviews`
-
-### 5. 创建透镜版本
-
-```text
-POST /api/v1/market/lenses/{lens_id}/versions
-```
+- 前端手里已经有 `MuseDNA`
+- 同时已经知道原图地址和结果图地址
+- 不一定依赖资产树节点
 
 请求体示例：
 
 ```json
 {
-  "version": "1.0.0",
-  "base_workflow": {
-    "nodes": []
+  "author_id": 1,
+  "title": "青透人像模板",
+  "description": "让肤色更干净通透",
+  "musedna": {
+    "initial_inputs": {
+      "base_image": "author_source.png"
+    },
+    "steps": [
+      {
+        "step_id": "step_1_template_edit",
+        "lens_id": "lens_shared_demo",
+        "input_links": {
+          "base_image": "$base_image"
+        },
+        "params": {
+          "prompt": "bright clean portrait look",
+          "strength": 0.45
+        }
+      }
+    ]
   },
-  "parameters": {
-    "strength": {
-      "type": "float"
+  "tag_names": ["人像", "清透"],
+  "category": "portrait",
+  "original_image_url": "s3://bucket/original.png",
+  "result_image_url": "s3://bucket/result.png"
+}
+```
+
+说明：
+
+- 新建模板时，`template_key` 可不传，后端会自动生成
+- 如果要更新已有模板卡片，可以额外传 `template_id`
+- 如果不传 `version`，后端会自动生成版本号
+
+### 6. 获取模板标签列表
+
+```text
+GET /api/v1/market/templates/tags
+```
+
+前端通常用它来做：
+
+- 模板市场顶部筛选栏
+- 发布模板时的标签推荐
+
+### 7. 列出模板卡片
+
+```text
+GET /api/v1/market/templates
+```
+
+支持查询参数：
+
+- `q`
+  - 关键词搜索
+  - 当前支持标题、描述、作者昵称、标签名
+- `tag_name`
+  - 标签筛选
+- `category`
+- `status`
+- `is_official`
+- `author_id`
+  - 只看某个作者发布的模板
+- `favorited_by`
+  - 只看某个用户收藏的模板
+
+典型例子：
+
+```text
+GET /api/v1/market/templates?q=奶油&tag_name=人像
+```
+
+### 8. 获取模板详情
+
+```text
+GET /api/v1/market/templates/{template_id}
+```
+
+前端详情页重点读取：
+
+- `title`
+- `description`
+- `author`
+- `original_image_url`
+- `result_image_url`
+- `tag_names`
+- `current_version`
+- `current_version.required_inputs`
+- `current_version.musedna`
+
+### 9. 更新模板卡片信息
+
+```text
+PATCH /api/v1/market/templates/{template_id}
+```
+
+可更新字段包括：
+
+- `title`
+- `description`
+- `category`
+- `tag_names`
+- `status`
+- `original_image_url`
+- `result_image_url`
+- `cover_image_url`
+
+### 10. 应用模板
+
+```text
+POST /api/v1/market/templates/{template_id}/apply
+```
+
+这个接口的作用是：
+
+- 取出模板最新版本或指定版本的 `MuseDNA`
+- 校验调用方是否补齐 `required_inputs`
+- 可选地覆盖某些 step 参数
+- 返回可执行 `MuseDNA`
+- 或者直接执行
+
+请求体示例一，只准备模板，不立刻执行：
+
+```json
+{
+  "user_id": 2,
+  "initial_inputs": {
+    "base_image": "consumer_upload.png"
+  },
+  "param_overrides": {
+    "step_1_template_edit": {
+      "strength": 0.8
     }
   },
-  "ui_schema": {
-    "layout": "slider"
+  "execute_now": false
+}
+```
+
+请求体示例二，立即执行：
+
+```json
+{
+  "user_id": 2,
+  "initial_inputs": {
+    "base_image": "consumer_upload.png"
   },
-  "changelog": "首次发布",
-  "is_latest": true
+  "execute_now": true
 }
 ```
 
-### 6. 安装透镜
+返回重点：
+
+- `template`
+- `version`
+- `musedna`
+- `required_inputs`
+- `executed`
+- `result_filename`
+- `result_url`
+- `step_results`
+
+### 11. 收藏模板
 
 ```text
-POST /api/v1/market/lenses/{lens_id}/install
+POST /api/v1/market/templates/{template_id}/favorite
 ```
 
 请求体：
 
 ```json
 {
-  "user_id": 2,
-  "version_id": 1
+  "user_id": 2
 }
 ```
 
-说明：
-
-- `version_id` 可选
-- 不传时后端会优先安装 `is_latest=true` 的版本
-
-### 7. 卸载透镜
+### 12. 取消收藏模板
 
 ```text
-DELETE /api/v1/market/lenses/{lens_id}/install
-```
-
-### 8. 收藏透镜
-
-```text
-POST /api/v1/market/lenses/{lens_id}/favorite
-```
-
-### 9. 取消收藏透镜
-
-```text
-DELETE /api/v1/market/lenses/{lens_id}/favorite
-```
-
-### 10. 创建或更新评价
-
-```text
-POST /api/v1/market/lenses/{lens_id}/reviews
+DELETE /api/v1/market/templates/{template_id}/favorite
 ```
 
 请求体：
 
 ```json
 {
-  "user_id": 2,
-  "rating": 5,
-  "content": "很好用"
+  "user_id": 2
 }
 ```
 
-说明：
-
-- 同一用户对同一透镜只保留一条评价
-
-### 11. 获取用户已安装透镜
+### 13. 获取用户发布的模板
 
 ```text
-GET /api/v1/market/users/{user_id}/installed
+GET /api/v1/market/users/{user_id}/templates/published
 ```
 
-### 12. 获取用户收藏透镜
+### 14. 获取用户收藏的模板
 
 ```text
-GET /api/v1/market/users/{user_id}/favorites
+GET /api/v1/market/users/{user_id}/templates/favorites
 ```
+
+### 15. 旧接口兼容说明
+
+以下旧接口仍保留，但新前端不建议再优先接它们：
+
+- `POST /api/v1/market/lenses`
+- `GET /api/v1/market/lenses`
+- `GET /api/v1/market/lenses/{lens_id}`
+- `POST /api/v1/market/lenses/{lens_id}/apply`
+- `POST /api/v1/market/lenses/{lens_id}/favorite`
+- `POST /api/v1/market/lenses/{lens_id}/reviews`
+
+一句话理解当前实现：
+
+- 模板市场展示的是“模板卡片”，真正能复用的是卡片背后的 `MuseDNA` 版本
 
 ---
 
@@ -647,9 +836,9 @@ POST /api/v1/chat/conversations/{conversation_id}/messages
 }
 ```
 
-### 9. 分享预设
+### 9. 分享模板
 
-分享市场预设：
+分享模板市场卡片：
 
 ```json
 {
@@ -662,7 +851,7 @@ POST /api/v1/chat/conversations/{conversation_id}/messages
 }
 ```
 
-分享资产树节点预设：
+分享资产树节点模板：
 
 ```json
 {
@@ -679,6 +868,17 @@ POST /api/v1/chat/conversations/{conversation_id}/messages
 
 - `share_type=preset` 时，`market_lens_id` 和 `asset_node_id` 二选一
 - 后端会把分享内容转成统一卡片结构，前端优先直接渲染 `share`
+- 如果分享的是模板市场卡片，当前返回的 `share.metadata` 里通常会额外带上：
+  - `market_lens_id`
+  - `lens_key`
+  - `category`
+  - `rating`
+  - `apply_count`
+  - `preview_asset_node_id`
+  - `latest_version`
+  - `required_inputs`
+  - `published_from`
+- 前端可以直接用这些字段在聊天卡片里展示“模板标签”“可直接应用”“需要上传什么输入资源”等提示
 
 ### 10. 标记会话已读
 
