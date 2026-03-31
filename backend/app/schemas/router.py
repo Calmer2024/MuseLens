@@ -161,6 +161,10 @@ class RouterRouteRequest(BaseModel):
     base_image_meta: Dict[str, Any] = Field(
         default_factory=dict, description="可选：base_image 的元信息（尺寸、来源等）"
     )
+    user_assets: Dict[str, str] = Field(
+        default_factory=dict,
+        description="用户额外提供的资产映射，例如 mask、style_reference_image、ref_image_1 等，可供 blueprint 直接引用。",
+    )
 
     answers: Dict[str, Any] = Field(
         default_factory=dict,
@@ -174,6 +178,14 @@ class RouterRouteAndRunRequest(RouterRouteRequest):
     execute_when_ready: bool = Field(
         default=True,
         description="当 Router 返回 ready 且带 blueprint 时，是否立即执行生图。",
+    )
+    async_execution: bool = Field(
+        default=False,
+        description="是否以异步流式方式执行。为 true 时，接口会先返回 blueprint，由 WebSocket 推送执行进度与中间图。",
+    )
+    stream_id: Optional[str] = Field(
+        default=None,
+        description="流式执行通道 ID。当前端已连接 `/api/v1/router/ws/run/{stream_id}` 时可传入。",
     )
 
 
@@ -196,6 +208,14 @@ class RouterRouteAndRunResponse(RouterResponse):
     execution_error: Optional[str] = Field(
         default=None,
         description="执行阶段的错误信息；编排成功但执行失败时使用。",
+    )
+    execution_started: bool = Field(
+        default=False,
+        description="是否已经成功启动执行任务。异步流式执行时用于告知前端开始监听 WebSocket 事件。",
+    )
+    stream_id: Optional[str] = Field(
+        default=None,
+        description="本次执行关联的流式通道 ID。",
     )
     step_results: List["RouterStepResult"] = Field(
         default_factory=list,
@@ -224,6 +244,10 @@ class RouterStepResult(BaseModel):
 
     step_id: str = Field(..., description="步骤 ID")
     lens_id: str = Field(..., description="执行的透镜 ID")
+    tweak_controls: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="该透镜可用的微调控件定义，供前端在结果出来后继续精调。",
+    )
     outputs: List[RouterStepOutput] = Field(
         default_factory=list,
         description="该步骤所有已捕获的输出结果。",

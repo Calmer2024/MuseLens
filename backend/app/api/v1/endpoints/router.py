@@ -1,11 +1,10 @@
-import os
+import asyncio
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.lenses.registry import get_lens
 from app.schemas.router import (
     RouterBaseImageUploadResponse,
     RouterAnswerRequest,
@@ -17,6 +16,14 @@ from app.schemas.router import (
     RouterStatus,
 )
 from app.services.compiler import COMFYUI_INPUT_DIR, COMFYUI_OUTPUT_DIR, MuseDNACompiler
+from app.services.execution_service import (
+    build_step_results,
+    execute_blueprint_with_optional_stream,
+    infer_result_filename,
+    build_result_url,
+    run_blueprint_with_stream_events,
+)
+from app.services.router_stream_service import router_stream_service
 from app.services.router_service import router_service
 
 
@@ -69,6 +76,11 @@ def route(req: RouterRouteRequest, db: Session = Depends(get_db)) -> RouterRespo
     return router_service.route_with_db(req, db=db)
 
 
+@router.get("/stream/new")
+def new_stream_id() -> dict[str, str]:
+    return {"stream_id": str(uuid.uuid4())}
+
+
 @router.post("/route_and_run", response_model=RouterRouteAndRunResponse)
 async def route_and_run(
     req: RouterRouteAndRunRequest,
@@ -89,6 +101,8 @@ async def route_and_run(
             "result_filename": None,
             "result_url": None,
             "execution_error": None,
+            "execution_started": False,
+            "stream_id": req.stream_id,
             "step_results": [],
         }
     )
@@ -104,16 +118,49 @@ async def route_and_run(
         payload["execution_error"] = "Blueprint is missing initial input 'user_base_image'."
         return RouterRouteAndRunResponse(**payload)
 
+    stream_id = req.stream_id
+    if req.async_execution and req.execute_when_ready and not stream_id:
+        payload["execution_error"] = "async_execution=true requires stream_id. Please connect websocket first."
+        return RouterRouteAndRunResponse(**payload)
+
+    if req.async_execution and req.execute_when_ready and stream_id:
+        await router_stream_service.emit(
+            stream_id,
+            {
+                "event": "blueprint_ready",
+                "session_id": routed.session_id,
+                "stream_id": stream_id,
+                "status": routed.status.value,
+                "blueprint": routed.blueprint.model_dump(),
+            },
+        )
+        asyncio.create_task(
+            run_blueprint_with_stream_events(
+                compiler=compiler,
+                blueprint=routed.blueprint,
+                session_id=routed.session_id,
+                stream_id=stream_id,
+            )
+        )
+        payload["execution_started"] = True
+        return RouterRouteAndRunResponse(**payload)
+
     try:
-        final_context = await compiler.execute_blueprint(routed.blueprint)
-        result_filename = _infer_result_filename(routed.blueprint, final_context)
+        final_context = await execute_blueprint_with_optional_stream(
+            compiler=compiler,
+            blueprint=routed.blueprint,
+            session_id=routed.session_id,
+            stream_id=stream_id,
+        )
+        result_filename = infer_result_filename(routed.blueprint, final_context)
         payload.update(
             {
                 "executed": True,
+                "execution_started": True,
                 "execution_context": final_context,
                 "result_filename": result_filename,
-                "result_url": _build_result_url(result_filename) if result_filename else None,
-                "step_results": _build_step_results(routed.blueprint, final_context),
+                "result_url": build_result_url(result_filename) if result_filename else None,
+                "step_results": build_step_results(routed.blueprint, final_context),
             }
         )
         if not result_filename:
@@ -162,67 +209,19 @@ def answer(req: RouterAnswerRequest, db: Session = Depends(get_db)) -> RouterRes
     )
 
 
-def _infer_result_filename(blueprint, execution_context: dict[str, str]) -> str | None:
-    for step in reversed(blueprint.steps):
-        candidate = execution_context.get(f"{step.step_id}.result_image")
-        if candidate:
-            return candidate
-    return None
-
-
-def _build_result_url(filename: str) -> str:
-    base_url = (os.getenv("COMFYUI_VIEW_BASE_URL") or "http://127.0.0.1:8188").rstrip("/")
-    return f"{base_url}/view?filename={filename}&type=output"
-
-
-def _build_step_results(blueprint, execution_context: dict[str, str]) -> list[dict]:
-    step_results: list[dict] = []
-
-    for step in blueprint.steps:
-        outputs: list[dict] = []
-        try:
-            lens_template = get_lens(step.lens_id)
-            output_names = [asset.name for asset in lens_template.outputs]
-        except Exception:
-            output_names = []
-
-        seen_output_names: set[str] = set()
-        for output_name in output_names:
-            key = f"{step.step_id}.{output_name}"
-            filename = execution_context.get(key)
-            if not filename:
-                continue
-            seen_output_names.add(output_name)
-            outputs.append(
-                {
-                    "output_name": output_name,
-                    "filename": filename,
-                    "url": _build_result_url(filename),
-                }
-            )
-
-        step_prefix = f"{step.step_id}."
-        for key, filename in execution_context.items():
-            if not key.startswith(step_prefix):
-                continue
-            output_name = key[len(step_prefix):]
-            if output_name in seen_output_names or not filename:
-                continue
-            outputs.append(
-                {
-                    "output_name": output_name,
-                    "filename": filename,
-                    "url": _build_result_url(filename),
-                }
-            )
-
-        step_results.append(
+@router.websocket("/ws/run/{stream_id}")
+async def route_and_run_websocket(websocket: WebSocket, stream_id: str) -> None:
+    await router_stream_service.connect(stream_id, websocket)
+    try:
+        await websocket.send_json(
             {
-                "step_id": step.step_id,
-                "lens_id": step.lens_id,
-                "outputs": outputs,
+                "event": "connected",
+                "stream_id": stream_id,
             }
         )
-
-    return step_results
-
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        await router_stream_service.disconnect(stream_id, websocket)
+    except Exception:
+        await router_stream_service.disconnect(stream_id, websocket)

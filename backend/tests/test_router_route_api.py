@@ -519,6 +519,8 @@ def test_route_and_run_endpoint_returns_questions_without_execution(
     body = resp.json()
     assert body["status"] == "need_clarification"
     assert body["executed"] is False
+    assert body["execution_started"] is False
+    assert body["stream_id"] is None
     assert body["execution_context"] == {}
     assert body["result_filename"] is None
     assert body["execution_error"] is None
@@ -591,6 +593,8 @@ def test_route_and_run_endpoint_executes_ready_blueprint(client, test_db, workfl
     body = resp.json()
     assert body["status"] == "ready"
     assert body["executed"] is True
+    assert body["execution_started"] is True
+    assert body["stream_id"] is None
     assert body["result_filename"] == "result.png"
     assert body["result_url"] == "http://127.0.0.1:8188/view?filename=result.png&type=output"
     assert body["execution_error"] is None
@@ -615,4 +619,107 @@ def test_route_and_run_endpoint_executes_ready_blueprint(client, test_db, workfl
         }
     ]
     assert captured["blueprint"]["steps"][0]["lens_id"] == lens_id
+
+
+def test_route_and_run_endpoint_starts_async_stream_execution(client, test_db, workflow_file, monkeypatch):
+    lens_id = "lens_api_route_and_run_async"
+
+    registry.register_lens(
+        test_db,
+        {
+            "lens_id": lens_id,
+            "layer": "A2",
+            "description": "ready 异步执行测试",
+            "workflow_file_path": workflow_file,
+            "inputs": [{"name": "base_image", "type": "image", "mapping": {"node_id": "1", "field_name": "image"}}],
+            "outputs": [{"name": "result_image", "type": "image", "mapping": {"node_id": "1", "field_name": "images"}}],
+            "params": [{"name": "prompt", "type": "text", "description": "", "mapping": {"node_id": "1", "field_name": "text"}}],
+        },
+    )
+
+    planner = MockPlannerService(
+        PlannerOutput(
+            blueprint=DAGBlueprint(
+                initial_inputs={"user_base_image": "upload.png"},
+                steps=[
+                    DAGStep(
+                        step_id="s1",
+                        lens_id=lens_id,
+                        input_links={"base_image": "$user_base_image"},
+                        params={"prompt": "一盆多肉"},
+                    )
+                ],
+            ),
+            missing_params=[],
+            clarification_questions=[],
+            thought="ready",
+        )
+    )
+
+    rag = _FakeRAGClient(lens_id)
+    retrieval = RetrievalService(rag)
+
+    import app.api.v1.endpoints.router as router_endpoint
+
+    emitted = []
+    created = {}
+
+    async def _fake_emit(stream_id, payload):
+        emitted.append((stream_id, payload))
+
+    async def _fake_run_blueprint_with_stream_events(*, blueprint, session_id, stream_id):
+        created["run_args"] = {
+            "session_id": session_id,
+            "stream_id": stream_id,
+            "blueprint": blueprint.model_dump(),
+        }
+
+    def _fake_create_task(coro):
+        created["task_created"] = True
+        coro.close()
+
+        class _DummyTask:
+            def cancel(self):
+                return False
+
+        return _DummyTask()
+
+    monkeypatch.setattr(
+        router_endpoint,
+        "router_service",
+        RouterService(rag_client=rag, retrieval=retrieval, planner=planner),  # type: ignore[arg-type]
+    )
+    monkeypatch.setattr(router_endpoint.router_stream_service, "emit", _fake_emit)
+    monkeypatch.setattr(router_endpoint, "_run_blueprint_with_stream_events", _fake_run_blueprint_with_stream_events)
+    monkeypatch.setattr(router_endpoint.asyncio, "create_task", _fake_create_task)
+
+    resp = client.post(
+        "/api/v1/router/route_and_run",
+        json={
+            "user_id": "u1",
+            "user_message": "帮我改图",
+            "base_image": "upload.png",
+            "async_execution": True,
+            "stream_id": "stream-123",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ready"
+    assert body["executed"] is False
+    assert body["execution_started"] is True
+    assert body["stream_id"] == "stream-123"
+    assert body["blueprint"] is not None
+    assert body["step_results"] == []
+    assert created["task_created"] is True
+    assert emitted[0][0] == "stream-123"
+    assert emitted[0][1]["event"] == "blueprint_ready"
+
+
+def test_new_stream_id_endpoint(client):
+    resp = client.get("/api/v1/router/stream/new")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert isinstance(body["stream_id"], str)
+    assert len(body["stream_id"]) >= 8
 
