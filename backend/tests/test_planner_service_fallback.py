@@ -290,6 +290,96 @@ def test_postprocess_builds_reference_pipeline_for_background_replacement():
     assert out.blueprint.steps[1].input_links["ref_image_1"] == "$step_1_pose_extract.pose_map"
 
 
+def test_postprocess_builds_reference_then_relighting_then_upscale_pipeline():
+    planner_input = PlannerInput(
+        task_desc="保持图中女人的姿势，让她躺在海边的沙滩上，调节光影让黄昏的光从图片的左上方柔和的照下，最终的图片画质要好，足够清晰",
+        base_image_meta={},
+        candidates=[
+            {
+                "lens_id": "lens_flux_reference",
+                "score": 0.91,
+                "layer": "A2",
+                "description": "单参考约束重绘，适合在保留主体姿态时替换场景",
+                "notes": "",
+                "inputs": [
+                    {"name": "base_image", "type": "image"},
+                    {"name": "ref_image_1", "type": "image"},
+                ],
+                "outputs": [{"name": "result_image", "type": "image"}],
+                "params": [{"name": "prompt", "type": "text", "required": True}],
+                "examples": [],
+            },
+            {
+                "lens_id": "lens_pose_extract",
+                "score": 0.8,
+                "layer": "A1",
+                "description": "提取人物姿态图",
+                "notes": "",
+                "inputs": [{"name": "base_image", "type": "image"}],
+                "outputs": [{"name": "pose_map", "type": "image"}],
+                "params": [],
+                "examples": [],
+            },
+            {
+                "lens_id": "lens_relighting",
+                "score": 0.82,
+                "layer": "A3",
+                "description": "全局光影重构",
+                "notes": "",
+                "inputs": [
+                    {"name": "base_image", "type": "image"},
+                    {"name": "depth_map", "type": "depth_map"},
+                ],
+                "outputs": [{"name": "result_image", "type": "image"}],
+                "params": [{"name": "prompt", "type": "text", "required": True}],
+                "examples": [],
+            },
+            {
+                "lens_id": "lens_depth_extract",
+                "score": 0.76,
+                "layer": "A1",
+                "description": "深度提取",
+                "notes": "",
+                "inputs": [{"name": "base_image", "type": "image"}],
+                "outputs": [{"name": "depth_map", "type": "depth_map"}],
+                "params": [],
+                "examples": [],
+            },
+            {
+                "lens_id": "lens_upscale_4x",
+                "score": 0.7,
+                "layer": "A5",
+                "description": "高清放大和细节增强",
+                "notes": "",
+                "inputs": [{"name": "base_image", "type": "image"}],
+                "outputs": [{"name": "result_image", "type": "image"}],
+                "params": [],
+                "examples": [],
+            },
+        ],
+        session_context={},
+    )
+
+    out = _postprocess_planner_output(
+        PlannerOutput(blueprint=None, missing_params=[], clarification_questions=[], thought=""),
+        planner_input,
+    )
+
+    assert out.blueprint is not None
+    assert [step.lens_id for step in out.blueprint.steps] == [
+        "lens_pose_extract",
+        "lens_flux_reference",
+        "lens_depth_extract",
+        "lens_relighting",
+        "lens_upscale_4x",
+    ]
+    assert out.blueprint.steps[1].input_links["ref_image_1"] == "$step_1_pose_extract.pose_map"
+    assert out.blueprint.steps[2].input_links["base_image"] == "$step_2_flux_reference.result_image"
+    assert out.blueprint.steps[3].input_links["base_image"] == "$step_2_flux_reference.result_image"
+    assert out.blueprint.steps[3].input_links["depth_map"] == "$step_3_depth_extract.depth_map"
+    assert out.blueprint.steps[4].input_links["base_image"] == "$step_4_relighting.result_image"
+
+
 def test_postprocess_uses_llm_semantic_fill_for_segmentation_prompt(monkeypatch):
     planner_input = PlannerInput(
         task_desc="把图中女人替换为一只狗",

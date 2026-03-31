@@ -60,3 +60,17 @@ def test_dependency_expansion_skips_provider_when_user_already_has_mask():
     )
 
     assert deps == []
+
+
+def test_wanted_lens_ids_for_scene_relight_and_delivery_task():
+    wanted = RetrievalService._wanted_lens_ids_for_task(
+        "保持图中女人的姿势，让她躺在海边的沙滩上，调节光影让黄昏的光从图片的左上方柔和的照下，最终的图片画质要好，足够清晰"
+    )
+
+    assert wanted == [
+        "lens_flux_reference",
+        "lens_pose_extract",
+        "lens_relighting",
+        "lens_depth_extract",
+        "lens_upscale_4x",
+    ]
