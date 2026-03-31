@@ -32,15 +32,24 @@ enum ToolType { none, aiChat, aiToolbox, crop, adjust, templates }
 class EditorScreen extends ConsumerStatefulWidget {
   const EditorScreen({
     super.key,
-    required this.selectedImage,
+    this.selectedImage,
+    this.existingProjectId,
+    this.initialActiveTool,
+    this.initialAiToolId,
     this.initialPrompt,
     this.initialDraftImagePath,
     this.initialDraftLensId,
     this.initialDraftLensName,
     this.initialDraftTagLabel,
-  });
+  }) : assert(
+         selectedImage != null || existingProjectId != null,
+         'selectedImage or existingProjectId must be provided',
+       );
 
-  final File selectedImage;
+  final File? selectedImage;
+  final String? existingProjectId;
+  final ToolType? initialActiveTool;
+  final String? initialAiToolId;
   final String? initialPrompt;
   final String? initialDraftImagePath;
   final String? initialDraftLensId;
@@ -97,6 +106,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     if (initialPrompt != null && initialPrompt.isNotEmpty) {
       _promptController.text = initialPrompt;
     }
+    _activeTool = widget.initialActiveTool ?? ToolType.aiChat;
+    _selectedAiToolId = widget.initialAiToolId ?? kEditorAiToolDefinitions.first.lensId;
     Future<void>.microtask(_bootstrapInitialProject);
   }
 
@@ -113,8 +124,17 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     });
 
     try {
-      await _createProjectFromFile(widget.selectedImage);
-      await _seedInitialDraftIfNeeded();
+      if (widget.existingProjectId != null &&
+          widget.existingProjectId!.trim().isNotEmpty) {
+        await _loadProject(widget.existingProjectId!.trim());
+      } else {
+        final selectedImage = widget.selectedImage;
+        if (selectedImage == null) {
+          throw StateError('当前没有可用的项目或源图');
+        }
+        await _createProjectFromFile(selectedImage);
+        await _seedInitialDraftIfNeeded();
+      }
     } catch (error) {
       _showError(error, '初始化资产树项目失败');
       if (!mounted) return;
@@ -166,6 +186,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
           tree.project.rootNodeId ??
           (tree.nodes.isNotEmpty ? tree.nodes.last.nodeId : null);
       final node = nodeId == null ? null : tree.nodeMap[nodeId];
+      final rootNode = tree.project.rootNodeId == null
+          ? null
+          : tree.nodeMap[tree.project.rootNodeId!];
+      final rootImagePath = _normalizeProjectImagePath(
+        rootNode?.imageUrl ?? tree.project.coverUrl,
+      );
       final imagePath = _normalizeProjectImagePath(
         node?.imageUrl ?? tree.project.coverUrl ?? _initialImagePath,
       );
@@ -176,6 +202,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
         _project = tree.project;
         _tree = tree;
         _currentNodeId = nodeId;
+        _initialImagePath = rootImagePath ?? _initialImagePath;
         _displayedImagePath = imagePath;
         _currentImageSize = imageSize;
         _projectError = null;
@@ -602,7 +629,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     );
     final launchPath = currentPath != null && isAdaptiveLocalFilePath(currentPath)
         ? normalizeAdaptiveFilePath(currentPath)
-        : widget.selectedImage.path;
+        : widget.selectedImage?.path;
+
+    if (launchPath == null || launchPath.trim().isEmpty) {
+      _showError(StateError('当前项目没有可用于 AI 修图的图片'), '当前项目没有可用于 AI 修图的图片');
+      return;
+    }
 
     if (!mounted) return;
     final draft = await Navigator.push<ConsultantDraftResult>(
@@ -1138,7 +1170,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     if (currentPath != null && isAdaptiveLocalFilePath(currentPath)) {
       return _ensureUploadedAssetPath(currentPath);
     }
-    return _ensureUploadedAssetPath(widget.selectedImage.path);
+    final selectedImage = widget.selectedImage;
+    if (selectedImage != null) {
+      return _ensureUploadedAssetPath(selectedImage.path);
+    }
+    throw StateError('当前没有可上传的编辑图片');
   }
 
   Future<String> _ensureUploadedAssetPath(String rawPath) async {

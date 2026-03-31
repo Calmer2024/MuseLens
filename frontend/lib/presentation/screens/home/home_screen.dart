@@ -142,6 +142,10 @@ class HomeScreen extends ConsumerWidget {
 
               const SizedBox(height: 32),
 
+              const HomeAiToolboxSection(),
+
+              const SizedBox(height: 28),
+
               const HomeProjectsSection(),
 
               const SizedBox(height: 28),
