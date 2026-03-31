@@ -31,6 +31,7 @@ class RetrievalService:
         task_desc: str,
         top_k: int = 5,
         enabled_only: bool = False,
+        available_user_assets: Optional[Dict[str, str]] = None,
     ) -> List[LensKnowledge]:
         if not task_desc:
             return []
@@ -71,11 +72,16 @@ class RetrievalService:
             if lk:
                 result.append(lk)
 
-        return self._expand_dependency_candidates(
+        result = self._expand_dependency_candidates(
             db,
             seeds=result,
             examples_by_id=examples_by_id,
             enabled_only=enabled_only,
+            available_user_assets=available_user_assets,
+        )
+        return self._rerank_by_available_user_assets(
+            result,
+            available_user_assets=available_user_assets,
         )
 
     def retrieve_by_lens_ids(
@@ -240,6 +246,7 @@ class RetrievalService:
         seeds: List[LensKnowledge],
         examples_by_id: Dict[str, List[LensExample]],
         enabled_only: bool = False,
+        available_user_assets: Optional[Dict[str, str]] = None,
         max_depth: int = 2,
         max_matches_per_input: int = 3,
     ) -> List[LensKnowledge]:
@@ -263,6 +270,7 @@ class RetrievalService:
                     records,
                     exclude_ids=known_ids,
                     limit=max_matches_per_input,
+                    available_user_assets=available_user_assets,
                 ):
                     rec = record_by_id.get(dep_id)
                     if not rec:
@@ -290,11 +298,18 @@ class RetrievalService:
         *,
         exclude_ids: Set[str],
         limit: int,
+        available_user_assets: Optional[Dict[str, str]] = None,
     ) -> List[str]:
         found: List[str] = []
         seen: Set[str] = set()
 
         for input_asset in candidate.inputs or []:
+            if self._matches_available_user_asset(
+                input_name=input_asset.name,
+                input_type=input_asset.type,
+                available_user_assets=available_user_assets,
+            ):
+                continue
             if self._is_user_supplied_input(input_asset.name, input_asset.type):
                 continue
 
@@ -359,6 +374,93 @@ class RetrievalService:
                 best = max(best, 2)
 
         return best
+
+    @classmethod
+    def _rerank_by_available_user_assets(
+        cls,
+        items: List[LensKnowledge],
+        *,
+        available_user_assets: Optional[Dict[str, str]] = None,
+    ) -> List[LensKnowledge]:
+        if not items or not available_user_assets:
+            return items
+
+        rescored: List[Tuple[float, LensKnowledge]] = []
+        for item in items:
+            adjusted_score = float(item.score) + cls._available_asset_adjustment(
+                item,
+                available_user_assets=available_user_assets,
+            )
+            rescored.append((adjusted_score, item.model_copy(update={"score": adjusted_score})))
+
+        rescored.sort(key=lambda pair: (-pair[0], pair[1].lens_id))
+        return [item for _, item in rescored]
+
+    @classmethod
+    def _available_asset_adjustment(
+        cls,
+        item: LensKnowledge,
+        *,
+        available_user_assets: Dict[str, str],
+    ) -> float:
+        adjustment = 0.0
+
+        for input_asset in item.inputs or []:
+            if cls._matches_available_user_asset(
+                input_name=input_asset.name,
+                input_type=input_asset.type,
+                available_user_assets=available_user_assets,
+            ):
+                kind = cls._asset_kind(input_asset.name, input_asset.type)
+                if kind == "mask":
+                    adjustment += 3.0
+                elif kind in {"style_reference", "generic_reference"}:
+                    adjustment += 2.0
+                else:
+                    adjustment += 1.0
+
+        for output_asset in item.outputs or []:
+            if cls._matches_available_user_asset(
+                input_name=output_asset.name,
+                input_type=output_asset.type,
+                available_user_assets=available_user_assets,
+            ):
+                kind = cls._asset_kind(output_asset.name, output_asset.type)
+                if kind == "mask":
+                    adjustment -= 2.5
+                elif kind in {"style_reference", "generic_reference"}:
+                    adjustment -= 1.5
+                else:
+                    adjustment -= 0.5
+
+        return adjustment
+
+    @classmethod
+    def _matches_available_user_asset(
+        cls,
+        *,
+        input_name: str,
+        input_type: str,
+        available_user_assets: Optional[Dict[str, str]] = None,
+    ) -> bool:
+        if not available_user_assets:
+            return False
+
+        normalized_assets = {
+            str(k).strip(): str(v)
+            for k, v in (available_user_assets or {}).items()
+            if str(k).strip() and v not in [None, ""]
+        }
+        if input_name in normalized_assets:
+            return True
+
+        target_kind = cls._asset_kind(input_name, input_type)
+        aliases_by_kind = {
+            "mask": {"mask", "user_mask", "painted_mask", "mask_result"},
+            "style_reference": {"style_reference_image", "style_image", "reference_style_image"},
+            "generic_reference": {"ref_image_1", "reference_image", "reference_asset"},
+        }
+        return bool(aliases_by_kind.get(target_kind, set()) & set(normalized_assets.keys()))
 
     @staticmethod
     def _asset_kind(name: str, asset_type: str) -> str:

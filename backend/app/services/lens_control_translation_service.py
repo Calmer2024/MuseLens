@@ -70,17 +70,7 @@ def translate_lens_controls(
     translated_assets: Dict[str, str] = {}
     explanations: list[str] = []
 
-    if lens_id == "lens_sam2_matting":
-        mask_asset = str(control_values.get("mask_asset") or "").strip()
-        if mask_asset:
-            translated_assets["mask"] = mask_asset
-            explanations.append("使用用户手动涂抹后的遮罩资产作为后续局部编辑输入。")
-        prompt_hint = str(control_values.get("prompt_hint") or "").strip()
-        if prompt_hint:
-            translated_params["prompt"] = prompt_hint
-            explanations.append("将用户补充的目标描述继续作为分割提示词。")
-
-    elif lens_id == "lens_relighting":
+    if lens_id == "lens_relighting":
         light_orb = control_values.get("light_orb") or {}
         translated_params.update(_map_relighting_controls(light_orb, current_params=current_params))
         explanations.append("根据光球位置、强度和色温微调光影 prompt 与采样步数。")

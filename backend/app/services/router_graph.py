@@ -119,7 +119,12 @@ def _should_enrich(po: PlannerOutput, verrors: List[Dict[str, Any]]) -> bool:
 
 def _node_retrieve(_state: RouterGraphState) -> Dict[str, Any]:
     ctx = _get_ctx()
-    lenses = ctx.router._retrieval.retrieve(ctx.db, task_desc=ctx.task_desc, top_k=5)
+    lenses = ctx.router._retrieval.retrieve(
+        ctx.db,
+        task_desc=ctx.task_desc,
+        top_k=5,
+        available_user_assets=ctx.req.user_assets or {},
+    )
     payload = [l.model_dump() for l in lenses]
     return {
         "lenses": payload,

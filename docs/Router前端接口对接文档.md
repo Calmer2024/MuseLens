@@ -34,8 +34,10 @@
   透镜直连执行接口。适合前端已明确选择某个透镜，并且用户已经手动填写好该透镜所需参数与资产，不需要 LLM 参与。
 - `GET /api/v1/lenses/stream/new`
   为透镜直连执行模式生成 `stream_id`。
+- `GET /api/v1/lenses/asset-tools`
+  获取独立的资产准备工具定义。前端要拿 `mask_editor`，应走这个接口，而不是从 `lens_sam2_matting` 的 `tweak_controls` 里取。
 - `GET /api/v1/lenses/{lens_id}/tweak-controls`
-  获取某个透镜的微调控件定义。
+  获取某个透镜的参数微调控件定义。
 - `POST /api/v1/lenses/mask-assets`
   保存前端 `mask_editor` 画出的遮罩 PNG，返回可直接写入 `user_assets` 的资产信息。
 - `POST /api/v1/lenses/mask-assets/upload`
@@ -857,14 +859,34 @@ Router 返回的 `status` 只有三种：
 - 高级模式下，用户手动搭配参数而不走自然语言
 - 某些固定工作流面板，前端本身就知道该用哪个 Lens
 
-### 10.6 微调控件定义
+### 10.6 资产准备工具：涂抹遮罩
+
+这一类能力不要和透镜微调混在一起理解。
+
+`mask_editor` 是独立的资产准备工具，不属于任何单一透镜的 `tweak_controls`。
+
+前端应通过：
+
+- `GET /api/v1/lenses/asset-tools`
+
+获取它的定义。
+
+当前核心工具：
+
+- `mask_editor`
+  - 用途：用户在前端画布上手工涂抹，生成可复用的 `mask` 资产
+  - 保存接口：
+    - `POST /api/v1/lenses/mask-assets`
+    - `POST /api/v1/lenses/mask-assets/upload`
+  - 后续消费方式：
+    - Router：写入 `user_assets.mask`
+    - 单透镜执行：写入 `assets.mask`
+  - 设计定位：它是“资产准备”，不是“给 `lens_sam2_matting` 补参数”
+
+### 10.7 透镜微调控件定义
 
 对于以下透镜，后端会返回预定义的 `tweak_controls`，供前端渲染更适合的微调 UI：
 
-- `lens_sam2_matting`
-  - 关键控件：`mask_editor`
-  - 用途：在 AI 初始分割基础上，允许用户手动补画 / 擦除遮罩
-  - 产物：建议前端导出为新的 PNG/base64 遮罩，再先调 `POST /api/v1/lenses/mask-assets` 保存，然后通过 `user_assets.mask` 或 `/api/v1/lenses/run` 的 `assets.mask` 回传
 - `lens_relighting`
   - 关键控件：`light_orb`
   - 用途：拖拽光源位置，控制 prompt 和步数微调
@@ -881,9 +903,9 @@ Router 返回的 `status` 只有三种：
 - `GET /api/v1/lenses/{lens_id}`
 - 或 `GET /api/v1/lenses/{lens_id}/tweak-controls`
 
-获取该透镜的 `tweak_controls` 定义。
+获取透镜级 `tweak_controls` 定义。
 
-### 10.7 微调控件应用接口
+### 10.8 微调控件应用接口
 
 当前推荐前端在用户拖动微调控件后，调用：
 
@@ -930,7 +952,7 @@ Router 返回的 `status` 只有三种：
 - `execution`
   若 `execute=true`，则返回实际执行结果
 
-### 10.8 哪些控件会调用 LLM
+### 10.9 哪些控件会调用 LLM
 
 当前只有以下场景会调用 LLM 参与翻译：
 
@@ -945,7 +967,6 @@ Router 返回的 `status` 只有三种：
 - `lens_style.structure_preservation`
 - `lens_lora_filter.filter_selector`
 - `lens_lora_filter.filter_opacity`
-- `lens_sam2_matting.mask_editor`
 
 ---
 
@@ -1224,7 +1245,6 @@ Router 返回的 `status` 只有三种：
 
 当前重点支持的控件：
 
-- `lens_sam2_matting.mask_editor`
 - `lens_relighting.light_orb`
 - `lens_depth_of_field.tap_to_focus`
 - `lens_depth_of_field.aperture_dial`
@@ -1237,6 +1257,7 @@ Router 返回的 `status` 只有三种：
 
 - 不是所有透镜都有 tweak_controls
 - 没有 tweak_controls 的透镜，前端应退回到“普通参数表单 + `/api/v1/lenses/run`”
+- `mask_editor` 不属于这一类，它应走独立的资产准备接口
 
 ### 13.7 场景 F：工作流执行完成后，用户继续微调其中某一步
 
@@ -1472,3 +1493,155 @@ Router 返回的 `status` 只有三种：
 3. 用户收藏/分享模板
 4. 之后前端收集新的图片和资产
 5. `run-musedna` 直接复用执行
+
+### 13.12 手工涂抹遮罩：独立资产准备接口与行为保证
+
+这一节专门说明“用户上传原图后，在前端手工涂抹遮罩，再提交 `route_and_run`”这一链路。
+
+#### 13.12.1 Router 会不会又去找 `lens_sam2_matting`
+
+正确预期是：
+
+- 如果前端已经正式传入了 `user_assets.mask`
+- 后端应优先直接消费这个 `mask`
+- 不应再为了同一个局部编辑任务重复插入 `lens_sam2_matting` 去生成第二张 mask
+
+当前后端处理链路是：
+
+1. 前端保存手工涂抹得到的遮罩资产
+2. 前端把返回的 `user_assets_patch` 合并进 Router 请求体
+3. Router 会把这些 `user_assets` 放进 `session_context.available_user_assets`
+4. Planner 在编排时优先检查这些现成资产
+5. Retrieval 也会基于“用户已经有 mask”进行候选重排，优先保留消费 `mask` 的透镜，降低“再次生成 mask 的上游透镜”的优先级
+
+因此，这条链路在设计上就是：
+
+- 用户已提供 `mask` 时，优先选消费 `mask` 的透镜
+- 不优先再次生成 `mask`
+
+#### 13.12.2 手工涂抹得到的 `mask` 如何才能被准确消费
+
+前端请统一使用这个资产名：
+
+- `mask`
+
+最推荐的传法：
+
+```json
+{
+  "user_assets": {
+    "mask": "mask_xxx.png"
+  }
+}
+```
+
+原因：
+
+- 后端对 `mask` 有明确匹配逻辑
+- `lens_flux_inpaint` 等局部编辑透镜本来就使用 `mask` 作为输入名
+- 资产名与透镜输入名直接对齐时，blueprint 编排最稳定
+
+兼容别名目前只有：
+
+- `mask`
+- `user_mask`
+- `painted_mask`
+- `mask_result`
+
+但前端统一使用 `mask` 最稳。
+
+#### 13.12.3 `mask_editor` 的定位
+
+`mask_editor` 不应被前端理解成普通的 tweak 控件，也不应再挂靠为 `lens_sam2_matting` 的一个子控件。
+
+它和：
+
+- `light_orb`
+- `style_intensity`
+- `filter_opacity`
+
+这类“帮助透镜补参数”的控件不一样。
+
+`mask_editor` 的本质是：
+
+- 一个“资产准备控件”
+- 它产出的是新的 `mask` 资产
+- 这个资产之后可能被其他透镜消费，例如 `lens_flux_inpaint`
+
+所以前端应把它理解为：
+
+- `mask_editor = 资产准备工具`
+- 不是“普通的透镜参数微调控件”
+
+#### 13.12.4 前端应调用哪些接口
+
+先拿工具定义：
+
+- `GET /api/v1/lenses/asset-tools`
+
+拿到 `mask_editor` 的展示信息后，再走保存接口：
+
+- `POST /api/v1/lenses/mask-assets`
+  - 适合前端拿到 base64 / data URL
+- `POST /api/v1/lenses/mask-assets/upload`
+  - 适合前端拿到 `File` / `Blob`
+
+保存完成后，返回体里最关键的是：
+
+- `filename`
+- `preview_url`
+- `user_assets_patch`
+
+其中 `user_assets_patch` 就是后续要合并回 Router 或单透镜请求的数据来源。
+
+#### 13.12.5 前端正确接法
+
+方式一：走 Router 编排执行
+
+1. 用户上传原图
+2. 用户在前端画布中涂抹
+3. 前端调用：
+   - `POST /api/v1/lenses/mask-assets`
+   - 或 `POST /api/v1/lenses/mask-assets/upload`
+4. 前端拿到返回里的 `user_assets_patch`
+5. 前端把它合并到 `POST /api/v1/router/route_and_run` 的 `user_assets`
+
+示例：
+
+```json
+{
+  "user_id": "u1",
+  "user_message": "把这些人消除掉",
+  "base_image": "upload.png",
+  "user_assets": {
+    "mask": "mask_xxx.png"
+  },
+  "answers": {},
+  "execute_when_ready": true,
+  "async_execution": true,
+  "stream_id": "stream_id"
+}
+```
+
+方式二：前端已明确选好透镜，直接执行单透镜
+
+示例：
+
+```json
+{
+  "lens_id": "lens_flux_inpaint",
+  "assets": {
+    "base_image": "upload.png",
+    "mask": "mask_xxx.png"
+  },
+  "params": {
+    "prompt": "remove the masked people and keep the background natural"
+  }
+}
+```
+
+#### 13.12.6 前端不要这样理解
+
+- 不要把 `mask_editor` 当成“先调 tweak，再直接给 `lens_sam2_matting` 填 param 就结束了”
+- 不要只在 UI 上展示“用户已经涂抹过”，却不把 `mask` 资产正式传给后端
+- 不要用不稳定的资产名，尽量统一用 `mask`

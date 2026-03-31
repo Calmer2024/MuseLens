@@ -4,35 +4,12 @@ from typing import Any, Dict, List
 
 
 _LENS_TWEAK_SPECS: Dict[str, List[Dict[str, Any]]] = {
-    "lens_sam2_matting": [
-        {
-            "control_id": "mask_editor",
-            "label": "智能套索与涂抹画笔",
-            "control_type": "mask_editor",
-            "description": "先用 prompt 自动分割，再允许用户手动补画或擦除遮罩，输出可复用的 mask 资产。",
-            "stage": "pre_edit_and_refine",
-            "is_asset_preparation_tool": True,
-            "replaces_direct_lens_execution": True,
-            "bindings": [
-                {
-                    "target_type": "asset",
-                    "target_name": "mask",
-                    "mapping_strategy": "use_user_painted_mask_asset",
-                },
-                {
-                    "target_type": "param",
-                    "target_name": "prompt",
-                    "mapping_strategy": "text_target_hint",
-                },
-            ],
-        }
-    ],
     "lens_relighting": [
         {
             "control_id": "light_orb",
-            "label": "3D 光球",
+            "label": "3D光球",
             "control_type": "light_orb",
-            "description": "拖拽光源位置并调节强度、色温，后端映射为更精细的 prompt 与采样强度。",
+            "description": "拖拽光源位置并调整强度、色温，后端映射为更细致的 prompt 与采样强度。",
             "stage": "refine",
             "bindings": [
                 {
@@ -163,4 +140,3 @@ _LENS_TWEAK_SPECS: Dict[str, List[Dict[str, Any]]] = {
 
 def get_lens_tweak_controls(lens_id: str) -> List[Dict[str, Any]]:
     return list(_LENS_TWEAK_SPECS.get(lens_id, []))
-

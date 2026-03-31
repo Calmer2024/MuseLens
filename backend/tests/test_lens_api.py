@@ -426,6 +426,35 @@ def test_get_lens_tweak_controls_endpoint(client, temp_workflow_file):
     assert body["tweak_controls"][0]["control_id"] == "light_orb"
 
 
+def test_lens_sam2_matting_no_longer_exposes_mask_editor_as_tweak_control(client):
+    resp = client.get("/api/v1/lenses/lens_sam2_matting/tweak-controls")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["lens_id"] == "lens_sam2_matting"
+    assert body["tweak_controls"] == []
+
+
+def test_get_asset_tools_endpoint_returns_mask_editor(client):
+    resp = client.get("/api/v1/lenses/asset-tools")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) >= 1
+    mask_editor = next(item for item in body if item["tool_id"] == "mask_editor")
+    assert mask_editor["tool_type"] == "asset_preparation_tool"
+    assert mask_editor["output_asset_name"] == "mask"
+    assert mask_editor["save_endpoints"]["json"] == "/api/v1/lenses/mask-assets"
+    assert mask_editor["save_endpoints"]["upload"] == "/api/v1/lenses/mask-assets/upload"
+
+
+def test_get_asset_tool_detail_endpoint_returns_mask_editor(client):
+    resp = client.get("/api/v1/lenses/asset-tools/mask_editor")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["tool_id"] == "mask_editor"
+    assert body["usage"]["router_user_assets_key"] == "mask"
+    assert body["usage"]["lens_assets_key"] == "mask"
+
+
 def test_apply_controls_for_lora_filter_translates_without_llm(client, temp_workflow_file):
     payload = {
         "lens_id": "lens_lora_filter",

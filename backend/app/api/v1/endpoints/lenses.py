@@ -30,6 +30,7 @@ from app.services.execution_service import (
     infer_result_filename,
     run_blueprint_with_stream_events,
 )
+from app.services.asset_tool_service import get_asset_tool, get_asset_tools
 from app.services.lens_control_translation_service import translate_lens_controls
 from app.services.lens_ui_control_service import get_lens_tweak_controls
 from app.services.lens_embedding_sync import sync_lens_embeddings
@@ -93,6 +94,20 @@ class LensDetail(LensSummary):
     outputs: List[Dict[str, Any]] = []
     params: List[Dict[str, Any]] = []
     tweak_controls: List[Dict[str, Any]] = []
+
+
+class AssetToolDefinition(BaseModel):
+    tool_id: str
+    label: str
+    tool_type: str
+    control_type: str
+    description: str
+    output_asset_name: str
+    output_asset_type: str
+    supported_entrypoints: List[str] = []
+    save_endpoints: Dict[str, str] = {}
+    usage: Dict[str, str] = {}
+    ui_schema: Dict[str, Any] = {}
 
 
 class LensRunRequest(BaseModel):
@@ -639,6 +654,19 @@ async def _execute_single_lens(
         payload["execution_error"] = str(exc)
 
     return LensRunResponse(**payload)
+
+
+@router.get("/asset-tools", response_model=List[AssetToolDefinition], summary="List asset preparation tools")
+def list_asset_tools():
+    return [AssetToolDefinition(**item) for item in get_asset_tools()]
+
+
+@router.get("/asset-tools/{tool_id}", response_model=AssetToolDefinition, summary="Get asset preparation tool detail")
+def get_asset_tool_detail(tool_id: str):
+    try:
+        return AssetToolDefinition(**get_asset_tool(tool_id))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"资产工具 '{tool_id}' 不存在。")
 
 
 @router.get("/{lens_id}/tweak-controls", summary="Get tweak controls for a lens")
