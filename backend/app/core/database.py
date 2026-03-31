@@ -89,3 +89,4 @@ def init_db() -> None:
     from app.models import user_models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    market_models.ensure_market_schema(engine)
