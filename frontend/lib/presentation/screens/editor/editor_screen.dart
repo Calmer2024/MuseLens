@@ -705,7 +705,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     try {
       final execution = await _runAiTool(tool);
       final response = execution.response;
-      if (response.hasExecutionError) {
+      if (_isFatalLensExecutionError(response)) {
         throw StateError(response.executionError!);
       }
 
@@ -886,7 +886,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       assets: <String, String>{'base_image': baseImage},
       params: const <String, dynamic>{},
     );
-    if (depthResult.hasExecutionError) {
+    if (_isFatalLensExecutionError(depthResult)) {
       throw StateError(depthResult.executionError!);
     }
     final depthMapFilename = _pickBestResultFilename(depthResult);
@@ -958,7 +958,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       assets: <String, String>{'base_image': baseImage},
       params: const <String, dynamic>{},
     );
-    if (depthResult.hasExecutionError) {
+    if (_isFatalLensExecutionError(depthResult)) {
       throw StateError(depthResult.executionError!);
     }
     final depthMapFilename = _pickBestResultFilename(depthResult);
@@ -1028,7 +1028,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       assets: <String, String>{'base_image': baseImage},
       params: <String, dynamic>{'prompt': targetPrompt},
     );
-    if (maskResult.hasExecutionError) {
+    if (_isFatalLensExecutionError(maskResult)) {
       throw StateError(maskResult.executionError!);
     }
     final maskFilename = _pickBestResultFilename(maskResult);
@@ -1248,6 +1248,28 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       }
     }
     return null;
+  }
+
+  bool _hasUsableLensOutput(LensToolRunResponse response) {
+    if (_pickBestResultUrl(response)?.trim().isNotEmpty == true) {
+      return true;
+    }
+    if (_pickBestResultFilename(response)?.trim().isNotEmpty == true) {
+      return true;
+    }
+    for (final step in response.stepResults) {
+      if (step.outputs.isNotEmpty) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _isFatalLensExecutionError(LensToolRunResponse response) {
+    if (!response.hasExecutionError) {
+      return false;
+    }
+    return !_hasUsableLensOutput(response);
   }
 
   String _guessExtension(String source) {

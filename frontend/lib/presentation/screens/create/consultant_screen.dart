@@ -308,13 +308,13 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
   }
 
   void _handleRouterResponse(RouterRouteAndRunResponse response) {
-    final thought = response.thoughtProcess.trim();
-    if (thought.isNotEmpty) {
+    final userFacingThought = _buildUserFacingThought(response);
+    if (userFacingThought != null && userFacingThought.trim().isNotEmpty) {
       _appendMessage(
         _ChatMessage(
           role: _ChatRole.assistant,
           kind: _ChatMessageKind.text,
-          text: thought,
+          text: userFacingThought,
         ),
       );
     }
@@ -366,7 +366,7 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
           _ChatMessage(
             role: _ChatRole.assistant,
             kind: _ChatMessageKind.error,
-            text: thought.isEmpty ? '本次编排失败，请换一种描述试试。' : thought,
+            text: _buildFailedMessage(response),
           ),
         );
         break;
@@ -719,6 +719,76 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
         ),
       ),
     );
+  }
+
+  String? _buildUserFacingThought(RouterRouteAndRunResponse response) {
+    final sanitizedThought = _sanitizeThoughtProcess(response.thoughtProcess);
+    switch (response.status) {
+      case RouterStatus.needClarification:
+        return sanitizedThought?.isNotEmpty == true
+            ? sanitizedThought
+            : '我还需要补充一点信息，才能继续帮你修图。';
+      case RouterStatus.ready:
+        if (response.executionStarted) {
+          return null;
+        }
+        return sanitizedThought;
+      case RouterStatus.failed:
+      case RouterStatus.unknown:
+        return null;
+    }
+  }
+
+  String _buildFailedMessage(RouterRouteAndRunResponse response) {
+    final sanitizedThought = _sanitizeThoughtProcess(response.thoughtProcess);
+    if (sanitizedThought != null && sanitizedThought.isNotEmpty) {
+      return sanitizedThought;
+    }
+    return '这次处理失败了，请换一种描述再试试。';
+  }
+
+  String? _sanitizeThoughtProcess(String? rawThought) {
+    final raw = rawThought?.trim() ?? '';
+    if (raw.isEmpty) return null;
+
+    const blockedFragments = <String>[
+      'rag',
+      'retrieved_lenses',
+      'heuristic',
+      'planner',
+      'planning',
+      'validation',
+      'asset-based recovery',
+      'blueprint',
+      'dns',
+      'temporary failure in name resolution',
+      'router v2',
+      'external',
+      'llm',
+      'debug',
+      'trace',
+      'stack',
+    ];
+
+    final lines = raw
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .where((line) {
+          final lower = line.toLowerCase();
+          for (final fragment in blockedFragments) {
+            if (lower.contains(fragment)) {
+              return false;
+            }
+          }
+          return true;
+        })
+        .toList();
+
+    if (lines.isEmpty) {
+      return null;
+    }
+    return lines.join('\n');
   }
 
   String _summarizeAnswers(Map<String, dynamic> answers) {
@@ -1579,6 +1649,15 @@ class _ResultBubble extends StatelessWidget {
           ),
           if (retrievedLenses.isNotEmpty) ...[
             const SizedBox(height: 12),
+            Text(
+              '透镜组合',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.8),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,

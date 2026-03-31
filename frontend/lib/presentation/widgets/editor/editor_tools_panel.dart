@@ -85,6 +85,11 @@ class EditorToolsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final maxPanelHeight = activeTool == ToolType.aiToolbox
+        ? screenHeight * 0.4
+        : screenHeight * 0.24;
+
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF08080B),
@@ -117,9 +122,17 @@ class EditorToolsPanel extends StatelessWidget {
               AnimatedSize(
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
-                  child: _buildActivePanel(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: maxPanelHeight),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    child: SingleChildScrollView(
+                      key: ValueKey<String>('panel-scroll-${activeTool.name}'),
+                      primary: false,
+                      physics: const BouncingScrollPhysics(),
+                      child: _buildActivePanel(),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 6),

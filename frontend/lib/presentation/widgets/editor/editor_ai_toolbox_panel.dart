@@ -1033,11 +1033,11 @@ class _LightOrbControl extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         LayoutBuilder(
           builder: (context, constraints) {
             final width = constraints.maxWidth;
-            const height = 158.0;
+            const height = 132.0;
             final knobCenter = Offset(x.clamp(0.0, 1.0) * width, y.clamp(0.0, 1.0) * height);
 
             void update(Offset localPosition) {
@@ -1080,11 +1080,11 @@ class _LightOrbControl extends StatelessWidget {
                       ),
                     ),
                     Positioned(
-                      left: knobCenter.dx - 16,
-                      top: knobCenter.dy - 16,
+                      left: knobCenter.dx - 14,
+                      top: knobCenter.dy - 14,
                       child: Container(
-                        width: 32,
-                        height: 32,
+                        width: 28,
+                        height: 28,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           gradient: const LinearGradient(
@@ -1100,13 +1100,13 @@ class _LightOrbControl extends StatelessWidget {
                             ),
                           ],
                         ),
-                        child: const Icon(Icons.light_mode_rounded, color: Colors.black, size: 18),
+                        child: const Icon(Icons.light_mode_rounded, color: Colors.black, size: 16),
                       ),
                     ),
                     Positioned(
                       left: 12,
                       right: 12,
-                      bottom: 10,
+                      bottom: 8,
                       child: Row(
                         children: [
                           Expanded(
@@ -1114,7 +1114,7 @@ class _LightOrbControl extends StatelessWidget {
                               '拖拽光球决定主光方向',
                               style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.52),
-                                fontSize: 11,
+                                fontSize: 10,
                               ),
                             ),
                           ),
@@ -1122,7 +1122,7 @@ class _LightOrbControl extends StatelessWidget {
                             '${(x * 100).round()} / ${(y * 100).round()}',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.34),
-                              fontSize: 10,
+                              fontSize: 9,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -1135,7 +1135,7 @@ class _LightOrbControl extends StatelessWidget {
             );
           },
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
       ],
     );
   }
