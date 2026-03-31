@@ -11,6 +11,8 @@ _LENS_TWEAK_SPECS: Dict[str, List[Dict[str, Any]]] = {
             "control_type": "mask_editor",
             "description": "先用 prompt 自动分割，再允许用户手动补画或擦除遮罩，输出可复用的 mask 资产。",
             "stage": "pre_edit_and_refine",
+            "is_asset_preparation_tool": True,
+            "replaces_direct_lens_execution": True,
             "bindings": [
                 {
                     "target_type": "asset",

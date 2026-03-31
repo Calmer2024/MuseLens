@@ -1436,6 +1436,8 @@ def _build_planner_system_prompt() -> str:
         "\n"
         "Planning rules:\n"
         "- If one lens is insufficient, prefer a multi-step DAG rather than failing early.\n"
+        "- session_context.available_user_assets may already contain concrete reusable assets such as mask, style_reference_image, or ref_image_1.\n"
+        "- If a required input asset is already present in session_context.available_user_assets, prefer consuming that user-provided asset directly instead of generating the same asset again with an upstream lens.\n"
         "- If a candidate depends on assets like mask, depth_map, canny_map, or pose_map, first look for upstream candidates whose outputs can provide those assets.\n"
         "- Prefer chaining by asset compatibility using inputs and outputs, not just by layer names.\n"
         "- For local replacement, subject replacement, replace-only-this-object, or partial repaint tasks, prefer a pipeline like constraint extraction plus local inpaint.\n"
