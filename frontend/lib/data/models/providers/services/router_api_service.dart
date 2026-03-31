@@ -9,6 +9,22 @@ class RouterApiService {
 
   final Dio _dio;
   static const String _basePath = '/api/v1/router';
+  static const Duration _uploadTimeout = Duration(minutes: 2);
+  static const Duration _routeTimeout = Duration(seconds: 45);
+  static const Duration _routeAndRunTimeout = Duration(minutes: 10);
+
+  Future<RouterStreamIdResult> createStreamId() async {
+    final response = await _dio.get(
+      '$_basePath/stream/new',
+      options: Options(
+        sendTimeout: _routeTimeout,
+        receiveTimeout: _routeTimeout,
+      ),
+    );
+    return RouterStreamIdResult.fromJson(
+      response.data as Map<String, dynamic>,
+    );
+  }
 
   Future<RouterBaseImageUploadResult> uploadBaseImage({
     required String filePath,
@@ -23,6 +39,8 @@ class RouterApiService {
       }),
       options: Options(
         contentType: 'multipart/form-data',
+        sendTimeout: _uploadTimeout,
+        receiveTimeout: _uploadTimeout,
       ),
     );
     return RouterBaseImageUploadResult.fromJson(
@@ -36,6 +54,7 @@ class RouterApiService {
     String? userMessage,
     String? baseImage,
     Map<String, dynamic> baseImageMeta = const <String, dynamic>{},
+    Map<String, String> userAssets = const <String, String>{},
     Map<String, dynamic> answers = const <String, dynamic>{},
   }) async {
     final response = await _dio.post(
@@ -46,8 +65,13 @@ class RouterApiService {
         'user_message': userMessage,
         'base_image': baseImage,
         'base_image_meta': baseImageMeta,
+        'user_assets': userAssets,
         'answers': answers,
       },
+      options: Options(
+        sendTimeout: _routeTimeout,
+        receiveTimeout: _routeTimeout,
+      ),
     );
     return RouterResponse.fromJson(
       _normalizeLoopbackUrls(response.data as Map<String, dynamic>),
@@ -60,8 +84,11 @@ class RouterApiService {
     String? userMessage,
     String? baseImage,
     Map<String, dynamic> baseImageMeta = const <String, dynamic>{},
+    Map<String, String> userAssets = const <String, String>{},
     Map<String, dynamic> answers = const <String, dynamic>{},
     bool executeWhenReady = true,
+    bool asyncExecution = false,
+    String? streamId,
   }) async {
     final response = await _dio.post(
       '$_basePath/route_and_run',
@@ -71,9 +98,16 @@ class RouterApiService {
         'user_message': userMessage,
         'base_image': baseImage,
         'base_image_meta': baseImageMeta,
+        'user_assets': userAssets,
         'answers': answers,
         'execute_when_ready': executeWhenReady,
+        'async_execution': asyncExecution,
+        'stream_id': streamId,
       },
+      options: Options(
+        sendTimeout: _routeAndRunTimeout,
+        receiveTimeout: _routeAndRunTimeout,
+      ),
     );
     return RouterRouteAndRunResponse.fromJson(
       _normalizeLoopbackUrls(response.data as Map<String, dynamic>),

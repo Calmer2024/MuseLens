@@ -22,12 +22,17 @@ class RouterRepository {
     return _apiService.uploadBaseImage(filePath: filePath);
   }
 
+  Future<RouterStreamIdResult> createStreamId() {
+    return _apiService.createStreamId();
+  }
+
   Future<RouterResponse> route({
     required String userId,
     String? sessionId,
     String? userMessage,
     String? baseImage,
     Map<String, dynamic> baseImageMeta = const <String, dynamic>{},
+    Map<String, String> userAssets = const <String, String>{},
     Map<String, dynamic> answers = const <String, dynamic>{},
   }) {
     return _apiService.route(
@@ -36,6 +41,7 @@ class RouterRepository {
       userMessage: userMessage,
       baseImage: baseImage,
       baseImageMeta: baseImageMeta,
+      userAssets: userAssets,
       answers: answers,
     );
   }
@@ -46,8 +52,11 @@ class RouterRepository {
     String? userMessage,
     String? baseImage,
     Map<String, dynamic> baseImageMeta = const <String, dynamic>{},
+    Map<String, String> userAssets = const <String, String>{},
     Map<String, dynamic> answers = const <String, dynamic>{},
     bool executeWhenReady = true,
+    bool asyncExecution = false,
+    String? streamId,
   }) {
     return _apiService.routeAndRun(
       userId: userId,
@@ -55,8 +64,11 @@ class RouterRepository {
       userMessage: userMessage,
       baseImage: baseImage,
       baseImageMeta: baseImageMeta,
+      userAssets: userAssets,
       answers: answers,
       executeWhenReady: executeWhenReady,
+      asyncExecution: asyncExecution,
+      streamId: streamId,
     );
   }
 }

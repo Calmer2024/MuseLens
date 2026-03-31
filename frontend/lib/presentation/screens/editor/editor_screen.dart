@@ -13,6 +13,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/local_media_store.dart';
 import '../../../data/models/asset_tree_models.dart';
 import '../../../data/repositories/asset_tree_repository.dart';
+import '../create/consultant_screen.dart';
 import '../../widgets/editor/asset_tree_node_sheet.dart';
 import '../../widgets/editor/editor_canvas.dart';
 import '../../widgets/editor/editor_header.dart';
@@ -20,7 +21,7 @@ import '../../widgets/editor/editor_tools_panel.dart';
 import '../../widgets/editor/image_history_tree.dart';
 import '../../widgets/shared/adaptive_media.dart';
 
-enum ToolType { none, crop, adjust, lens, templates }
+enum ToolType { none, aiChat, aiToolbox, crop, adjust, templates }
 
 class EditorScreen extends ConsumerStatefulWidget {
   const EditorScreen({
@@ -56,7 +57,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   String? _projectError;
   Size? _currentImageSize;
 
-  ToolType _activeTool = ToolType.templates;
+  ToolType _activeTool = ToolType.aiChat;
   double _cropAspectRatio = -1;
   String _activeAdjustParam = '曝光';
   double _adjustValue = 0.0;
@@ -581,6 +582,48 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     );
   }
 
+  Future<void> _openAiChat() async {
+    final currentPath = _normalizeProjectImagePath(
+      _displayedImagePath ?? _initialImagePath,
+    );
+    final launchPath = currentPath != null && isAdaptiveLocalFilePath(currentPath)
+        ? normalizeAdaptiveFilePath(currentPath)
+        : widget.selectedImage.path;
+
+    if (!mounted) return;
+    final draft = await Navigator.push<ConsultantDraftResult>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ConsultantScreen(
+          selectedImagePath: launchPath,
+          returnDraftToPrevious: true,
+        ),
+      ),
+    );
+
+    if (draft == null || !mounted) return;
+    final draftSize = await _resolveImageSize(draft.draftImagePath);
+    if (!mounted) return;
+    setState(() {
+      _displayedImagePath = draft.draftImagePath;
+      _currentImageSize = draftSize;
+      _hasPendingEdits = true;
+      _pendingLensId = draft.lensId;
+      _pendingLensName = draft.lensName;
+      _pendingPrompt = draft.prompt;
+      _pendingTagLabel = draft.tagLabel;
+      if (!_appliedLensIds.contains(draft.lensId)) {
+        _appliedLensIds = <String>[..._appliedLensIds, draft.lensId];
+      }
+      _activeHighlightId = draft.lensId;
+      _activeTool = ToolType.aiChat;
+      _resetCropRect();
+    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('AI 草稿已带回当前修图界面')));
+  }
+
   Future<AssetTreeImagePayload> _buildFilePayload(
     File file,
     String storedPath,
@@ -732,6 +775,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
   String _selectedLensName() {
     return switch (_selectedLensId) {
+      'template_ghibli' => '宫崎骏风格',
+      'template_clean' => '背景清理',
+      'template_portrait' => '人像通透',
+      'template_light' => '电影光影',
       'lens_matting' => '智能抠图',
       'lens_crop' => '智能裁剪',
       'lens_upscale' => '超清修复',
@@ -878,6 +925,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                 isGenerating: busy,
                 appliedLensIds: _appliedLensIds,
                 activeHighlightId: _activeHighlightId,
+                onOpenAiChat: _openAiChat,
                 onToolChanged: (tool) => setState(() {
                   _activeTool = tool;
                   if (tool == ToolType.crop) {
