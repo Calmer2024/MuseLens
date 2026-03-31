@@ -24,11 +24,11 @@ from app.services.comfy_service import AsyncComfyRunner
 # ComfyUI 的 output 目录 (根据实际安装路径修改)
 COMFYUI_OUTPUT_DIR = os.environ.get(
     "COMFYUI_OUTPUT_DIR",
-    r"E:\ComfyUI\ComfyUI_windows_portable\ComfyUI\output",
+    r"D:\soft\AI\ComfyUI_windows_portable\ComfyUI\output",
 )
 COMFYUI_INPUT_DIR = os.environ.get(
     "COMFYUI_INPUT_DIR",
-    r"E:\ComfyUI\ComfyUI_windows_portable\ComfyUI\input",
+    r"D:\soft\AI\ComfyUI_windows_portable\ComfyUI\input",
 )
 
 logger = logging.getLogger(__name__)

@@ -27,10 +27,18 @@ class EditorScreen extends ConsumerStatefulWidget {
     super.key,
     required this.selectedImage,
     this.initialPrompt,
+    this.initialDraftImagePath,
+    this.initialDraftLensId,
+    this.initialDraftLensName,
+    this.initialDraftTagLabel,
   });
 
   final File selectedImage;
   final String? initialPrompt;
+  final String? initialDraftImagePath;
+  final String? initialDraftLensId;
+  final String? initialDraftLensName;
+  final String? initialDraftTagLabel;
 
   @override
   ConsumerState<EditorScreen> createState() => _EditorScreenState();
@@ -91,6 +99,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
     try {
       await _createProjectFromFile(widget.selectedImage);
+      await _seedInitialDraftIfNeeded();
     } catch (error) {
       _showError(error, '初始化资产树项目失败');
       if (!mounted) return;
@@ -607,6 +616,28 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   }
 
   String _buildDefaultProjectName() => '编辑项目';
+
+  Future<void> _seedInitialDraftIfNeeded() async {
+    final draftPath = _normalizeProjectImagePath(widget.initialDraftImagePath);
+    if (draftPath == null || draftPath.trim().isEmpty) return;
+
+    final draftSize = await _resolveImageSize(draftPath);
+    if (!mounted) return;
+    setState(() {
+      _displayedImagePath = draftPath;
+      _currentImageSize = draftSize;
+      _hasPendingEdits = true;
+      _pendingLensId = widget.initialDraftLensId ?? 'router_generate';
+      _pendingLensName = widget.initialDraftLensName ?? 'AI 修图';
+      _pendingPrompt =
+          widget.initialPrompt?.trim().isNotEmpty == true
+              ? widget.initialPrompt!.trim()
+              : 'AI 修图生成结果';
+      _pendingTagLabel = widget.initialDraftTagLabel ?? 'AI 草稿';
+      _activeHighlightId = widget.initialDraftLensId;
+      _resetCropRect();
+    });
+  }
 
   Future<Size?> _resolveImageSize(String? path) async {
     if (path == null || path.trim().isEmpty) return null;

@@ -203,6 +203,14 @@ class RouterRouteAndRunResponse(RouterResponse):
     )
 
 
+class RouterBaseImageUploadResponse(BaseModel):
+    """Router 源图上传结果。"""
+
+    filename: str = Field(..., description="写入 ComfyUI input 目录后的文件名")
+    original_filename: str = Field(..., description="用户上传时的原始文件名")
+    file_size: int = Field(..., description="文件大小，单位字节")
+
+
 class RouterStepOutput(BaseModel):
     """单个步骤某个输出槽位的可展示结果。"""
 

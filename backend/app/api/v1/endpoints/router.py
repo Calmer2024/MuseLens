@@ -1,11 +1,13 @@
 import os
+import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.lenses.registry import get_lens
 from app.schemas.router import (
+    RouterBaseImageUploadResponse,
     RouterAnswerRequest,
     RouterCompileRequest,
     RouterRouteAndRunRequest,
@@ -20,6 +22,39 @@ from app.services.router_service import router_service
 
 router = APIRouter()
 compiler = MuseDNACompiler(input_dir=COMFYUI_INPUT_DIR, output_dir=COMFYUI_OUTPUT_DIR)
+
+
+@router.post("/upload-base-image", response_model=RouterBaseImageUploadResponse)
+async def upload_base_image(
+    image: UploadFile = File(...),
+) -> RouterBaseImageUploadResponse:
+    """
+    上传 Router 所需的源图到 ComfyUI input 目录。
+    """
+    original_filename = (image.filename or "upload.png").strip() or "upload.png"
+    _, extension = os.path.splitext(original_filename)
+    safe_extension = extension.lower()
+    if not safe_extension or len(safe_extension) > 10:
+        safe_extension = ".png"
+
+    stored_filename = f"router_{uuid.uuid4().hex}{safe_extension}"
+    os.makedirs(COMFYUI_INPUT_DIR, exist_ok=True)
+    target_path = os.path.join(COMFYUI_INPUT_DIR, stored_filename)
+
+    try:
+        contents = await image.read()
+        with open(target_path, "wb") as file:
+            file.write(contents)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to store uploaded image: {exc}")
+    finally:
+        await image.close()
+
+    return RouterBaseImageUploadResponse(
+        filename=stored_filename,
+        original_filename=original_filename,
+        file_size=len(contents),
+    )
 
 
 @router.post("/route", response_model=RouterResponse)
