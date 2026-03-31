@@ -2,16 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
-import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/market_provider.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../data/models/market_models.dart';
-import '../../../data/models/user_model.dart';
 import '../../widgets/lens/market_lens_card.dart';
-import '../auth/login_screen.dart';
 import '../library/my_library_screen.dart';
 import 'market_lens_detail_screen.dart';
-import 'market_lens_editor_screen.dart';
 
 class LensLibraryScreen extends ConsumerStatefulWidget {
   const LensLibraryScreen({super.key});
@@ -22,20 +17,7 @@ class LensLibraryScreen extends ConsumerStatefulWidget {
 
 class _LensLibraryScreenState extends ConsumerState<LensLibraryScreen> {
   final TextEditingController _searchController = TextEditingController();
-
-  static const List<MapEntry<String, String>> _categories = [
-    MapEntry('all', '推荐'),
-    MapEntry('portrait', '人像'),
-    MapEntry('anime', '二次元'),
-    MapEntry('cyberpunk', '赛博朋克'),
-    MapEntry('product', '电商'),
-    MapEntry('sketch', '素描'),
-    MapEntry('food', '美食'),
-  ];
-
-  String _selectedCategory = 'all';
-  String _selectedStatus = 'active';
-  bool _officialOnly = false;
+  String? _selectedTagName;
 
   @override
   void dispose() {
@@ -46,13 +28,12 @@ class _LensLibraryScreenState extends ConsumerState<LensLibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final query = MarketLensQuery(
-      category: _selectedCategory == 'all' ? null : _selectedCategory,
-      status: _selectedStatus,
-      isOfficial: _officialOnly ? true : null,
+      status: 'active',
       keyword: _searchController.text.trim(),
+      tagName: _selectedTagName,
     );
-    final lensesAsync = ref.watch(marketLensListProvider(query));
-    final currentUser = ref.watch(authProvider);
+    final templatesAsync = ref.watch(marketLensListProvider(query));
+    final tagsAsync = ref.watch(marketTemplateTagsProvider);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -61,175 +42,110 @@ class _LensLibraryScreenState extends ConsumerState<LensLibraryScreen> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              '透镜市场',
-                              style: TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.black87,
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
+                            hintText: '搜索模板、作者或标签',
+                            prefixIcon: const Icon(Icons.search_rounded),
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 16,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide(
+                                color: Colors.black.withOpacity(0.08),
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '浏览、安装、收藏并发布你的工作流透镜',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.black.withOpacity(0.46),
-                              ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: const BorderSide(color: Colors.black),
                             ),
-                          ],
+                          ),
                         ),
                       ),
-                      _buildHeaderButton(
-                        icon: Icons.bookmarks_outlined,
-                        label: '我的库',
+                      const SizedBox(width: 12),
+                      _buildCircleButton(
+                        icon: Icons.bookmark_outline_rounded,
                         onTap: () async {
                           await Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const MyLibraryScreen()),
+                            MaterialPageRoute(
+                              builder: (_) => const MyLibraryScreen(),
+                            ),
                           );
                           _refreshProviders();
                         },
                       ),
-                      const SizedBox(width: 10),
-                      _buildCircleButton(
-                        icon: Icons.add_rounded,
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        onTap: () => _openEditor(currentUser),
-                      ),
                     ],
-                  ),
-                  const SizedBox(height: 18),
-                  TextField(
-                    controller: _searchController,
-                    onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      hintText: '搜索风格、作者、分类或 lens_key',
-                      prefixIcon: const Icon(Icons.search_rounded),
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide(color: Colors.black.withOpacity(0.08)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide(color: AppTheme.electricIndigo),
-                      ),
-                    ),
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: _categories.map((entry) {
-                              final selected = _selectedCategory == entry.key;
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 10),
-                                child: ChoiceChip(
-                                  selected: selected,
-                                  label: Text(entry.value),
-                                  selectedColor: Colors.black,
-                                  labelStyle: TextStyle(
-                                    color: selected ? Colors.white : Colors.black87,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  onSelected: (_) {
-                                    setState(() {
-                                      _selectedCategory = entry.key;
-                                    });
-                                  },
-                                ),
-                              );
-                            }).toList(),
+                  SizedBox(
+                    width: double.infinity,
+                    child: tagsAsync.when(
+                      loading: () => const SizedBox(
+                        height: 24,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      FilterChip(
-                        selected: _officialOnly,
-                        label: const Text('官方'),
-                        onSelected: (value) {
-                          setState(() {
-                            _officialOnly = value;
-                          });
-                        },
-                      ),
-                      const SizedBox(width: 8),
-                      PopupMenuButton<String>(
-                        onSelected: (value) {
-                          setState(() {
-                            _selectedStatus = value;
-                          });
-                        },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(value: 'active', child: Text('active')),
-                          PopupMenuItem(value: 'deprecated', child: Text('deprecated')),
-                          PopupMenuItem(value: 'removed', child: Text('removed')),
-                        ],
-                        child: Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.black.withOpacity(0.06)),
-                          ),
-                          child: const Icon(Icons.tune_rounded, size: 20),
-                        ),
-                      ),
-                    ],
+                      error: (_, __) => _buildTagRow(const <MarketTag>[]),
+                      data: _buildTagRow,
+                    ),
                   ),
                 ],
               ),
             ),
             Expanded(
-              child: lensesAsync.when(
+              child: templatesAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (error, _) => _buildFeedbackState(
                   icon: Icons.error_outline_rounded,
-                  title: '市场加载失败',
+                  title: '模板市场加载失败',
                   content: '$error',
                   actionLabel: '重试',
-                  onAction: () => ref.invalidate(marketLensListProvider(query)),
+                  onAction: _refreshProviders,
                 ),
-                data: (lenses) {
-                  if (lenses.isEmpty) {
+                data: (templates) {
+                  if (templates.isEmpty) {
                     return _buildFeedbackState(
                       icon: Icons.auto_awesome_mosaic_outlined,
-                      title: '没有符合条件的透镜',
-                      content: '试试切换分类、关闭官方筛选，或者搜索别的关键词。',
+                      title: '没有找到匹配模板',
+                      content: '换个关键词或者切换标签再试试看。',
                     );
                   }
 
-                  return MasonryGridView.count(
-                    physics: const BouncingScrollPhysics(),
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 16,
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 110),
-                    itemCount: lenses.length,
-                    itemBuilder: (context, index) {
-                      final lens = lenses[index];
-                      return MarketLensCard(
-                        lens: lens,
-                        onTap: () => _openDetail(lens),
-                      );
-                    },
+                  return RefreshIndicator(
+                    onRefresh: () async => _refreshProviders(),
+                    child: MasonryGridView.count(
+                      physics: const AlwaysScrollableScrollPhysics(
+                        parent: BouncingScrollPhysics(),
+                      ),
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 16,
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+                      itemCount: templates.length,
+                      itemBuilder: (context, index) {
+                        final lens = templates[index];
+                        return MarketLensCard(
+                          lens: lens,
+                          onTap: () => _openDetail(lens),
+                        );
+                      },
+                    ),
                   );
                 },
               ),
@@ -240,34 +156,34 @@ class _LensLibraryScreenState extends ConsumerState<LensLibraryScreen> {
     );
   }
 
-  Widget _buildHeaderButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.black.withOpacity(0.06)),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 16, color: Colors.black87),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.black87,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+  Widget _buildTagRow(List<MarketTag> tags) {
+    final entries = <String?>[null, ...tags.map((item) => item.name)];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: entries.map((tagName) {
+          final isSelected = _selectedTagName == tagName;
+          final label = tagName ?? '全部';
+          return Padding(
+            padding: const EdgeInsets.only(right: 18),
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedTagName = tagName;
+                });
+              },
+              child: AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 180),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected ? Colors.black : Colors.grey.shade500,
+                ),
+                child: Text(label),
               ),
             ),
-          ],
-        ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -275,19 +191,18 @@ class _LensLibraryScreenState extends ConsumerState<LensLibraryScreen> {
   Widget _buildCircleButton({
     required IconData icon,
     required VoidCallback onTap,
-    required Color backgroundColor,
-    required Color foregroundColor,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 46,
-        height: 46,
+        width: 48,
+        height: 48,
         decoration: BoxDecoration(
-          color: backgroundColor,
+          color: Colors.white,
           shape: BoxShape.circle,
+          border: Border.all(color: Colors.black.withOpacity(0.06)),
         ),
-        child: Icon(icon, color: foregroundColor),
+        child: Icon(icon, color: Colors.black87),
       ),
     );
   }
@@ -344,40 +259,16 @@ class _LensLibraryScreenState extends ConsumerState<LensLibraryScreen> {
   Future<void> _openDetail(MarketLensView lens) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => MarketLensDetailScreen(lensId: lens.lens.lensId),
+        builder: (_) => MarketLensDetailScreen(lensId: lens.lens.templateId),
       ),
     );
     _refreshProviders();
   }
 
-  Future<void> _openEditor(User? currentUser) async {
-    if (currentUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先登录后再发布透镜')),
-      );
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
-      return;
-    }
-
-    final result = await Navigator.of(context).push<int>(
-      MaterialPageRoute(builder: (_) => const MarketLensEditorScreen()),
-    );
-    if (result != null && mounted) {
-      _refreshProviders();
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => MarketLensDetailScreen(lensId: result),
-        ),
-      );
-      _refreshProviders();
-    }
-  }
-
   void _refreshProviders() {
     ref.invalidate(marketLensListProvider);
-    ref.invalidate(marketInstalledLensesProvider);
+    ref.invalidate(marketLensDetailProvider);
+    ref.invalidate(marketTemplateTagsProvider);
     ref.invalidate(marketFavoriteLensesProvider);
     ref.invalidate(marketAuthoredLensesProvider);
   }

@@ -20,37 +20,43 @@ class MarketRepository {
   MarketRepository({
     required MarketApiService apiService,
     required UserApiService userApiService,
-  })  : _apiService = apiService,
-        _userApiService = userApiService;
+  }) : _apiService = apiService,
+       _userApiService = userApiService;
 
   final MarketApiService _apiService;
   final UserApiService _userApiService;
   final Map<int, MarketLensAuthor> _authorCache = <int, MarketLensAuthor>{};
+
+  Future<List<MarketTag>> listTemplateTags() {
+    return _apiService.listTemplateTags();
+  }
 
   Future<List<MarketLensView>> listLenses({
     String? category,
     String? status,
     bool? isOfficial,
     String? keyword,
+    String? tagName,
     int? actingUserId,
   }) async {
-    final lenses = await _apiService.listLenses(
+    final templates = await _apiService.listTemplates(
+      q: keyword,
+      tagName: tagName,
       category: category,
       status: status,
       isOfficial: isOfficial,
     );
-    return _hydrateLenses(
-      lenses,
-      actingUserId: actingUserId,
-      keyword: keyword,
-    );
+    final favoritedIds = actingUserId != null
+        ? await _loadFavoriteIds(actingUserId)
+        : const <int>{};
+    return _buildViews(templates, favoritedIds: favoritedIds, keyword: keyword);
   }
 
   Future<MarketLensDetailData> getLensDetailBundle(
     int lensId, {
     int? actingUserId,
   }) async {
-    final detailJson = await _apiService.getLensDetail(lensId);
+    final detailJson = await _apiService.getTemplateDetail(lensId);
     final lens = MarketLens.fromJson(detailJson);
     final versions = (detailJson['versions'] as List<dynamic>? ?? const [])
         .map((item) => MarketLensVersion.fromJson(item as Map<String, dynamic>))
@@ -58,63 +64,54 @@ class MarketRepository {
     final reviews = (detailJson['reviews'] as List<dynamic>? ?? const [])
         .map((item) => LensReview.fromJson(item as Map<String, dynamic>))
         .toList();
-
     final authorIds = <int>{
       if (lens.authorId != null) lens.authorId!,
       ...reviews.map((item) => item.userId),
     };
     final authors = await _loadAuthors(authorIds);
-    final userState = actingUserId != null
-        ? await _loadUserLensState(actingUserId)
-        : const _UserLensState();
+    final favoritedIds = actingUserId != null
+        ? await _loadFavoriteIds(actingUserId)
+        : const <int>{};
 
-    final lensView = MarketLensView(
-      lens: lens,
-      author: lens.authorId == null
-          ? MarketLensAuthor.placeholder(null)
-          : (authors[lens.authorId!] ??
-              MarketLensAuthor.placeholder(lens.authorId)),
-      isInstalled: userState.installedIds.contains(lens.lensId),
-      isFavorited: userState.favoritedIds.contains(lens.lensId),
-    );
+    final lensAuthor =
+        lens.author ??
+        (lens.authorId == null
+            ? MarketLensAuthor.placeholder(null)
+            : authors[lens.authorId!] ??
+                  MarketLensAuthor.placeholder(lens.authorId));
 
     final reviewViews = reviews
         .map(
           (review) => LensReviewView(
             review: review,
-            author: authors[review.userId] ??
+            author:
+                authors[review.userId] ??
                 MarketLensAuthor.placeholder(review.userId),
           ),
         )
         .toList();
 
-    LensReviewView? currentUserReview;
-    if (actingUserId != null) {
-      for (final item in reviewViews) {
-        if (item.review.userId == actingUserId) {
-          currentUserReview = item;
-          break;
-        }
-      }
+    MarketLensVersion? currentVersion;
+    if (detailJson['current_version'] is Map<String, dynamic>) {
+      currentVersion = MarketLensVersion.fromJson(
+        detailJson['current_version'] as Map<String, dynamic>,
+      );
+    } else if (versions.isNotEmpty) {
+      currentVersion = versions.firstWhere(
+        (item) => item.isLatest,
+        orElse: () => versions.first,
+      );
     }
 
     return MarketLensDetailData(
-      lens: lensView,
+      lens: MarketLensView(
+        lens: lens,
+        author: lensAuthor,
+        isFavorited: favoritedIds.contains(lens.templateId),
+      ),
+      currentVersion: currentVersion,
       versions: versions,
       reviews: reviewViews,
-      currentUserReview: currentUserReview,
-    );
-  }
-
-  Future<List<MarketLensView>> listInstalledLenses({
-    required int userId,
-    String? keyword,
-  }) async {
-    final lenses = await _apiService.listInstalledLenses(userId);
-    return _hydrateLenses(
-      lenses,
-      actingUserId: userId,
-      keyword: keyword,
     );
   }
 
@@ -122,62 +119,18 @@ class MarketRepository {
     required int userId,
     String? keyword,
   }) async {
-    final lenses = await _apiService.listFavoriteLenses(userId);
-    return _hydrateLenses(
-      lenses,
-      actingUserId: userId,
-      keyword: keyword,
-    );
+    final templates = await _apiService.listFavoriteTemplates(userId);
+    final favoriteIds = templates.map((item) => item.templateId).toSet();
+    return _buildViews(templates, favoritedIds: favoriteIds, keyword: keyword);
   }
 
   Future<List<MarketLensView>> listAuthoredLenses({
     required int userId,
-    String? status,
     String? keyword,
   }) async {
-    final lenses = await _apiService.listLenses(status: status);
-    final authored = lenses.where((item) => item.authorId == userId).toList();
-    return _hydrateLenses(
-      authored,
-      actingUserId: userId,
-      keyword: keyword,
-    );
-  }
-
-  Future<MarketLens> createLens(CreateMarketLensInput input) {
-    return _apiService.createLens(input);
-  }
-
-  Future<MarketLens> updateLens(int lensId, UpdateMarketLensInput input) {
-    return _apiService.updateLens(lensId, input);
-  }
-
-  Future<MarketLensVersion> createVersion(
-    int lensId,
-    CreateMarketLensVersionInput input,
-  ) {
-    return _apiService.createVersion(lensId, input);
-  }
-
-  Future<void> setLensInstalled({
-    required int lensId,
-    required int userId,
-    required bool installed,
-    int? versionId,
-  }) async {
-    if (installed) {
-      await _apiService.installLens(
-        lensId: lensId,
-        userId: userId,
-        versionId: versionId,
-      );
-      return;
-    }
-
-    await _apiService.uninstallLens(
-      lensId: lensId,
-      userId: userId,
-    );
+    final templates = await _apiService.listPublishedTemplates(userId);
+    final favoriteIds = await _loadFavoriteIds(userId);
+    return _buildViews(templates, favoritedIds: favoriteIds, keyword: keyword);
   }
 
   Future<void> setLensFavorited({
@@ -186,85 +139,76 @@ class MarketRepository {
     required bool favorited,
   }) async {
     if (favorited) {
-      await _apiService.favoriteLens(
-        lensId: lensId,
-        userId: userId,
-      );
+      await _apiService.favoriteLens(lensId: lensId, userId: userId);
       return;
     }
 
-    await _apiService.unfavoriteLens(
-      lensId: lensId,
-      userId: userId,
-    );
+    await _apiService.unfavoriteLens(lensId: lensId, userId: userId);
   }
 
-  Future<LensReview> createOrUpdateReview(
+  Future<MarketLensApplyResult> applyTemplate(
     int lensId,
-    CreateLensReviewInput input,
+    ApplyMarketLensInput input,
   ) {
-    return _apiService.createOrUpdateReview(lensId, input);
+    return _apiService.applyTemplate(lensId, input);
   }
 
-  Future<List<MarketLensView>> _hydrateLenses(
+  Future<List<MarketLensView>> _buildViews(
     List<MarketLens> lenses, {
-    int? actingUserId,
+    required Set<int> favoritedIds,
     String? keyword,
   }) async {
     final authors = await _loadAuthors(
-      lenses
-          .map((item) => item.authorId)
-          .whereType<int>(),
+      lenses.map((item) => item.authorId).whereType<int>(),
     );
-    final userState = actingUserId != null
-        ? await _loadUserLensState(actingUserId)
-        : const _UserLensState();
 
-    var views = lenses
-        .map(
-          (lens) => MarketLensView(
-            lens: lens,
-            author: lens.authorId == null
-                ? MarketLensAuthor.placeholder(null)
-                : (authors[lens.authorId!] ??
-                    MarketLensAuthor.placeholder(lens.authorId)),
-            isInstalled: userState.installedIds.contains(lens.lensId),
-            isFavorited: userState.favoritedIds.contains(lens.lensId),
-          ),
-        )
-        .toList();
+    final views = lenses.map((lens) {
+      final author =
+          lens.author ??
+          (lens.authorId == null
+              ? MarketLensAuthor.placeholder(null)
+              : authors[lens.authorId!] ??
+                    MarketLensAuthor.placeholder(lens.authorId));
+      return MarketLensView(
+        lens: lens,
+        author: author,
+        isFavorited: favoritedIds.contains(lens.templateId),
+      );
+    }).toList();
 
-    final normalizedKeyword = keyword?.trim().toLowerCase();
-    if (normalizedKeyword != null && normalizedKeyword.isNotEmpty) {
-      views = views.where((item) {
-        final haystack = <String>[
-          item.lens.name,
-          item.lens.description,
-          item.lens.lensKey,
-          item.lens.category ?? '',
-          item.author.displayName,
-          item.author.username,
-        ].join(' ').toLowerCase();
-        return haystack.contains(normalizedKeyword);
-      }).toList();
-    }
-
-    return views;
+    return _filterViewsByKeyword(views, keyword);
   }
 
-  Future<_UserLensState> _loadUserLensState(int userId) async {
-    final results = await Future.wait<dynamic>([
-      _apiService.listInstalledLenses(userId),
-      _apiService.listFavoriteLenses(userId),
-    ]);
+  List<MarketLensView> _filterViewsByKeyword(
+    List<MarketLensView> views,
+    String? keyword,
+  ) {
+    final normalizedKeyword = keyword?.trim().toLowerCase();
+    if (normalizedKeyword == null || normalizedKeyword.isEmpty) {
+      return views;
+    }
 
-    final installed = results[0] as List<MarketLens>;
-    final favorites = results[1] as List<MarketLens>;
+    return views.where((item) {
+      final haystack = <String>[
+        item.lens.title,
+        item.lens.description,
+        item.lens.templateKey,
+        item.lens.category ?? '',
+        item.author.displayName,
+        item.author.username,
+        ...item.lens.tagNames,
+      ].join(' ').toLowerCase();
+      return haystack.contains(normalizedKeyword);
+    }).toList();
+  }
 
-    return _UserLensState(
-      installedIds: installed.map((item) => item.lensId).toSet(),
-      favoritedIds: favorites.map((item) => item.lensId).toSet(),
-    );
+  Future<Set<int>> _loadFavoriteIds(int userId) async {
+    try {
+      final favorites = await _apiService.listFavoriteTemplates(userId);
+      return favorites.map((item) => item.templateId).toSet();
+    } catch (_) {
+      return <int>{};
+    }
   }
 
   Future<Map<int, MarketLensAuthor>> _loadAuthors(Iterable<int> userIds) async {
@@ -300,14 +244,4 @@ class MarketRepository {
       ),
     );
   }
-}
-
-class _UserLensState {
-  final Set<int> installedIds;
-  final Set<int> favoritedIds;
-
-  const _UserLensState({
-    this.installedIds = const <int>{},
-    this.favoritedIds = const <int>{},
-  });
 }

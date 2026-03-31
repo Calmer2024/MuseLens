@@ -8,7 +8,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../data/models/market_models.dart';
 import '../auth/login_screen.dart';
 import '../lens/market_lens_detail_screen.dart';
-import '../lens/market_lens_editor_screen.dart';
 import '../../widgets/lens/market_lens_card.dart';
 
 class MyLibraryScreen extends ConsumerStatefulWidget {
@@ -52,7 +51,7 @@ class _MyLibraryScreenState extends ConsumerState<MyLibraryScreen> {
                       const SizedBox(width: 14),
                       const Expanded(
                         child: Text(
-                          '我的透镜',
+                          '我的模板',
                           style: TextStyle(
                             fontSize: 30,
                             fontWeight: FontWeight.w800,
@@ -60,19 +59,13 @@ class _MyLibraryScreenState extends ConsumerState<MyLibraryScreen> {
                           ),
                         ),
                       ),
-                      _buildCircleButton(
-                        icon: Icons.add_rounded,
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        onTap: () => _openEditor(currentUser != null),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Text(
                     currentUser == null
-                        ? '登录后查看你的安装、收藏和已发布透镜'
-                        : '管理你安装、收藏以及发布到市场的全部透镜',
+                        ? '登录后查看你收藏和发布的模板'
+                        : '管理你收藏的模板，以及你已经发布到市场的模板',
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.black.withOpacity(0.46),
@@ -87,9 +80,8 @@ class _MyLibraryScreenState extends ConsumerState<MyLibraryScreen> {
                     ),
                     child: Row(
                       children: [
-                        _buildTabButton(0, '已安装'),
+                        _buildTabButton(0, '已发布'),
                         _buildTabButton(1, '已收藏'),
-                        _buildTabButton(2, '我发布的'),
                       ],
                     ),
                   ),
@@ -98,17 +90,21 @@ class _MyLibraryScreenState extends ConsumerState<MyLibraryScreen> {
                     controller: _searchController,
                     onChanged: (_) => setState(() {}),
                     decoration: InputDecoration(
-                      hintText: '搜索名称、作者、分类',
+                      hintText: '搜索模板、作者、标签',
                       prefixIcon: const Icon(Icons.search_rounded),
                       filled: true,
                       fillColor: Colors.white,
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(22),
-                        borderSide: BorderSide(color: Colors.black.withOpacity(0.08)),
+                        borderSide: BorderSide(
+                          color: Colors.black.withOpacity(0.08),
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(22),
-                        borderSide: const BorderSide(color: AppTheme.electricIndigo),
+                        borderSide: const BorderSide(
+                          color: AppTheme.electricIndigo,
+                        ),
                       ),
                     ),
                   ),
@@ -140,7 +136,7 @@ class _MyLibraryScreenState extends ConsumerState<MyLibraryScreen> {
             ),
             const SizedBox(height: 16),
             const Text(
-              '登录后即可同步透镜库',
+              '登录后即可同步模板库',
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
@@ -149,7 +145,7 @@ class _MyLibraryScreenState extends ConsumerState<MyLibraryScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              '安装、收藏和你发布到市场的透镜都会汇总在这里。',
+              '你收藏和发布到市场的模板都会汇总在这里。',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.black.withOpacity(0.46),
@@ -159,9 +155,9 @@ class _MyLibraryScreenState extends ConsumerState<MyLibraryScreen> {
             const SizedBox(height: 18),
             ElevatedButton(
               onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                );
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const LoginScreen()));
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black,
@@ -176,17 +172,15 @@ class _MyLibraryScreenState extends ConsumerState<MyLibraryScreen> {
   }
 
   Widget _buildMarketCollection() {
-    final asyncValue = switch (_tabIndex) {
-      0 => ref.watch(marketInstalledLensesProvider),
-      1 => ref.watch(marketFavoriteLensesProvider),
-      _ => ref.watch(marketAuthoredLensesProvider),
-    };
+    final asyncValue = _tabIndex == 0
+        ? ref.watch(marketAuthoredLensesProvider)
+        : ref.watch(marketFavoriteLensesProvider);
 
     return asyncValue.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, _) => _buildFeedbackState(
         icon: Icons.error_outline_rounded,
-        title: '透镜库加载失败',
+        title: '模板库加载失败',
         content: '$error',
         actionLabel: '重试',
         onAction: _refreshProviders,
@@ -196,12 +190,8 @@ class _MyLibraryScreenState extends ConsumerState<MyLibraryScreen> {
         if (filtered.isEmpty) {
           return _buildFeedbackState(
             icon: Icons.auto_awesome_mosaic_outlined,
-            title: _tabIndex == 2 ? '还没有发布透镜' : '这里还是空的',
-            content: _tabIndex == 2
-                ? '创建一个市场透镜后，就会显示在这里。'
-                : '试试去市场安装或收藏一些透镜吧。',
-            actionLabel: _tabIndex == 2 ? '发布透镜' : null,
-            onAction: _tabIndex == 2 ? () => _openEditor(true) : null,
+            title: _tabIndex == 0 ? '还没有发布模板' : '还没有收藏模板',
+            content: _tabIndex == 0 ? '当你发布模板后，就会显示在这里。' : '先去模板市场收藏一些喜欢的模板吧。',
           );
         }
 
@@ -216,8 +206,10 @@ class _MyLibraryScreenState extends ConsumerState<MyLibraryScreen> {
             final lens = filtered[index];
             return MarketLensCard(
               lens: lens,
-              bannerText: _tabBannerText,
-              bannerIcon: _tabBannerIcon,
+              bannerText: _tabIndex == 0 ? '已发布' : '已收藏',
+              bannerIcon: _tabIndex == 0
+                  ? Icons.publish_rounded
+                  : Icons.favorite_rounded,
               onTap: () => _openDetail(lens),
             );
           },
@@ -233,10 +225,11 @@ class _MyLibraryScreenState extends ConsumerState<MyLibraryScreen> {
     }
     return lenses.where((lens) {
       final text = [
-        lens.lens.name,
+        lens.lens.title,
         lens.lens.description,
         lens.lens.category ?? '',
         lens.author.displayName,
+        ...lens.lens.tagNames,
       ].join(' ').toLowerCase();
       return text.contains(keyword);
     }).toList();
@@ -274,8 +267,6 @@ class _MyLibraryScreenState extends ConsumerState<MyLibraryScreen> {
   Widget _buildCircleButton({
     required IconData icon,
     required VoidCallback onTap,
-    Color backgroundColor = Colors.white,
-    Color foregroundColor = Colors.black87,
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -283,11 +274,11 @@ class _MyLibraryScreenState extends ConsumerState<MyLibraryScreen> {
         width: 46,
         height: 46,
         decoration: BoxDecoration(
-          color: backgroundColor,
+          color: Colors.white,
           shape: BoxShape.circle,
           border: Border.all(color: Colors.black.withOpacity(0.06)),
         ),
-        child: Icon(icon, color: foregroundColor),
+        child: Icon(icon, color: Colors.black87),
       ),
     );
   }
@@ -341,59 +332,19 @@ class _MyLibraryScreenState extends ConsumerState<MyLibraryScreen> {
     );
   }
 
-  String get _tabBannerText => switch (_tabIndex) {
-        0 => '已安装',
-        1 => '已收藏',
-        _ => '已发布',
-      };
-
-  IconData get _tabBannerIcon => switch (_tabIndex) {
-        0 => Icons.download_done_rounded,
-        1 => Icons.favorite_rounded,
-        _ => Icons.publish_rounded,
-      };
-
   Future<void> _openDetail(MarketLensView lens) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => MarketLensDetailScreen(lensId: lens.lens.lensId),
+        builder: (_) => MarketLensDetailScreen(lensId: lens.lens.templateId),
       ),
     );
     _refreshProviders();
   }
 
-  Future<void> _openEditor(bool isLoggedIn) async {
-    if (!isLoggedIn) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先登录后再发布透镜')),
-      );
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
-      return;
-    }
-
-    final result = await Navigator.of(context).push<int>(
-      MaterialPageRoute(builder: (_) => const MarketLensEditorScreen()),
-    );
-    if (result != null) {
-      _refreshProviders();
-      if (!mounted) {
-        return;
-      }
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => MarketLensDetailScreen(lensId: result),
-        ),
-      );
-      _refreshProviders();
-    }
-  }
-
   void _refreshProviders() {
-    ref.invalidate(marketInstalledLensesProvider);
     ref.invalidate(marketFavoriteLensesProvider);
     ref.invalidate(marketAuthoredLensesProvider);
     ref.invalidate(marketLensListProvider);
+    ref.invalidate(marketLensDetailProvider);
   }
 }

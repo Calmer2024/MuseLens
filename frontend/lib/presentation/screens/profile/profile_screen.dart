@@ -17,7 +17,7 @@ import '../community/community_post_detail_screen.dart';
 import '../lens/market_lens_detail_screen.dart';
 import '../library/my_library_screen.dart';
 import '../../widgets/community/community_post_card.dart';
-import '../../widgets/lens/market_lens_visuals.dart';
+import '../../widgets/lens/market_lens_card.dart';
 import '../../widgets/shared/adaptive_media.dart';
 import '../../../core/providers/user_provider.dart';
 
@@ -359,11 +359,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _buildStatItem(
-              '$totalLikes',
-              context.tr('likes'),
-              onTap: null,
-            ),
+            _buildStatItem('$totalLikes', context.tr('likes'), onTap: null),
             _buildStatItem(
               '$followerCount',
               context.tr('followers'),
@@ -438,7 +434,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildTabButton(0, context.tr('my_lens')),
+            _buildTabButton(0, '我的模板'),
             _buildTabButton(1, context.tr('my_post')),
             _buildTabButton(2, context.tr('favorite')),
           ],
@@ -601,7 +597,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildTabButton(0, context.tr('my_lens')),
+            _buildTabButton(0, '我的模板'),
             _buildTabButton(1, context.tr('my_post')),
             _buildTabButton(2, context.tr('favorite')),
           ],
@@ -636,17 +632,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   // ═══════════════════════════════════════════════
 
   Widget _buildMarketSummary() {
-    final installedAsync = ref.watch(marketInstalledLensesProvider);
     final favoriteAsync = ref.watch(marketFavoriteLensesProvider);
     final authoredAsync = ref.watch(marketAuthoredLensesProvider);
 
-    final installedCount = installedAsync.value?.length ?? 0;
     final favoriteCount = favoriteAsync.value?.length ?? 0;
     final authoredCount = authoredAsync.value?.length ?? 0;
-    final isLoading =
-        installedAsync.isLoading ||
-        favoriteAsync.isLoading ||
-        authoredAsync.isLoading;
+    final totalApplyCount =
+        authoredAsync.value?.fold<int>(
+          0,
+          (sum, item) => sum + item.lens.applyCount,
+        ) ??
+        0;
+    final isLoading = favoriteAsync.isLoading || authoredAsync.isLoading;
 
     return Container(
       width: double.infinity,
@@ -670,7 +667,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             children: [
               const Expanded(
                 child: Text(
-                  '我的透镜',
+                  '我的模板',
                   style: TextStyle(
                     color: Colors.black87,
                     fontSize: 16,
@@ -697,11 +694,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           else
             Row(
               children: [
-                Expanded(child: _buildMarketMetric('已安装', installedCount)),
+                Expanded(child: _buildMarketMetric('已发布', authoredCount)),
                 const SizedBox(width: 10),
                 Expanded(child: _buildMarketMetric('已收藏', favoriteCount)),
                 const SizedBox(width: 10),
-                Expanded(child: _buildMarketMetric('已发布', authoredCount)),
+                Expanded(child: _buildMarketMetric('被应用', totalApplyCount)),
               ],
             ),
         ],
@@ -790,7 +787,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           padding: EdgeInsets.symmetric(vertical: 40),
           child: Center(child: CircularProgressIndicator()),
         ),
-        error: (error, _) => _buildGridError('透镜加载失败：$error'),
+        error: (error, _) => _buildGridError('模板加载失败：$error'),
       );
     }
 
@@ -902,7 +899,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         padding: const EdgeInsets.symmetric(vertical: 36),
         child: Center(
           child: Text(
-            '你还没有发布过透镜',
+            '你还没有发布过模板',
             style: TextStyle(
               color: Colors.black.withOpacity(0.38),
               fontSize: 14,
@@ -912,84 +909,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       );
     }
 
-    return GridView.builder(
+    return MasonryGridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.7,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
+      crossAxisCount: 2,
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
       itemCount: lenses.length,
       itemBuilder: (context, index) {
-        return _buildLensCard(lenses[index]);
-      },
-    );
-  }
-
-  Widget _buildLensCard(MarketLensView lens) {
-    final visual = MarketLensVisualResolver.resolve(lens.lens);
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                MarketLensDetailScreen(lensId: lens.lens.lensId),
-          ),
+        final lens = lenses[index];
+        return MarketLensCard(
+          lens: lens,
+          bannerText: '已发布',
+          bannerIcon: Icons.publish_rounded,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    MarketLensDetailScreen(lensId: lens.lens.templateId),
+              ),
+            );
+          },
         );
       },
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: Colors.white,
-          border: Border.all(color: Colors.black.withOpacity(0.05)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(16),
-                ),
-                child: Image.asset(visual.afterImage, fit: BoxFit.cover),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(10.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    lens.lens.name,
-                    style: const TextStyle(
-                      color: Colors.black87,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${lens.lens.installCount} ${context.tr('uses')}',
-                    style: const TextStyle(color: Colors.black54, fontSize: 11),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

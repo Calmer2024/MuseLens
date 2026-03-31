@@ -7,14 +7,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/providers/asset_tree_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/local_media_store.dart';
 import '../../../data/models/asset_tree_models.dart';
+import '../../../data/models/lens_tool_models.dart';
+import '../../../data/models/router_models.dart';
 import '../../../data/repositories/asset_tree_repository.dart';
+import '../../../data/repositories/lenses_repository.dart';
+import '../../../data/repositories/router_repository.dart';
 import '../create/consultant_screen.dart';
 import '../../widgets/editor/asset_tree_node_sheet.dart';
+import '../../widgets/editor/editor_ai_toolbox_panel.dart';
 import '../../widgets/editor/editor_canvas.dart';
 import '../../widgets/editor/editor_header.dart';
 import '../../widgets/editor/editor_tools_panel.dart';
@@ -47,6 +53,7 @@ class EditorScreen extends ConsumerStatefulWidget {
 
 class _EditorScreenState extends ConsumerState<EditorScreen> {
   final TextEditingController _promptController = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
 
   bool _isGenerating = false;
   bool _isBootstrapping = true;
@@ -62,7 +69,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   String _activeAdjustParam = '曝光';
   double _adjustValue = 0.0;
   String? _selectedLensId;
+  String? _selectedAiToolId = kEditorAiToolDefinitions.first.lensId;
   Rect _cropRect = const Rect.fromLTWH(0.12, 0.1, 0.76, 0.76);
+  Map<String, dynamic> _aiToolParamValues = <String, dynamic>{};
+  Map<String, dynamic> _aiToolControlValues = <String, dynamic>{};
+  Map<String, String> _aiToolLocalAssetPaths = <String, String>{};
+  final Map<String, String> _uploadedAiAssetCache = <String, String>{};
+  String? _aiToolStatusText;
+  List<RouterStepResult> _aiToolStepResults = const <RouterStepResult>[];
 
   List<String> _appliedLensIds = <String>[];
   String? _activeHighlightId;
@@ -624,6 +638,631 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     ).showSnackBar(const SnackBar(content: Text('AI 草稿已带回当前修图界面')));
   }
 
+  EditorAiToolDefinition get _selectedAiToolDefinition {
+    return kEditorAiToolDefinitions.firstWhere(
+      (tool) => tool.lensId == _selectedAiToolId,
+      orElse: () => kEditorAiToolDefinitions.first,
+    );
+  }
+
+  void _handleAiToolSelected(String lensId) {
+    setState(() {
+      _selectedAiToolId = lensId;
+      _aiToolParamValues = <String, dynamic>{};
+      _aiToolControlValues = <String, dynamic>{};
+      _aiToolLocalAssetPaths = <String, String>{};
+      _aiToolStatusText = null;
+      _aiToolStepResults = const <RouterStepResult>[];
+    });
+  }
+
+  void _handleAiToolParamChanged(String key, dynamic value) {
+    setState(() {
+      _aiToolParamValues = <String, dynamic>{..._aiToolParamValues, key: value};
+    });
+  }
+
+  void _handleAiToolControlChanged(String key, dynamic value) {
+    setState(() {
+      _aiToolControlValues = <String, dynamic>{..._aiToolControlValues, key: value};
+    });
+  }
+
+  Future<void> _pickAiToolAsset(String assetName) async {
+    try {
+      final image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 100,
+      );
+      if (image == null) return;
+      final storedPath = await LocalMediaStore.persistXFile(
+        image,
+        folder: 'ai_toolbox_assets',
+        prefix: assetName,
+      );
+      if (!mounted) return;
+      setState(() {
+        _aiToolLocalAssetPaths = <String, String>{
+          ..._aiToolLocalAssetPaths,
+          assetName: storedPath,
+        };
+        _aiToolStatusText = '$assetName 已准备就绪';
+      });
+    } catch (error) {
+      _showError(error, '选择参考图片失败');
+    }
+  }
+
+  Future<void> _executeAiTool() async {
+    if (_isGenerating) return;
+    final tool = _selectedAiToolDefinition;
+    setState(() {
+      _isGenerating = true;
+      _aiToolStatusText = '正在准备 ${tool.title}...';
+      _aiToolStepResults = const <RouterStepResult>[];
+    });
+
+    try {
+      final execution = await _runAiTool(tool);
+      final response = execution.response;
+      if (response.hasExecutionError) {
+        throw StateError(response.executionError!);
+      }
+
+      final resultUrl = _pickBestResultUrl(response);
+      if (resultUrl == null || resultUrl.trim().isEmpty) {
+        throw StateError('后端已执行完成，但没有返回可预览的结果图。');
+      }
+
+      final resultPath = await _downloadResultToLocal(
+        resultUrl,
+        filename: _pickBestResultFilename(response),
+        prefix: tool.lensId,
+      );
+      final resultSize = await _resolveImageSize(resultPath);
+      final stepResults = execution.stepResults.isEmpty
+          ? response.stepResults
+          : execution.stepResults;
+
+      if (!mounted) return;
+      setState(() {
+        _displayedImagePath = resultPath;
+        _currentImageSize = resultSize;
+        _hasPendingEdits = true;
+        _pendingLensId = tool.lensId;
+        _pendingLensName = tool.title;
+        _pendingPrompt = _buildAiToolPromptSummary(tool);
+        _pendingTagLabel = tool.title;
+        if (!_appliedLensIds.contains(tool.lensId)) {
+          _appliedLensIds = <String>[..._appliedLensIds, tool.lensId];
+        }
+        _activeHighlightId = tool.lensId;
+        _aiToolStepResults = stepResults;
+        _aiToolStatusText =
+            execution.statusText ??
+            '${tool.title} 已完成，返回 ${stepResults.length} 个结果节点';
+        _resetCropRect();
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${tool.title} 已应用到当前草稿')));
+    } catch (error) {
+      final message = _messageFromError(error, '${tool.title} 执行失败');
+      if (mounted) {
+        setState(() => _aiToolStatusText = message);
+      }
+      _showError(error, '${tool.title} 执行失败');
+    } finally {
+      if (mounted) {
+        setState(() => _isGenerating = false);
+      }
+    }
+  }
+
+  Future<_AiToolExecutionResult> _runAiTool(
+    EditorAiToolDefinition tool,
+  ) async {
+    switch (tool.lensId) {
+      case 'lens_lora_filter':
+        return _runApplyControlsAiTool(tool);
+      case 'lens_style':
+        return _runApplyControlsAiTool(
+          tool,
+          requiredAssetNames: const <String>['style_reference_image'],
+        );
+      case 'lens_relighting':
+        return _runRelightingWorkflow(tool);
+      case 'lens_depth_of_field':
+        return _runDepthOfFieldWorkflow(tool);
+      case 'lens_flux_inpaint':
+        return _runInpaintWorkflow(tool);
+      default:
+        return _runDirectAiTool(tool);
+    }
+  }
+
+  Future<_AiToolExecutionResult> _runDirectAiTool(
+    EditorAiToolDefinition tool,
+  ) async {
+    final repository = ref.read(lensesRepositoryProvider);
+    final assets = <String, String>{};
+    if (tool.lensId != 'lens_flux_text2image') {
+      assets['base_image'] = await _ensureUploadedCurrentEditorImage();
+    }
+    for (final slot in tool.assetSlots) {
+      final rawPath = _aiToolLocalAssetPaths[slot.assetName];
+      if (rawPath == null || rawPath.trim().isEmpty) {
+        throw StateError('${slot.label} 还没有选择');
+      }
+      assets[slot.assetName] = await _ensureUploadedAssetPath(rawPath);
+    }
+
+    setState(() => _aiToolStatusText = '正在运行 ${tool.title}...');
+    final response = await repository.runLens(
+      lensId: tool.lensId,
+      assets: assets,
+      params: _resolvedAiToolParams(tool),
+    );
+    return _AiToolExecutionResult(
+      response: response,
+      statusText: '${tool.title} 已执行完成',
+    );
+  }
+
+  Future<_AiToolExecutionResult> _runApplyControlsAiTool(
+    EditorAiToolDefinition tool, {
+    List<String> requiredAssetNames = const <String>[],
+  }) async {
+    final repository = ref.read(lensesRepositoryProvider);
+    final assets = <String, String>{};
+    if (tool.lensId != 'lens_flux_text2image') {
+      assets['base_image'] = await _ensureUploadedCurrentEditorImage();
+    }
+    for (final assetName in requiredAssetNames) {
+      final rawPath = _aiToolLocalAssetPaths[assetName];
+      if (rawPath == null || rawPath.trim().isEmpty) {
+        String label = assetName;
+        for (final slot in tool.assetSlots) {
+          if (slot.assetName == assetName) {
+            label = slot.label;
+            break;
+          }
+        }
+        throw StateError('$label 还没有选择');
+      }
+      assets[assetName] = await _ensureUploadedAssetPath(rawPath);
+    }
+
+    final controlValues = switch (tool.lensId) {
+      'lens_lora_filter' => <String, dynamic>{
+          'filter_selector':
+              _aiToolControlValues['filter_selector']?.toString() ?? 'ghibli',
+          'filter_opacity':
+              (_aiToolControlValues['filter_opacity'] as num?)?.toDouble() ??
+                  0.8,
+        },
+      'lens_style' => <String, dynamic>{
+          'style_intensity':
+              (_aiToolControlValues['style_intensity'] as num?)?.toDouble() ??
+                  0.8,
+          'structure_preservation':
+              (_aiToolControlValues['structure_preservation'] as num?)
+                  ?.toDouble() ??
+                  0.72,
+        },
+      _ => _aiToolControlValues,
+    };
+
+    setState(() => _aiToolStatusText = '正在应用 ${tool.title} 控件...');
+    final response = await repository.applyControls(
+      lensId: tool.lensId,
+      assets: assets,
+      currentParams: _resolvedAiToolParams(tool),
+      controlValues: controlValues,
+      execute: true,
+    );
+    final execution = response.execution;
+    if (execution == null) {
+      throw StateError('${tool.title} 控件已翻译，但后端没有返回执行结果');
+    }
+    return _AiToolExecutionResult(
+      response: execution,
+      stepResults: execution.stepResults,
+      statusText: response.explanations.isEmpty
+          ? '${tool.title} 已执行完成'
+          : response.explanations.join(' '),
+    );
+  }
+
+  Future<_AiToolExecutionResult> _runRelightingWorkflow(
+    EditorAiToolDefinition tool,
+  ) async {
+    final repository = ref.read(lensesRepositoryProvider);
+    final baseImage = await _ensureUploadedCurrentEditorImage();
+
+    setState(() => _aiToolStatusText = '正在提取深度图...');
+    final depthResult = await repository.runLens(
+      lensId: 'lens_depth_extract',
+      assets: <String, String>{'base_image': baseImage},
+      params: const <String, dynamic>{},
+    );
+    if (depthResult.hasExecutionError) {
+      throw StateError(depthResult.executionError!);
+    }
+    final depthMapFilename = _pickBestResultFilename(depthResult);
+    if (depthMapFilename == null || depthMapFilename.trim().isEmpty) {
+      throw StateError('深度提取完成，但没有拿到 depth_map 文件');
+    }
+
+    setState(() => _aiToolStatusText = '正在重塑光影关系...');
+    final response = await repository.applyControls(
+      lensId: tool.lensId,
+      assets: <String, String>{
+        'base_image': baseImage,
+        'depth_map': depthMapFilename,
+      },
+      currentParams: <String, dynamic>{
+        'prompt':
+            _aiToolControlValues['scene_hint']?.toString().trim().isNotEmpty ==
+                true
+            ? _aiToolControlValues['scene_hint'].toString().trim()
+            : 'cinematic relighting, preserve the subject and composition',
+        'cfg': 1.2,
+      },
+      controlValues: <String, dynamic>{
+        'light_orb': <String, dynamic>{
+          'x': (_aiToolControlValues['light_x'] as num?)?.toDouble() ?? 0.75,
+          'y': (_aiToolControlValues['light_y'] as num?)?.toDouble() ?? 0.28,
+          'z': (_aiToolControlValues['light_z'] as num?)?.toDouble() ?? 0.72,
+          'intensity':
+              (_aiToolControlValues['light_intensity'] as num?)?.toDouble() ??
+                  0.82,
+          'color_temperature':
+              ((_aiToolControlValues['light_temperature'] as num?)?.toDouble() ??
+                      4200)
+                  .round(),
+          'scene_hint':
+              _aiToolControlValues['scene_hint']?.toString().trim().isNotEmpty ==
+                  true
+              ? _aiToolControlValues['scene_hint'].toString().trim()
+              : 'cinematic relighting',
+        },
+      },
+      execute: true,
+    );
+    final execution = response.execution;
+    if (execution == null) {
+      throw StateError('光影控件已翻译，但后端没有返回执行结果');
+    }
+    return _AiToolExecutionResult(
+      response: execution,
+      stepResults: <RouterStepResult>[
+        ...depthResult.stepResults,
+        ...execution.stepResults,
+      ],
+      statusText: response.explanations.isEmpty
+          ? '${tool.title} 已执行完成'
+          : response.explanations.join(' '),
+    );
+  }
+
+  Future<_AiToolExecutionResult> _runDepthOfFieldWorkflow(
+    EditorAiToolDefinition tool,
+  ) async {
+    final repository = ref.read(lensesRepositoryProvider);
+    final baseImage = await _ensureUploadedCurrentEditorImage();
+
+    setState(() => _aiToolStatusText = '正在提取景深所需的深度图...');
+    final depthResult = await repository.runLens(
+      lensId: 'lens_depth_extract',
+      assets: <String, String>{'base_image': baseImage},
+      params: const <String, dynamic>{},
+    );
+    if (depthResult.hasExecutionError) {
+      throw StateError(depthResult.executionError!);
+    }
+    final depthMapFilename = _pickBestResultFilename(depthResult);
+    if (depthMapFilename == null || depthMapFilename.trim().isEmpty) {
+      throw StateError('深度提取完成，但没有拿到 depth_map 文件');
+    }
+
+    setState(() => _aiToolStatusText = '正在生成镜头景深效果...');
+    final response = await repository.applyControls(
+      lensId: tool.lensId,
+      assets: <String, String>{
+        'base_image': baseImage,
+        'depth_map': depthMapFilename,
+      },
+      currentParams: <String, dynamic>{
+        'vignette_intensity': 0.16,
+        'halation_strength': 0.08,
+      },
+      controlValues: <String, dynamic>{
+        'tap_to_focus': <String, dynamic>{
+          'focus_depth_value':
+              (_aiToolControlValues['focus_depth_value'] as num?)?.toDouble() ??
+                  0.42,
+        },
+        'aperture_dial': <String, dynamic>{
+          'value':
+              (_aiToolControlValues['aperture_value'] as num?)?.toDouble() ??
+                  0.6,
+        },
+      },
+      execute: true,
+    );
+    final execution = response.execution;
+    if (execution == null) {
+      throw StateError('景深控件已翻译，但后端没有返回执行结果');
+    }
+    return _AiToolExecutionResult(
+      response: execution,
+      stepResults: <RouterStepResult>[
+        ...depthResult.stepResults,
+        ...execution.stepResults,
+      ],
+      statusText: response.explanations.isEmpty
+          ? '${tool.title} 已执行完成'
+          : response.explanations.join(' '),
+    );
+  }
+
+  Future<_AiToolExecutionResult> _runInpaintWorkflow(
+    EditorAiToolDefinition tool,
+  ) async {
+    final repository = ref.read(lensesRepositoryProvider);
+    final targetPrompt =
+        _aiToolControlValues['target_prompt']?.toString().trim() ?? '';
+    final replacementPrompt = _resolvedAiToolParams(tool)['prompt']?.toString().trim() ?? '';
+    if (targetPrompt.isEmpty) {
+      throw StateError('请先描述要选中的区域');
+    }
+    if (replacementPrompt.isEmpty) {
+      throw StateError('请先描述希望重绘成什么内容');
+    }
+
+    final baseImage = await _ensureUploadedCurrentEditorImage();
+    setState(() => _aiToolStatusText = '正在根据文字定位需要重绘的区域...');
+    final maskResult = await repository.runLens(
+      lensId: 'lens_sam2_matting',
+      assets: <String, String>{'base_image': baseImage},
+      params: <String, dynamic>{'prompt': targetPrompt},
+    );
+    if (maskResult.hasExecutionError) {
+      throw StateError(maskResult.executionError!);
+    }
+    final maskFilename = _pickBestResultFilename(maskResult);
+    if (maskFilename == null || maskFilename.trim().isEmpty) {
+      throw StateError('遮罩提取完成，但没有拿到 mask 文件');
+    }
+
+    setState(() => _aiToolStatusText = '正在对白色遮罩区域进行局部重绘...');
+    final runResult = await repository.runLens(
+      lensId: tool.lensId,
+      assets: <String, String>{
+        'base_image': baseImage,
+        'mask': maskFilename,
+      },
+      params: _resolvedAiToolParams(tool),
+    );
+    return _AiToolExecutionResult(
+      response: runResult,
+      stepResults: <RouterStepResult>[
+        ...maskResult.stepResults,
+        ...runResult.stepResults,
+      ],
+      statusText: '${tool.title} 已完成局部重绘',
+    );
+  }
+
+  Map<String, dynamic> _resolvedAiToolParams(EditorAiToolDefinition tool) {
+    final params = <String, dynamic>{..._aiToolParamValues};
+    return switch (tool.lensId) {
+      'lens_upscale_4x' => <String, dynamic>{
+          'upscale_by': (params['upscale_by'] as num?)?.toDouble() ?? 4.0,
+          'denoise': (params['denoise'] as num?)?.toDouble() ?? 0.25,
+          'steps': (params['steps'] as num?)?.round() ?? 20,
+          'cfg': (params['cfg'] as num?)?.toDouble() ?? 7.0,
+          'tile_width': 1024,
+          'tile_height': 1024,
+          'prompt': params['prompt']?.toString().trim().isNotEmpty == true
+              ? params['prompt'].toString().trim()
+              : 'ultra sharp details, clean edges, refined textures',
+        },
+      'lens_flux_edit' => <String, dynamic>{
+          'prompt': params['prompt']?.toString().trim().isNotEmpty == true
+              ? params['prompt'].toString().trim()
+              : 'refresh the background with a cinematic and polished atmosphere',
+          'steps': (params['steps'] as num?)?.round() ?? 24,
+          'cfg': (params['cfg'] as num?)?.toDouble() ?? 1.1,
+        },
+      'lens_style' => <String, dynamic>{
+          'prompt': params['prompt']?.toString().trim().isNotEmpty == true
+              ? params['prompt'].toString().trim()
+              : 'preserve the main subject and overall composition',
+          'steps': (params['steps'] as num?)?.round() ?? 24,
+          'cfg': (params['cfg'] as num?)?.toDouble() ?? 1.0,
+        },
+      'lens_flux_inpaint' => <String, dynamic>{
+          'prompt': params['prompt']?.toString().trim() ?? '',
+          'steps': (params['steps'] as num?)?.round() ?? 22,
+          'cfg': (params['cfg'] as num?)?.toDouble() ?? 1.0,
+        },
+      'lens_sam2_matting' => <String, dynamic>{
+          'prompt': params['prompt']?.toString().trim() ?? '',
+        },
+      'lens_flux_reference' || 'lens_flux_two_reference' => <String, dynamic>{
+          'prompt': params['prompt']?.toString().trim().isNotEmpty == true
+              ? params['prompt'].toString().trim()
+              : 'preserve the subject while following the references',
+          'steps': (params['steps'] as num?)?.round() ?? 24,
+          'cfg': (params['cfg'] as num?)?.toDouble() ?? 1.1,
+        },
+      'lens_watermark' => <String, dynamic>{
+          'text': params['text']?.toString().trim().isNotEmpty == true
+              ? params['text'].toString().trim()
+              : 'MuseLens',
+          'font_size': (params['font_size'] as num?)?.round() ?? 36,
+          'align': params['align']?.toString() ?? 'bottom',
+          'justify': params['justify']?.toString() ?? 'right',
+          'margins': (params['margins'] as num?)?.round() ?? 28,
+        },
+      'lens_flux_text2image' => <String, dynamic>{
+          'prompt': params['prompt']?.toString().trim().isNotEmpty == true
+              ? params['prompt'].toString().trim()
+              : 'a premium editorial still life photo with cinematic lighting',
+          'width': (params['width'] as num?)?.round() ?? 1024,
+          'height': (params['height'] as num?)?.round() ?? 1024,
+          'steps': (params['steps'] as num?)?.round() ?? 28,
+          'cfg': (params['cfg'] as num?)?.toDouble() ?? 1.0,
+        },
+      _ => params,
+    };
+  }
+
+  String _buildAiToolPromptSummary(EditorAiToolDefinition tool) {
+    final promptLike = <String>[
+      _aiToolParamValues['prompt']?.toString() ?? '',
+      _aiToolParamValues['text']?.toString() ?? '',
+      _aiToolControlValues['scene_hint']?.toString() ?? '',
+      _aiToolControlValues['target_prompt']?.toString() ?? '',
+    ].firstWhere(
+      (value) => value.trim().isNotEmpty,
+      orElse: () => tool.title,
+    );
+    return promptLike.trim().isEmpty ? tool.title : promptLike.trim();
+  }
+
+  Future<String> _ensureUploadedCurrentEditorImage() async {
+    final currentPath = _displayedImagePath ?? _initialImagePath;
+    if (currentPath != null && isAdaptiveLocalFilePath(currentPath)) {
+      return _ensureUploadedAssetPath(currentPath);
+    }
+    return _ensureUploadedAssetPath(widget.selectedImage.path);
+  }
+
+  Future<String> _ensureUploadedAssetPath(String rawPath) async {
+    final localPath = await _ensureLocalUploadPath(rawPath);
+    final cached = _uploadedAiAssetCache[localPath];
+    if (cached != null && cached.trim().isNotEmpty) {
+      return cached;
+    }
+    final upload = await ref
+        .read(routerRepositoryProvider)
+        .uploadBaseImage(filePath: localPath);
+    _uploadedAiAssetCache[localPath] = upload.filename;
+    return upload.filename;
+  }
+
+  Future<String> _ensureLocalUploadPath(String rawPath) async {
+    final normalized = rawPath.trim();
+    if (normalized.isEmpty) {
+      throw StateError('没有可上传的图片');
+    }
+    if (isAdaptiveLocalFilePath(normalized)) {
+      return normalizeAdaptiveFilePath(normalized);
+    }
+    if (normalized.startsWith('http')) {
+      final http = Dio(
+        BaseOptions(
+          connectTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(minutes: 5),
+        ),
+      );
+      final download = await http.get<List<int>>(
+        normalized,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final bytes = download.data;
+      if (bytes == null || bytes.isEmpty) {
+        throw StateError('远程图片下载失败');
+      }
+      final savedPath = await LocalMediaStore.persistBytes(
+        Uint8List.fromList(bytes),
+        folder: 'ai_toolbox_downloads',
+        prefix: 'remote_asset',
+        extension: _guessExtension(normalized),
+      );
+      return normalizeAdaptiveFilePath(savedPath);
+    }
+    if (normalized.startsWith('assets/')) {
+      throw StateError('当前图片仍是内置资源，请重新导入一张本地图片后再使用 AI 工具箱');
+    }
+    return normalized;
+  }
+
+  Future<String> _downloadResultToLocal(
+    String resultUrl, {
+    String? filename,
+    required String prefix,
+  }) async {
+    final http = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(minutes: 5),
+      ),
+    );
+    final download = await http.get<List<int>>(
+      resultUrl,
+      options: Options(responseType: ResponseType.bytes),
+    );
+    final bytes = download.data;
+    if (bytes == null || bytes.isEmpty) {
+      throw StateError('结果图下载失败');
+    }
+    return LocalMediaStore.persistBytes(
+      Uint8List.fromList(bytes),
+      folder: 'ai_tool_results',
+      prefix: prefix,
+      extension: _guessExtension(filename ?? resultUrl),
+    );
+  }
+
+  String? _pickBestResultUrl(LensToolRunResponse response) {
+    final direct = response.resultUrl?.trim();
+    if (direct != null && direct.isNotEmpty) {
+      return direct;
+    }
+    for (final step in response.stepResults.reversed) {
+      for (final output in step.outputs.reversed) {
+        final url = output.url?.trim();
+        if (url != null && url.isNotEmpty) {
+          return url;
+        }
+      }
+    }
+    return null;
+  }
+
+  String? _pickBestResultFilename(LensToolRunResponse response) {
+    final direct = response.resultFilename?.trim();
+    if (direct != null && direct.isNotEmpty) {
+      return direct;
+    }
+    for (final step in response.stepResults.reversed) {
+      for (final output in step.outputs.reversed) {
+        final filename = output.filename.trim();
+        if (filename.isNotEmpty) {
+          return filename;
+        }
+      }
+    }
+    return null;
+  }
+
+  String _guessExtension(String source) {
+    final normalized = source.split('?').first.trim();
+    final dotIndex = normalized.lastIndexOf('.');
+    if (dotIndex == -1 || dotIndex == normalized.length - 1) {
+      return '.png';
+    }
+    final extension = normalized.substring(dotIndex).toLowerCase();
+    if (extension.length > 10) {
+      return '.png';
+    }
+    return extension;
+  }
+
   Future<AssetTreeImagePayload> _buildFilePayload(
     File file,
     String storedPath,
@@ -921,6 +1560,20 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
               ),
               EditorToolsPanel(
                 activeTool: _activeTool,
+                aiToolboxPanel: EditorAiToolboxPanel(
+                  selectedToolId: _selectedAiToolId,
+                  paramValues: _aiToolParamValues,
+                  controlValues: _aiToolControlValues,
+                  localAssetPaths: _aiToolLocalAssetPaths,
+                  isRunning: busy,
+                  statusText: _aiToolStatusText,
+                  stepResults: _aiToolStepResults,
+                  onToolSelected: _handleAiToolSelected,
+                  onParamChanged: _handleAiToolParamChanged,
+                  onControlChanged: _handleAiToolControlChanged,
+                  onPickAsset: _pickAiToolAsset,
+                  onExecute: _executeAiTool,
+                ),
                 promptController: _promptController,
                 isGenerating: busy,
                 appliedLensIds: _appliedLensIds,
@@ -977,4 +1630,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     }
     return fallback;
   }
+}
+
+class _AiToolExecutionResult {
+  const _AiToolExecutionResult({
+    required this.response,
+    this.stepResults = const <RouterStepResult>[],
+    this.statusText,
+  });
+
+  final LensToolRunResponse response;
+  final List<RouterStepResult> stepResults;
+  final String? statusText;
 }

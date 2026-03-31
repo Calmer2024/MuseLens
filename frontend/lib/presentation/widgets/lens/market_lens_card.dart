@@ -1,10 +1,8 @@
-import 'dart:io';
-
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/market_models.dart';
+import '../shared/adaptive_media.dart';
 import 'market_lens_visuals.dart';
 
 class MarketLensCard extends StatelessWidget {
@@ -25,228 +23,215 @@ class MarketLensCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final visual = MarketLensVisualResolver.resolve(lens.lens);
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.black.withOpacity(0.05)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: Stack(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(28),
+        onTap: onTap,
+        child: Ink(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: Colors.black.withOpacity(0.05)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AspectRatio(
-                aspectRatio: 1 / visual.aspectRatio,
-                child: Container(
-                  color: Colors.grey.shade100,
-                  child: _buildAssetImage(
-                    visual.beforeImage,
-                    color: Colors.black.withOpacity(0.26),
-                    blendMode: BlendMode.darken,
-                  ),
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
                 ),
-              ),
-              ClipPath(
-                clipper: visual.splitStyle == MarketLensSplitStyle.vertical
-                    ? _VerticalSplitClipper()
-                    : _DiagonalSplitClipper(),
-                child: AspectRatio(
-                  aspectRatio: 1 / visual.aspectRatio,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          AppTheme.electricIndigo.withOpacity(0.08),
-                          Colors.cyan.withOpacity(0.1),
-                        ],
-                      ),
-                    ),
-                    child: _buildAssetImage(
-                      visual.afterImage,
-                      color: AppTheme.electricIndigo.withOpacity(0.18),
-                      blendMode: BlendMode.colorBurn,
-                    ),
-                  ),
-                ),
-              ),
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomPaint(
-                    painter: visual.splitStyle == MarketLensSplitStyle.vertical
-                        ? _VerticalLinePainter()
-                        : _DiagonalLinePainter(),
-                  ),
-                ),
-              ),
-              if (lens.lens.isOfficial)
-                Positioned(
-                  top: 14,
-                  left: 14,
-                  child: _buildGlassTag(
-                    icon: Icons.verified_rounded,
-                    text: '官方',
-                    iconColor: Colors.white,
-                    textColor: Colors.white,
-                    background: AppTheme.electricIndigo,
-                  ),
-                ),
-              if (bannerText != null)
-                Positioned(
-                  top: lens.lens.isOfficial ? 52 : 14,
-                  left: 14,
-                  child: _buildGlassTag(
-                    icon: bannerIcon ?? Icons.star_rounded,
-                    text: bannerText!,
-                    iconColor: AppTheme.electricIndigo,
-                    textColor: Colors.black87,
-                    background: Colors.white.withOpacity(0.92),
-                  ),
-                ),
-              Positioned(
-                top: 14,
-                right: 14,
-                child: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.92),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.black.withOpacity(0.04)),
-                  ),
-                  child: Icon(
-                    lens.isFavorited
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_border_rounded,
-                    size: 20,
-                    color: lens.isFavorited
-                        ? const Color(0xFFF05D7B)
-                        : Colors.black54,
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(14, 36, 14, 14),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.white.withOpacity(0),
-                        Colors.white.withOpacity(0.84),
-                        Colors.white,
-                      ],
-                      stops: const [0, 0.55, 1],
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                child: Stack(
+                  children: [
+                    AspectRatio(
+                      aspectRatio: visual.aspectRatio,
+                      child: Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              lens.lens.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.black87,
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
-                              ),
+                            child: _buildPreviewImage(
+                              visual.beforeImage,
+                              label: '原图',
                             ),
                           ),
-                          const SizedBox(width: 10),
-                          Text(
-                            lens.lens.displayPrice,
-                            style: TextStyle(
-                              color: lens.lens.isFree
-                                  ? AppTheme.electricIndigo
-                                  : Colors.black87,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
+                          Expanded(
+                            child: _buildPreviewImage(
+                              visual.afterImage,
+                              label: '效果',
+                              accent: true,
                             ),
                           ),
                         ],
                       ),
+                    ),
+                    Positioned(
+                      top: 14,
+                      left: 14,
+                      child: Row(
+                        children: [
+                          if (lens.lens.isOfficial)
+                            _buildBadge(
+                              text: '官方',
+                              icon: Icons.verified_rounded,
+                              background: Colors.black,
+                              foreground: Colors.white,
+                            ),
+                          if (bannerText != null) ...[
+                            if (lens.lens.isOfficial) const SizedBox(width: 8),
+                            _buildBadge(
+                              text: bannerText!,
+                              icon: bannerIcon ?? Icons.bookmark_rounded,
+                              background: Colors.white.withOpacity(0.94),
+                              foreground: Colors.black87,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            lens.lens.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                              height: 1.25,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              lens.isFavorited
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              size: 16,
+                              color: lens.isFavorited
+                                  ? const Color(0xFFE55C78)
+                                  : Colors.black54,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _compactNumber(lens.lens.favoriteCount),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    if (lens.lens.description.trim().isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Text(
-                        lens.lens.description.trim().isEmpty
-                            ? '适用于 ${lens.lens.category ?? '灵感创作'} 场景'
-                            : lens.lens.description,
+                        lens.lens.description,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: Colors.black.withOpacity(0.58),
                           fontSize: 12,
-                          height: 1.35,
+                          height: 1.45,
+                          color: Colors.black.withOpacity(0.56),
                         ),
                       ),
+                    ],
+                    if (lens.lens.visibleTags.isNotEmpty) ...[
                       const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          _buildAvatar(lens.author.avatarUrl),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              lens.author.displayName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.black87,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 6,
+                        children: lens.lens.visibleTags
+                            .map(
+                              (tag) => Text(
+                                '#$tag',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black.withOpacity(0.42),
+                                ),
                               ),
-                            ),
-                          ),
-                          const Icon(
-                            Icons.download_rounded,
-                            size: 14,
-                            color: Colors.black45,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            _compactNumber(lens.lens.installCount),
-                            style: const TextStyle(
-                              color: Colors.black54,
-                              fontSize: 11,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          const Icon(
-                            Icons.star_rounded,
-                            size: 14,
-                            color: Color(0xFFF6B74E),
-                          ),
-                          const SizedBox(width: 2),
-                          Text(
-                            lens.lens.ratingCount == 0
-                                ? '新上架'
-                                : lens.lens.rating.toStringAsFixed(1),
-                            style: const TextStyle(
-                              color: Colors.black54,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
+                            )
+                            .toList(),
                       ),
                     ],
-                  ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        _buildAvatar(lens.author.avatarUrl),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                lens.author.displayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                lens.lens.displayCategory,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.black.withOpacity(0.42),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${lens.lens.applyCount}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            Text(
+                              '应用',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.black.withOpacity(0.42),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -256,37 +241,81 @@ class MarketLensCard extends StatelessWidget {
     );
   }
 
-  Widget _buildGlassTag({
-    required IconData icon,
+  Widget _buildPreviewImage(
+    String path, {
+    required String label,
+    bool accent = false,
+  }) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        buildAdaptiveImage(
+          path,
+          fit: BoxFit.cover,
+          placeholder: Container(color: const Color(0xFFF2F3F5)),
+          errorWidget: Container(color: const Color(0xFFF2F3F5)),
+        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withOpacity(accent ? 0.08 : 0.18),
+                Colors.transparent,
+                Colors.black.withOpacity(accent ? 0.18 : 0.08),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: 10,
+          bottom: 10,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: accent
+                  ? AppTheme.electricIndigo.withOpacity(0.92)
+                  : Colors.white.withOpacity(0.94),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: accent ? Colors.white : Colors.black87,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBadge({
     required String text,
-    required Color iconColor,
-    required Color textColor,
+    required IconData icon,
     required Color background,
+    required Color foreground,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: iconColor),
+          Icon(icon, size: 12, color: foreground),
           const SizedBox(width: 4),
           Text(
             text,
             style: TextStyle(
-              color: textColor,
               fontSize: 10,
               fontWeight: FontWeight.w700,
+              color: foreground,
             ),
           ),
         ],
@@ -294,59 +323,20 @@ class MarketLensCard extends StatelessWidget {
     );
   }
 
-  Widget _buildAssetImage(
-    String path, {
-    Color? color,
-    BlendMode? blendMode,
-  }) {
-    return Image.asset(
-      path,
-      fit: BoxFit.cover,
-      color: color,
-      colorBlendMode: blendMode,
-      errorBuilder: (context, error, stackTrace) {
-        return Container(color: const Color(0xFFF1F2F6));
-      },
-    );
-  }
-
   Widget _buildAvatar(String? path) {
-    if (path == null || path.trim().isEmpty) {
+    final provider = resolveAdaptiveImageProvider(path);
+    if (provider == null) {
       return CircleAvatar(
-        radius: 10,
+        radius: 16,
         backgroundColor: Colors.black.withOpacity(0.06),
-        child: const Icon(Icons.person, size: 12, color: Colors.black54),
-      );
-    }
-
-    if (path.startsWith('http')) {
-      return CircleAvatar(
-        radius: 10,
-        backgroundColor: Colors.black.withOpacity(0.06),
-        backgroundImage: CachedNetworkImageProvider(path),
-      );
-    }
-
-    if (path.startsWith('file://')) {
-      return CircleAvatar(
-        radius: 10,
-        backgroundColor: Colors.black.withOpacity(0.06),
-        backgroundImage: FileImage(File(path.substring(7))),
-      );
-    }
-
-    if (path.startsWith('/')) {
-      return CircleAvatar(
-        radius: 10,
-        backgroundColor: Colors.black.withOpacity(0.06),
-        backgroundImage: FileImage(File(path)),
+        child: const Icon(Icons.person, size: 14, color: Colors.black54),
       );
     }
 
     return CircleAvatar(
-      radius: 10,
+      radius: 16,
       backgroundColor: Colors.black.withOpacity(0.06),
-      backgroundImage: AssetImage(path),
+      backgroundImage: provider,
     );
   }
 
@@ -359,71 +349,4 @@ class MarketLensCard extends StatelessWidget {
     }
     return '$value';
   }
-}
-
-class _DiagonalSplitClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    final path = Path()
-      ..moveTo(size.width, 0)
-      ..lineTo(size.width, size.height)
-      ..lineTo(size.width * 0.28, size.height)
-      ..lineTo(size.width * 0.68, 0)
-      ..close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-}
-
-class _VerticalSplitClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    return Path()
-      ..addRect(
-        Rect.fromLTRB(size.width * 0.5, 0, size.width, size.height),
-      );
-  }
-
-  @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-}
-
-class _DiagonalLinePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(0.72)
-      ..strokeWidth = 1.7
-      ..style = PaintingStyle.stroke;
-
-    canvas.drawLine(
-      Offset(size.width * 0.68, 0),
-      Offset(size.width * 0.28, size.height),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
-}
-
-class _VerticalLinePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(0.72)
-      ..strokeWidth = 1.7
-      ..style = PaintingStyle.stroke;
-
-    canvas.drawLine(
-      Offset(size.width * 0.5, 0),
-      Offset(size.width * 0.5, size.height),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

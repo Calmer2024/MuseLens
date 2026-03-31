@@ -23,6 +23,11 @@ def infer_result_filename(blueprint, execution_context: dict[str, str]) -> str |
         candidate = execution_context.get(f"{step.step_id}.result_image")
         if candidate:
             return candidate
+    for step in reversed(blueprint.steps):
+        step_prefix = f"{step.step_id}."
+        for key, value in execution_context.items():
+            if key.startswith(step_prefix) and value:
+                return value
     return None
 
 

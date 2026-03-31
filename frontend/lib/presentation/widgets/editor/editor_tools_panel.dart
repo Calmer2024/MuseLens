@@ -29,6 +29,7 @@ class EditorToolsPanel extends StatelessWidget {
   const EditorToolsPanel({
     super.key,
     required this.activeTool,
+    this.aiToolboxPanel,
     required this.promptController,
     required this.isGenerating,
     required this.onOpenAiChat,
@@ -47,6 +48,7 @@ class EditorToolsPanel extends StatelessWidget {
   });
 
   final ToolType activeTool;
+  final Widget? aiToolboxPanel;
   final TextEditingController promptController;
   final bool isGenerating;
   final VoidCallback onOpenAiChat;
@@ -134,11 +136,12 @@ class EditorToolsPanel extends StatelessWidget {
   Widget _buildActivePanel() {
     return switch (activeTool) {
       ToolType.aiChat => _buildAiChatPanel(),
-      ToolType.aiToolbox => _buildLensPanel(
-          title: 'AI 工具箱',
-          subtitle: '局部替换、背景处理、光影控制都放在这里',
-          tools: _toolbox,
-        ),
+      ToolType.aiToolbox => aiToolboxPanel ??
+          _buildLensPanel(
+            title: 'AI 工具箱',
+            subtitle: '局部替换、背景处理、光影控制都放在这里',
+            tools: _toolbox,
+          ),
       ToolType.crop => _buildCropPanel(),
       ToolType.adjust => _buildAdjustPanel(),
       ToolType.templates => _buildLensPanel(
@@ -483,6 +486,7 @@ class EditorToolsPanel extends StatelessWidget {
 
   Widget _buildChatInput() {
     if (activeTool == ToolType.aiChat ||
+        activeTool == ToolType.aiToolbox ||
         activeTool == ToolType.crop ||
         activeTool == ToolType.adjust) {
       return const SizedBox.shrink();
