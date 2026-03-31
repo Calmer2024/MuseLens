@@ -79,6 +79,12 @@ class RetrievalService:
             enabled_only=enabled_only,
             available_user_assets=available_user_assets,
         )
+        result = self._inject_semantic_chain_candidates(
+            db,
+            items=result,
+            task_desc=task_desc,
+            examples_by_id=examples_by_id,
+        )
         return self._rerank_by_available_user_assets(
             result,
             available_user_assets=available_user_assets,
@@ -461,6 +467,84 @@ class RetrievalService:
             "generic_reference": {"ref_image_1", "reference_image", "reference_asset"},
         }
         return bool(aliases_by_kind.get(target_kind, set()) & set(normalized_assets.keys()))
+
+    def _inject_semantic_chain_candidates(
+        self,
+        db: Session,
+        *,
+        items: List[LensKnowledge],
+        task_desc: str,
+        examples_by_id: Dict[str, List[LensExample]],
+    ) -> List[LensKnowledge]:
+        wanted_ids = self._wanted_lens_ids_for_task(task_desc)
+        if not wanted_ids:
+            return items
+
+        existing_ids = {item.lens_id for item in items}
+        missing_ids = [lens_id for lens_id in wanted_ids if lens_id not in existing_ids]
+        if not missing_ids:
+            return items
+
+        records: List[LensRecord] = (
+            db.query(LensRecord).filter(LensRecord.lens_id.in_(missing_ids)).all()
+        )
+        record_by_id = {record.lens_id: record for record in records}
+
+        boosted: List[LensKnowledge] = list(items)
+        base_score = max((float(item.score) for item in items), default=0.5)
+        for idx, lens_id in enumerate(missing_ids):
+            record = record_by_id.get(lens_id)
+            if not record:
+                continue
+            lk = self._lens_knowledge_from_record(
+                lens_id=lens_id,
+                score=base_score + 0.25 - idx * 0.01,
+                rec=record,
+                examples_by_id=examples_by_id,
+            )
+            if lk:
+                boosted.append(lk)
+
+        return boosted
+
+    @staticmethod
+    def _wanted_lens_ids_for_task(task_desc: str) -> List[str]:
+        text = task_desc or ""
+        wanted: List[str] = []
+
+        if RetrievalService._looks_like_scene_preserving_task(text):
+            wanted.extend(["lens_flux_reference", "lens_pose_extract"])
+
+        if RetrievalService._looks_like_relighting_task(text):
+            wanted.extend(["lens_relighting", "lens_depth_extract"])
+
+        if RetrievalService._looks_like_delivery_task(text):
+            wanted.append("lens_upscale_4x")
+
+        deduped: List[str] = []
+        seen: Set[str] = set()
+        for lens_id in wanted:
+            if lens_id not in seen:
+                seen.add(lens_id)
+                deduped.append(lens_id)
+        return deduped
+
+    @staticmethod
+    def _looks_like_scene_preserving_task(task_desc: str) -> bool:
+        text = task_desc or ""
+        preserve_markers = ["保持", "保留", "姿势", "姿态", "构图", "主体"]
+        scene_markers = ["背景", "场景", "环境", "海边", "沙滩", "森林", "街道", "房间"]
+        return any(k in text for k in preserve_markers) and any(k in text for k in scene_markers)
+
+    @staticmethod
+    def _looks_like_relighting_task(task_desc: str) -> bool:
+        keywords = ["光", "光影", "黄昏", "傍晚", "照下", "打光", "柔和"]
+        return any(k in (task_desc or "") for k in keywords)
+
+    @staticmethod
+    def _looks_like_delivery_task(task_desc: str) -> bool:
+        keywords = ["放大", "超分", "高清", "清晰", "高质量", "画质要好", "画质更好"]
+        return any(k in (task_desc or "") for k in keywords)
 
     @staticmethod
     def _asset_kind(name: str, asset_type: str) -> str:

@@ -458,20 +458,22 @@ def _build_heuristic_blueprint(
         return None
 
     steps: List[DAGStep] = []
-    step_by_lens: Dict[str, DAGStep] = {}
+    step_by_signature: Dict[Tuple[str, str], DAGStep] = {}
     step_counter = 1
 
     def ensure_step(
         candidate: Dict[str, Any],
         *,
         downstream_candidate: Optional[Dict[str, Any]] = None,
+        base_image_ref: str = "$user_base_image",
     ) -> DAGStep | None:
         nonlocal step_counter
         lens_id = str(candidate.get("lens_id") or "")
         if not lens_id:
             return None
-        if lens_id in step_by_lens:
-            return step_by_lens[lens_id]
+        signature = (lens_id, base_image_ref)
+        if signature in step_by_signature:
+            return step_by_signature[signature]
 
         input_links: Dict[str, str] = {}
         for asset in candidate.get("inputs") or []:
@@ -487,7 +489,7 @@ def _build_heuristic_blueprint(
                 continue
             if _is_user_supplied_input(asset_name, asset_type):
                 if asset_name == "base_image":
-                    input_links[asset_name] = "$user_base_image"
+                    input_links[asset_name] = base_image_ref
                 continue
 
             provider = _find_provider_candidate(
@@ -496,11 +498,16 @@ def _build_heuristic_blueprint(
                 candidates,
                 task_desc=planner_input.task_desc,
                 exclude={lens_id},
+                downstream_candidate=candidate,
             )
             if provider is None:
                 return None
 
-            provider_step = ensure_step(provider, downstream_candidate=candidate)
+            provider_step = ensure_step(
+                provider,
+                downstream_candidate=candidate,
+                base_image_ref=base_image_ref,
+            )
             if provider_step is None:
                 return None
 
@@ -535,11 +542,49 @@ def _build_heuristic_blueprint(
         )
         step_counter += 1
         steps.append(step)
-        step_by_lens[lens_id] = step
+        step_by_signature[signature] = step
         return step
 
-    if ensure_step(main) is None:
+    main_step = ensure_step(main)
+    if main_step is None:
         return None
+
+    current_step = main_step
+    current_candidate = main
+    current_result_ref = _find_primary_result_ref(current_step, current_candidate)
+
+    if current_result_ref and _should_append_relighting(task_desc=planner_input.task_desc, main_candidate=main):
+        relighting_candidate = _pick_post_candidate(
+            role="relighting",
+            task_desc=planner_input.task_desc,
+            candidates=candidates,
+            exclude_lens_ids={step.lens_id for step in steps},
+        )
+        if relighting_candidate is not None:
+            relighting_step = ensure_step(
+                relighting_candidate,
+                base_image_ref=current_result_ref,
+            )
+            if relighting_step is None:
+                return None
+            current_step = relighting_step
+            current_candidate = relighting_candidate
+            current_result_ref = _find_primary_result_ref(current_step, current_candidate)
+
+    if current_result_ref and _should_append_delivery(task_desc=planner_input.task_desc, main_candidate=main):
+        delivery_candidate = _pick_post_candidate(
+            role="delivery",
+            task_desc=planner_input.task_desc,
+            candidates=candidates,
+            exclude_lens_ids={step.lens_id for step in steps},
+        )
+        if delivery_candidate is not None:
+            delivery_step = ensure_step(
+                delivery_candidate,
+                base_image_ref=current_result_ref,
+            )
+            if delivery_step is None:
+                return None
 
     initial_inputs = {"user_base_image": "user_base_image"}
     initial_inputs.update(_get_available_user_assets(planner_input))
@@ -557,6 +602,8 @@ def _pick_main_candidate(task_desc: str, candidates: List[Dict[str, Any]]) -> Di
     relight_task = _looks_like_relighting(task_desc)
     delivery_task = _looks_like_delivery_task(task_desc)
     style_task = _looks_like_style_transfer(task_desc)
+    subject_preserve_task = _looks_like_subject_preservation(task_desc)
+    semantic_edit_task = background_task or local_task or pose_shape_task or style_task or subject_preserve_task
 
     best: Tuple[float, Dict[str, Any]] | None = None
     for cand in candidates:
@@ -589,6 +636,11 @@ def _pick_main_candidate(task_desc: str, candidates: List[Dict[str, Any]]) -> Di
             score -= 1.5
             if delivery_task:
                 score += 6.0
+            if semantic_edit_task:
+                score -= 3.5
+
+        if layer == "A3" and semantic_edit_task:
+            score -= 3.8
 
         if background_task:
             if layer == "A2":
@@ -625,6 +677,8 @@ def _pick_main_candidate(task_desc: str, candidates: List[Dict[str, Any]]) -> Di
                 score += 2.5
             if "flux_edit" in lens_id_lower or "global edit" in text_blob:
                 score += 1.8
+            if "flux_reference" in lens_id_lower or "reference" in lens_id_lower:
+                score += 2.6
 
         if relight_task:
             if "relight" in text_blob or "relight" in lens_id_lower or "lighting" in text_blob:
@@ -671,6 +725,7 @@ def _find_provider_candidate(
     *,
     task_desc: str,
     exclude: Set[str],
+    downstream_candidate: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any] | None:
     target_kind = _asset_kind(input_name, input_type)
     best: Tuple[float, Dict[str, Any]] | None = None
@@ -687,6 +742,7 @@ def _find_provider_candidate(
                 input_type=input_type,
                 output_name=out_name,
                 output_type=out_type,
+                downstream_candidate=downstream_candidate,
             )
             if score <= 0:
                 continue
@@ -715,6 +771,80 @@ def _find_output_ref(
     return None
 
 
+def _find_primary_result_ref(step: DAGStep, candidate: Dict[str, Any]) -> str | None:
+    for out in candidate.get("outputs") or []:
+        out_name = str(out.get("name") or "")
+        if out_name == "result_image":
+            return f"${step.step_id}.{out_name}"
+    for out in candidate.get("outputs") or []:
+        out_name = str(out.get("name") or "")
+        if out_name:
+            return f"${step.step_id}.{out_name}"
+    return None
+
+
+def _should_append_relighting(*, task_desc: str, main_candidate: Dict[str, Any]) -> bool:
+    if not _looks_like_relighting(task_desc):
+        return False
+    return str(main_candidate.get("layer") or "") != "A3"
+
+
+def _should_append_delivery(*, task_desc: str, main_candidate: Dict[str, Any]) -> bool:
+    if not _looks_like_delivery_task(task_desc):
+        return False
+    return str(main_candidate.get("layer") or "") != "A5"
+
+
+def _pick_post_candidate(
+    *,
+    role: str,
+    task_desc: str,
+    candidates: List[Dict[str, Any]],
+    exclude_lens_ids: Set[str],
+) -> Dict[str, Any] | None:
+    best: Tuple[float, Dict[str, Any]] | None = None
+    for cand in candidates:
+        lens_id = str(cand.get("lens_id") or "")
+        layer = str(cand.get("layer") or "")
+        if not lens_id or lens_id in exclude_lens_ids:
+            continue
+
+        lens_id_lower = lens_id.lower()
+        text_blob = _candidate_text(cand).lower()
+        inputs = cand.get("inputs") or []
+        score = float(cand.get("score") or 0.0)
+
+        if role == "relighting":
+            if layer != "A3":
+                continue
+            if "relight" in lens_id_lower or "relight" in text_blob or "lighting" in text_blob:
+                score += 6.0
+            if any(_asset_kind(i.get("name", ""), i.get("type", "")) == "depth" for i in inputs):
+                score += 2.0
+        elif role == "delivery":
+            if layer != "A5":
+                continue
+            if _looks_like_upscale_request(task_desc):
+                if "upscale" in lens_id_lower or "高清" in text_blob or "超分" in text_blob:
+                    score += 6.0
+                elif "watermark" in lens_id_lower or "watermark" in text_blob:
+                    score -= 4.0
+            elif _looks_like_watermark_request(task_desc):
+                if "watermark" in lens_id_lower or "watermark" in text_blob:
+                    score += 6.0
+                else:
+                    score -= 2.0
+            else:
+                continue
+        else:
+            continue
+
+        if best is None or score > best[0]:
+            best = (score, cand)
+
+    return best[1] if best else None
+
+
 def _provider_match_score(
     *,
     task_desc: str,
@@ -722,6 +852,7 @@ def _provider_match_score(
     input_type: str,
     output_name: str,
     output_type: str,
+    downstream_candidate: Optional[Dict[str, Any]] = None,
 ) -> float:
     target_kind = _asset_kind(input_name, input_type)
     output_kind = _asset_kind(output_name, output_type)
@@ -732,7 +863,11 @@ def _provider_match_score(
         return 3.0
     if target_kind == "generic_reference":
         if output_kind in {"pose", "depth", "canny"}:
-            return _reference_constraint_priority(task_desc, output_kind)
+            return _reference_constraint_priority(
+                task_desc,
+                output_kind,
+                downstream_candidate=downstream_candidate,
+            )
         if output_kind == "style_reference":
             return 3.2
         if output_kind == "generic_image":
@@ -749,8 +884,24 @@ def _provider_match_score(
     return 0.0
 
 
-def _reference_constraint_priority(task_desc: str, output_kind: str) -> float:
-    if _looks_like_relighting(task_desc):
+def _reference_constraint_priority(
+    task_desc: str,
+    output_kind: str,
+    *,
+    downstream_candidate: Optional[Dict[str, Any]] = None,
+) -> float:
+    downstream_text = _candidate_text(downstream_candidate or {}).lower()
+    downstream_lens_id = str((downstream_candidate or {}).get("lens_id") or "").lower()
+
+    if "reference" in downstream_lens_id or "reference" in downstream_text:
+        if _looks_like_pose_or_shape_edit(task_desc) or _looks_like_subject_preservation(task_desc):
+            priorities = {"pose": 4.1, "depth": 3.3, "canny": 2.5}
+            return priorities.get(output_kind, 0.0)
+        if _looks_like_background_replacement(task_desc):
+            priorities = {"pose": 3.9, "depth": 3.5, "canny": 2.4}
+            return priorities.get(output_kind, 0.0)
+
+    if "relight" in downstream_lens_id or "relight" in downstream_text or "lighting" in downstream_text:
         priorities = {"depth": 3.8, "pose": 3.2, "canny": 2.6}
         return priorities.get(output_kind, 0.0)
 
@@ -1221,6 +1372,29 @@ def _looks_like_delivery_task(task_desc: str) -> bool:
         "高清",
         "清晰",
         "锐化",
+        "水印",
+        "签名",
+        "版权",
+    ]
+    return any(k in (task_desc or "") for k in keywords)
+
+
+def _looks_like_upscale_request(task_desc: str) -> bool:
+    keywords = [
+        "放大",
+        "超分",
+        "高清",
+        "清晰",
+        "高质量",
+        "画质要好",
+        "画质更好",
+        "细节更清晰",
+    ]
+    return any(k in (task_desc or "") for k in keywords)
+
+
+def _looks_like_watermark_request(task_desc: str) -> bool:
+    keywords = [
         "水印",
         "签名",
         "版权",
