@@ -83,7 +83,7 @@ class UserDetailScreen extends ConsumerWidget {
                   slivers: [
                     SliverAppBar(
                       pinned: true,
-                      expandedHeight: 250,
+                      expandedHeight: 286,
                       backgroundColor: Colors.white,
                       foregroundColor: Colors.white, // 改为白色以配合顶部遮罩，让图标更清晰
                       surfaceTintColor: Colors.transparent,
@@ -100,279 +100,259 @@ class UserDetailScreen extends ConsumerWidget {
                       ],
                       flexibleSpace: FlexibleSpaceBar(
                         collapseMode: CollapseMode.pin,
-                        background: _UserBanner(user: user),
+                        background: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            _UserBanner(user: user),
+                            Positioned(
+                              left: 20,
+                              right: 20,
+                              bottom: 18,
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 4,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: AppTheme.electricIndigo
+                                              .withValues(alpha: 0.18),
+                                          blurRadius: 24,
+                                          offset: const Offset(0, 10),
+                                        ),
+                                      ],
+                                    ),
+                                    child: CircleAvatar(
+                                      radius: 42,
+                                      backgroundColor: Colors.grey.shade200,
+                                      backgroundImage: resolveAdaptiveImageProvider(
+                                        user.avatarUrl,
+                                      ),
+                                      child:
+                                          user.avatarUrl == null ||
+                                              user.avatarUrl!.trim().isEmpty
+                                          ? const Icon(
+                                              Icons.person,
+                                              size: 34,
+                                              color: Colors.black38,
+                                            )
+                                          : null,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  if (!isMe)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 6),
+                                      child: FollowActionButton(
+                                        targetUserId: user.userId,
+                                        onChanged: () {
+                                          ref.invalidate(
+                                            followersProvider(user.userId),
+                                          );
+                                          ref.invalidate(
+                                            followingProvider(user.userId),
+                                          );
+                                          ref.invalidate(
+                                            userDetailProvider(user.userId),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     SliverToBoxAdapter(
-                      child: Transform.translate(
-                        offset: const Offset(0, -26),
-                        child: Container(
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFF9F7FF),
-                            borderRadius: BorderRadius.vertical(
-                              top: Radius.circular(30),
-                            ),
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF9F7FF),
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(30),
                           ),
-                          // 需求 1: 使用 Stack 重构，让头像突破限制浮在最上面
-                          child: Stack(
-                            clipBehavior: Clip.none,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            20,
+                            14,
+                            20,
+                            0,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  20,
-                                  0,
-                                  20,
-                                  0,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // 占位并对齐右侧的关注按钮
-                                    SizedBox(
-                                      height: 56,
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.end,
-                                        children: [
-                                          if (!isMe)
-                                            FollowActionButton(
-                                              targetUserId: user.userId,
-                                              onChanged: () {
-                                                ref.invalidate(
-                                                  followersProvider(
-                                                    user.userId,
-                                                  ),
-                                                );
-                                                ref.invalidate(
-                                                  followingProvider(
-                                                    user.userId,
-                                                  ),
-                                                );
-                                                ref.invalidate(
-                                                  userDetailProvider(
-                                                    user.userId,
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                        ],
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      user.nickname?.trim().isNotEmpty == true
+                                          ? user.nickname!.trim()
+                                          : user.username,
+                                      style: const TextStyle(
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.black87,
                                       ),
                                     ),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Flexible(
-                                          child: Text(
-                                            user.nickname?.trim().isNotEmpty ==
-                                                    true
-                                                ? user.nickname!.trim()
-                                                : user.username,
-                                            style: const TextStyle(
-                                              fontSize: 26,
-                                              fontWeight: FontWeight.w800,
-                                              color: Colors.black87,
-                                            ),
-                                          ),
-                                        ),
-                                        if (user.isVerified) ...[
-                                          const SizedBox(width: 8),
-                                          Container(
-                                            padding: const EdgeInsets.all(4),
-                                            decoration: BoxDecoration(
-                                              color: AppTheme.electricIndigo
-                                                  .withValues(alpha: 0.12),
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: const Icon(
-                                              Icons.verified_rounded,
-                                              size: 16,
-                                              color: AppTheme.electricIndigo,
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      '@${user.username}',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.black.withValues(
-                                          alpha: 0.48,
-                                        ),
-                                      ),
-                                    ),
-                                    if (user.bio != null &&
-                                        user.bio!.trim().isNotEmpty) ...[
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        user.bio!.trim(),
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          height: 1.65,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                                    ],
-                                    const SizedBox(height: 14),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: [
-                                        if (user.memberLevel != 'free')
-                                          _ProfileChip(
-                                            label: user.memberLevel
-                                                .toUpperCase(),
-                                          ),
-                                        const _ProfileChip(label: '共创者'),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 22),
+                                  ),
+                                  if (user.isVerified) ...[
+                                    const SizedBox(width: 8),
                                     Container(
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 18,
-                                        vertical: 18,
-                                      ),
+                                      padding: const EdgeInsets.all(4),
                                       decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(24),
-                                        border: Border.all(
-                                          color: AppTheme.electricIndigo
-                                              .withValues(alpha: 0.08),
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.04,
-                                            ),
-                                            blurRadius: 18,
-                                            offset: const Offset(0, 8),
-                                          ),
-                                        ],
+                                        color: AppTheme.electricIndigo
+                                            .withValues(alpha: 0.12),
+                                        shape: BoxShape.circle,
                                       ),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceAround,
-                                        children: [
-                                          _UserStat(
-                                            value: '${user.totalLikes}',
-                                            label: context.tr('likes'),
-                                          ),
-                                          _UserStat(
-                                            value: '$followerCount',
-                                            label: context.tr('followers'),
-                                            onTap: () {
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      FollowersListScreen(
-                                                        userId: user.userId,
-                                                        isFollowers: true,
-                                                      ),
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                          _UserStat(
-                                            value: '$followingCount',
-                                            label: context.tr('following'),
-                                            onTap: () {
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      FollowersListScreen(
-                                                        userId: user.userId,
-                                                        isFollowers: false,
-                                                      ),
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ],
+                                      child: const Icon(
+                                        Icons.verified_rounded,
+                                        size: 16,
+                                        color: AppTheme.electricIndigo,
                                       ),
                                     ),
-                                    const SizedBox(height: 26),
-                                    Row(
-                                      children: [
-                                        const Text(
-                                          'TA的帖子',
-                                          style: TextStyle(
-                                            fontSize: 17,
-                                            fontWeight: FontWeight.w800,
-                                            color: Colors.black87,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppTheme.electricIndigo
-                                                .withValues(alpha: 0.08),
-                                            borderRadius: BorderRadius.circular(
-                                              999,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '${postsAsync.asData?.value.length ?? 0}',
-                                            style: const TextStyle(
-                                              color: AppTheme.electricIndigo,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '@${user.username}',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.black.withValues(alpha: 0.48),
+                                ),
+                              ),
+                              if (user.bio != null &&
+                                  user.bio!.trim().isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  user.bio!.trim(),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    height: 1.65,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 14),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  if (user.memberLevel != 'free')
+                                    _ProfileChip(
+                                      label: user.memberLevel.toUpperCase(),
                                     ),
-                                    // 需求 3: 移除了原本这里高度为 16 的 SizedBox，或者将其改得极小
-                                    const SizedBox(height: 4),
+                                  const _ProfileChip(label: '共创者'),
+                                ],
+                              ),
+                              const SizedBox(height: 22),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 18,
+                                  vertical: 18,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: AppTheme.electricIndigo.withValues(
+                                      alpha: 0.08,
+                                    ),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.04,
+                                      ),
+                                      blurRadius: 18,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceAround,
+                                  children: [
+                                    _UserStat(
+                                      value: '${user.totalLikes}',
+                                      label: context.tr('likes'),
+                                    ),
+                                    _UserStat(
+                                      value: '$followerCount',
+                                      label: context.tr('followers'),
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => FollowersListScreen(
+                                              userId: user.userId,
+                                              isFollowers: true,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                    _UserStat(
+                                      value: '$followingCount',
+                                      label: context.tr('following'),
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => FollowersListScreen(
+                                              userId: user.userId,
+                                              isFollowers: false,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
                                   ],
                                 ),
                               ),
-                              // 独立定位的头像，层级最高，位置不受容器裁剪影响
-                              Positioned(
-                                top: -38, // 将头像向上移动，脱离背景区域
-                                left: 20,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 4,
+                              const SizedBox(height: 26),
+                              Row(
+                                children: [
+                                  const Text(
+                                    'TA的帖子',
+                                    style: TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.black87,
                                     ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppTheme.electricIndigo
-                                            .withValues(alpha: 0.18),
-                                        blurRadius: 24,
-                                        offset: const Offset(0, 10),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.electricIndigo.withValues(
+                                        alpha: 0.08,
                                       ),
-                                    ],
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      '${postsAsync.asData?.value.length ?? 0}',
+                                      style: const TextStyle(
+                                        color: AppTheme.electricIndigo,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                                   ),
-                                  child: CircleAvatar(
-                                    radius: 42,
-                                    backgroundColor: Colors.grey.shade200,
-                                    backgroundImage:
-                                        resolveAdaptiveImageProvider(
-                                          user.avatarUrl,
-                                        ),
-                                    child:
-                                        user.avatarUrl == null ||
-                                            user.avatarUrl!.trim().isEmpty
-                                        ? const Icon(
-                                            Icons.person,
-                                            size: 34,
-                                            color: Colors.black38,
-                                          )
-                                        : null,
-                                  ),
-                                ),
+                                ],
                               ),
+                              const SizedBox(height: 4),
                             ],
                           ),
                         ),
