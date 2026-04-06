@@ -604,6 +604,7 @@ def test_route_and_run_endpoint_executes_ready_blueprint(client, test_db, workfl
         {
             "step_id": "s1",
             "lens_id": lens_id,
+            "tweak_controls": [],
             "outputs": [
                 {
                     "output_name": "result_image",
@@ -667,7 +668,7 @@ def test_route_and_run_endpoint_starts_async_stream_execution(client, test_db, w
     async def _fake_emit(stream_id, payload):
         emitted.append((stream_id, payload))
 
-    async def _fake_run_blueprint_with_stream_events(*, blueprint, session_id, stream_id):
+    async def _fake_run_blueprint_with_stream_events(*, compiler, blueprint, session_id, stream_id):
         created["run_args"] = {
             "session_id": session_id,
             "stream_id": stream_id,

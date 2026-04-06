@@ -344,60 +344,77 @@ def test_new_lens_stream_id_endpoint(client):
 def test_save_mask_asset_endpoint(client, monkeypatch):
     import app.api.v1.endpoints.lenses as lenses_endpoint
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        monkeypatch.setattr(lenses_endpoint, "COMFYUI_INPUT_DIR", temp_dir)
-        png_bytes = base64.b64decode(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yv1cAAAAASUVORK5CYII="
-        )
-        resp = client.post(
-            "/api/v1/lenses/mask-assets",
-            json={
-                "mask_base64": base64.b64encode(png_bytes).decode("ascii"),
-                "asset_name": "mask",
-                "prompt_hint": "woman",
-            },
-        )
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["asset_name"] == "mask"
-        assert body["prompt_hint"] == "woman"
-        assert body["source"] == "mask_editor"
-        assert body["mime_type"] == "image/png"
-        assert body["byte_size"] > 0
-        assert body["width"] == 1
-        assert body["height"] == 1
-        assert body["user_assets_patch"]["mask"] == body["filename"]
-        assert body["preview_url"].endswith(f"filename={body['filename']}&type=input")
-        assert os.path.exists(os.path.join(temp_dir, body["filename"]))
+    png_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yv1cAAAAASUVORK5CYII="
+    )
+    monkeypatch.setattr(
+        lenses_endpoint,
+        "upload_user_image",
+        lambda **kwargs: "local://muselens-input/input/test-mask.png",
+    )
+    monkeypatch.setattr(
+        lenses_endpoint,
+        "build_asset_url",
+        lambda ref: f"/api/v1/storage/object?ref={ref}",
+    )
+
+    resp = client.post(
+        "/api/v1/lenses/mask-assets",
+        json={
+            "mask_base64": base64.b64encode(png_bytes).decode("ascii"),
+            "asset_name": "mask",
+            "prompt_hint": "woman",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["asset_name"] == "mask"
+    assert body["prompt_hint"] == "woman"
+    assert body["source"] == "mask_editor"
+    assert body["mime_type"] == "image/png"
+    assert body["byte_size"] > 0
+    assert body["width"] == 1
+    assert body["height"] == 1
+    assert body["filename"] == "local://muselens-input/input/test-mask.png"
+    assert body["user_assets_patch"]["mask"] == body["filename"]
+    assert body["preview_url"] == f"/api/v1/storage/object?ref={body['filename']}"
 
 
 def test_upload_mask_asset_endpoint(client, monkeypatch):
     import app.api.v1.endpoints.lenses as lenses_endpoint
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        monkeypatch.setattr(lenses_endpoint, "COMFYUI_INPUT_DIR", temp_dir)
-        png_bytes = base64.b64decode(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yv1cAAAAASUVORK5CYII="
-        )
-        resp = client.post(
-            "/api/v1/lenses/mask-assets/upload",
-            files={"file": ("mask.png", png_bytes, "image/png")},
-            data={
-                "asset_name": "mask",
-                "prompt_hint": "subject",
-                "source": "mask_editor",
-                "metadata_json": json.dumps({"origin": "canvas"}),
-            },
-        )
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["asset_name"] == "mask"
-        assert body["prompt_hint"] == "subject"
-        assert body["source"] == "mask_editor"
-        assert body["metadata"]["origin"] == "canvas"
-        assert body["width"] == 1
-        assert body["height"] == 1
-        assert os.path.exists(os.path.join(temp_dir, body["filename"]))
+    monkeypatch.setattr(
+        lenses_endpoint,
+        "upload_user_image",
+        lambda **kwargs: "local://muselens-input/input/upload-mask.png",
+    )
+    monkeypatch.setattr(
+        lenses_endpoint,
+        "build_asset_url",
+        lambda ref: f"/api/v1/storage/object?ref={ref}",
+    )
+    png_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yv1cAAAAASUVORK5CYII="
+    )
+    resp = client.post(
+        "/api/v1/lenses/mask-assets/upload",
+        files={"file": ("mask.png", png_bytes, "image/png")},
+        data={
+            "asset_name": "mask",
+            "prompt_hint": "subject",
+            "source": "mask_editor",
+            "metadata_json": json.dumps({"origin": "canvas"}),
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["asset_name"] == "mask"
+    assert body["prompt_hint"] == "subject"
+    assert body["source"] == "mask_editor"
+    assert body["metadata"]["origin"] == "canvas"
+    assert body["width"] == 1
+    assert body["height"] == 1
+    assert body["filename"] == "local://muselens-input/input/upload-mask.png"
 
 
 def test_get_lens_tweak_controls_endpoint(client, temp_workflow_file):

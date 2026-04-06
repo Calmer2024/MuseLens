@@ -2,6 +2,87 @@
 
 本仓库为 MuseLens 前后端代码。后端为 FastAPI（Router、Lens 目录、可选 ComfyUI 执行链等），前端为 Flutter。
 
+## 阿里云部署（ECS + MinIO + FC Adapter）
+
+当前仓库已按如下生产早期架构做了落地：
+
+- `docker-compose.backend.yml` 单文件部署 `nginx + backend + postgres + minio + fc-adapter`
+- `backend` 不再把 ComfyUI 当作本地共享目录使用，图片改为对象引用驱动
+- 用户上传图、遮罩图、步骤中间图、结果图统一走对象存储
+- `fc-adapter` 负责连接阿里云 FC 上的 ComfyUI 原生接口
+- 返回给前端的 `result_url` / `preview_url` 改为对象存储访问地址或后端代理地址
+
+### 部署前你需要准备
+
+- 一台 `ECS 2C4G 40G`
+- 域名并解析到 ECS 公网 IP
+- 阿里云 FC GPU 函数，内部启动 ComfyUI，并暴露原生接口
+- SSL 证书文件：
+  - `fullchain.pem`
+  - `privkey.pem`
+  - 放到 `.env` 中 `MUSELENS_NGINX_CERT_DIR` 指定的目录
+
+### 目录准备
+
+在 ECS 上创建：
+
+```bash
+sudo mkdir -p /data/muselens/postgres
+sudo mkdir -p /data/muselens/minio
+sudo mkdir -p /data/muselens/backend-tmp
+sudo mkdir -p /data/muselens/nginx/certs
+```
+
+### 环境变量
+
+```bash
+cp .env.docker.example .env
+```
+
+至少补齐这些值：
+
+- `PUBLIC_API_BASE_URL`
+- `MUSELENS_LLM_BASE_URL`
+- `MUSELENS_LLM_API_KEY`
+- `MUSELENS_LLM_MODEL`
+- `MINIO_ROOT_USER`
+- `MINIO_ROOT_PASSWORD`
+- `MUSELENS_MINIO_ACCESS_KEY`
+- `MUSELENS_MINIO_SECRET_KEY`
+- `MUSELENS_FC_COMFY_BASE_URL`
+- `MUSELENS_FC_ADAPTER_TOKEN`
+
+如果你希望前端直接使用 MinIO 签名 URL，还需要配置：
+
+- `MUSELENS_MINIO_PUBLIC_ENDPOINT`
+- `MUSELENS_MINIO_PUBLIC_SECURE`
+
+否则后端会退回到 `/api/v1/storage/object?ref=...` 代理访问模式。
+
+### 启动
+
+```bash
+docker compose -f docker-compose.backend.yml up -d --build
+```
+
+### MinIO 初始化
+
+服务启动后，进入 MinIO Console 创建 bucket：
+
+- `muselens-input`
+- `muselens-output`
+- `muselens-temp`
+
+建议给 `muselens-temp` 配生命周期清理规则。
+
+### 上线验证
+
+- `https://<your-domain>/docs`
+- `https://<your-domain>/`
+- `GET /api/v1/storage/object?ref=...` 可访问对象
+- 上传底图后，返回值中的 `filename` 将是对象引用，例如 `minio://muselens-input/...`
+- `route_and_run` / `lenses/run` 返回的 `result_url` 应可直接预览
+
 ## 合作者如何复现（推荐：Docker）
 
 按下面顺序可在本机得到与团队一致的 **PostgreSQL（pgvector）+ 后端 API**，无需先装本机 Python 数据库服务。

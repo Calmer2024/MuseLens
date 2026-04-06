@@ -36,12 +36,14 @@ from app.services.execution_service import (
     build_result_url,
     run_blueprint_with_stream_events,
 )
+from app.services.storage_execution_service import ensure_storage_error, upload_user_image
 from app.services.router_stream_service import router_stream_service
 from app.services.router_service import router_service
 
 
 router = APIRouter()
 compiler = MuseDNACompiler(input_dir=COMFYUI_INPUT_DIR, output_dir=COMFYUI_OUTPUT_DIR)
+_run_blueprint_with_stream_events = run_blueprint_with_stream_events
 
 
 def _export_musedna_template(blueprint) -> tuple[dict, list[str]]:
@@ -85,16 +87,16 @@ async def upload_base_image(
     if not safe_extension or len(safe_extension) > 10:
         safe_extension = ".png"
 
-    stored_filename = f"router_{uuid.uuid4().hex}{safe_extension}"
-    os.makedirs(COMFYUI_INPUT_DIR, exist_ok=True)
-    target_path = os.path.join(COMFYUI_INPUT_DIR, stored_filename)
-
     try:
         contents = await image.read()
-        with open(target_path, "wb") as file:
-            file.write(contents)
+        session_id = f"router-upload-{uuid.uuid4().hex}"
+        stored_filename = upload_user_image(
+            session_id=session_id,
+            original_filename=f"router_{uuid.uuid4().hex}{safe_extension}",
+            binary=contents,
+        )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to store uploaded image: {exc}")
+        raise ensure_storage_error(exc)
     finally:
         await image.close()
 
@@ -185,7 +187,7 @@ async def run_musedna(req: RouterMuseDNARunRequest) -> RouterRouteAndRunResponse
             },
         )
         asyncio.create_task(
-            run_blueprint_with_stream_events(
+            _run_blueprint_with_stream_events(
                 compiler=compiler,
                 blueprint=bound_blueprint,
                 session_id=payload["session_id"],
@@ -275,7 +277,7 @@ async def route_and_run(
             },
         )
         asyncio.create_task(
-            run_blueprint_with_stream_events(
+            _run_blueprint_with_stream_events(
                 compiler=compiler,
                 blueprint=routed.blueprint,
                 session_id=routed.session_id,

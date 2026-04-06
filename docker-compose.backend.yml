@@ -1,13 +1,28 @@
-# MuseLens 后端 + PostgreSQL（pgvector）
+# MuseLens production-oriented backend stack
 #
-# 用法（在仓库根目录）：
-#   docker compose -f docker-compose.backend.yml up --build
-#
-# Compose 会从「仓库根目录」的 .env 读取变量（可拷贝 .env.docker.example → .env）。
-# API: http://127.0.0.1:8000   文档: /docs
-# Postgres 暴露端口默认 5433，避免与本机已安装的 PostgreSQL 冲突。
+# Usage:
+#   docker compose -f docker-compose.backend.yml up -d --build
 
 services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: muselens-nginx
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ${MUSELENS_NGINX_CERT_DIR:-/data/muselens/nginx/certs}:/etc/nginx/certs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
   postgres:
     image: pgvector/pgvector:pg16
     container_name: muselens-postgres
@@ -19,12 +34,58 @@ services:
     ports:
       - "${MUSELENS_POSTGRES_PORT:-5433}:5432"
     volumes:
-      - muselens_postgres_data:/var/lib/postgresql/data
+      - ${MUSELENS_POSTGRES_DATA_DIR:-/data/muselens/postgres}:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d muselens"]
       interval: 5s
       timeout: 5s
       retries: 20
+
+  minio:
+    image: minio/minio:RELEASE.2025-02-28T09-55-16Z
+    container_name: muselens-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-now}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - ${MUSELENS_MINIO_DATA_DIR:-/data/muselens/minio}:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  fc-adapter:
+    build:
+      context: ./fc_adapter
+      dockerfile: Dockerfile
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+    container_name: muselens-fc-adapter
+    restart: unless-stopped
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MUSELENS_FC_ADAPTER_TOKEN: ${MUSELENS_FC_ADAPTER_TOKEN:-}
+      MUSELENS_FC_COMFY_BASE_URL: ${MUSELENS_FC_COMFY_BASE_URL:-}
+      MUSELENS_MINIO_ENDPOINT: ${MUSELENS_MINIO_ENDPOINT:-minio:9000}
+      MUSELENS_MINIO_ACCESS_KEY: ${MUSELENS_MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-admin}}
+      MUSELENS_MINIO_SECRET_KEY: ${MUSELENS_MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-change-me-now}}
+      MUSELENS_MINIO_SECURE: ${MUSELENS_MINIO_SECURE:-false}
+      MUSELENS_MINIO_BUCKET_INPUT: ${MUSELENS_MINIO_BUCKET_INPUT:-muselens-input}
+      MUSELENS_MINIO_BUCKET_OUTPUT: ${MUSELENS_MINIO_BUCKET_OUTPUT:-muselens-output}
+      MUSELENS_MINIO_BUCKET_TEMP: ${MUSELENS_MINIO_BUCKET_TEMP:-muselens-temp}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health').read()"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 
   backend:
     build:
@@ -37,25 +98,40 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      minio:
+        condition: service_healthy
+      fc-adapter:
+        condition: service_healthy
     environment:
-      # 在容器内跑 pytest 集成测试时，连接同一 compose 内的 Postgres（admin 库 postgres，需 CREATEDB）
+      TZ: ${TZ:-Asia/Shanghai}
       MUSELENS_TEST_POSTGRES_DSN: postgresql://postgres:${MUSELENS_POSTGRES_PASSWORD:-123cfx}@postgres:5432/postgres
       MUSELENS_DB_URL: postgresql+psycopg://postgres:${MUSELENS_POSTGRES_PASSWORD:-123cfx}@postgres:5432/muselens
       MUSELENS_PG_DSN: postgresql://postgres:${MUSELENS_POSTGRES_PASSWORD:-123cfx}@postgres:5432/muselens
-      MUSELENS_RAG_BACKEND: pgvector
+      MUSELENS_RAG_BACKEND: ${MUSELENS_RAG_BACKEND:-pgvector}
       MUSELENS_RAG_PGVECTOR_TABLE: ${MUSELENS_RAG_PGVECTOR_TABLE:-lens_embeddings}
-      COMFYUI_OUTPUT_DIR: /tmp/comfyui/output
-      COMFYUI_INPUT_DIR: /tmp/comfyui/input
-      MUSELENS_COMFY_NETLOC: ${MUSELENS_COMFY_NETLOC:-host.docker.internal:8188}
       MUSELENS_LLM_BASE_URL: ${MUSELENS_LLM_BASE_URL:-https://api.openai.com/v1}
       MUSELENS_LLM_API_KEY: ${MUSELENS_LLM_API_KEY:-}
       MUSELENS_LLM_MODEL: ${MUSELENS_LLM_MODEL:-}
       MUSELENS_LLM_TIMEOUT_S: ${MUSELENS_LLM_TIMEOUT_S:-60}
+      MUSELENS_FC_ADAPTER_BASE_URL: ${MUSELENS_FC_ADAPTER_BASE_URL:-http://fc-adapter:8080}
+      MUSELENS_FC_ADAPTER_TOKEN: ${MUSELENS_FC_ADAPTER_TOKEN:-}
+      MUSELENS_FC_ADAPTER_TIMEOUT_S: ${MUSELENS_FC_ADAPTER_TIMEOUT_S:-600}
+      MUSELENS_MINIO_ENDPOINT: ${MUSELENS_MINIO_ENDPOINT:-minio:9000}
+      MUSELENS_MINIO_PUBLIC_ENDPOINT: ${MUSELENS_MINIO_PUBLIC_ENDPOINT:-}
+      MUSELENS_MINIO_ACCESS_KEY: ${MUSELENS_MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-admin}}
+      MUSELENS_MINIO_SECRET_KEY: ${MUSELENS_MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-change-me-now}}
+      MUSELENS_MINIO_SECURE: ${MUSELENS_MINIO_SECURE:-false}
+      MUSELENS_MINIO_PUBLIC_SECURE: ${MUSELENS_MINIO_PUBLIC_SECURE:-true}
+      MUSELENS_MINIO_BUCKET_INPUT: ${MUSELENS_MINIO_BUCKET_INPUT:-muselens-input}
+      MUSELENS_MINIO_BUCKET_OUTPUT: ${MUSELENS_MINIO_BUCKET_OUTPUT:-muselens-output}
+      MUSELENS_MINIO_BUCKET_TEMP: ${MUSELENS_MINIO_BUCKET_TEMP:-muselens-temp}
+      MUSELENS_LOCAL_ASSET_DIR: /data/local-assets
+      PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-}
+      SIGNED_URL_EXPIRE_SECONDS: ${SIGNED_URL_EXPIRE_SECONDS:-3600}
     volumes:
-      - "${COMFYUI_INPUT_DIR}:/tmp/comfyui/input"
-      - "${COMFYUI_OUTPUT_DIR}:/tmp/comfyui/output"
+      - ${MUSELENS_BACKEND_TMP_DIR:-/data/muselens/backend-tmp}:/data/local-assets
+    expose:
+      - "8000"
     ports:
       - "${MUSELENS_BACKEND_PORT:-8000}:8000"
     healthcheck:
@@ -63,6 +139,3 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
-
-volumes:
-  muselens_postgres_data:

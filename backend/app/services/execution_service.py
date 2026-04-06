@@ -5,15 +5,20 @@ from typing import Any
 
 from app.lenses.registry import get_lens
 from app.services.lens_ui_control_service import get_lens_tweak_controls
+from app.services.object_storage_service import storage_service
 from app.services.router_stream_service import router_stream_service
 
 
 def build_result_url(filename: str) -> str:
+    if filename.startswith(("minio://", "local://", "http://", "https://")):
+        return storage_service.get_download_url(filename)
     base_url = (os.getenv("COMFYUI_VIEW_BASE_URL") or "http://127.0.0.1:8188").rstrip("/")
     return f"{base_url}/view?filename={filename}&type=output"
 
 
 def build_input_asset_url(filename: str) -> str:
+    if filename.startswith(("minio://", "local://", "http://", "https://")):
+        return storage_service.get_download_url(filename)
     base_url = (os.getenv("COMFYUI_VIEW_BASE_URL") or "http://127.0.0.1:8188").rstrip("/")
     return f"{base_url}/view?filename={filename}&type=input"
 

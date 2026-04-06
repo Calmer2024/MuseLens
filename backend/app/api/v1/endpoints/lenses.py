@@ -35,6 +35,7 @@ from app.services.lens_control_translation_service import translate_lens_control
 from app.services.lens_ui_control_service import get_lens_tweak_controls
 from app.services.lens_embedding_sync import sync_lens_embeddings
 from app.services.router_stream_service import router_stream_service
+from app.services.storage_execution_service import build_asset_url, ensure_storage_error, upload_user_image
 
 router = APIRouter()
 compiler = MuseDNACompiler(input_dir=COMFYUI_INPUT_DIR, output_dir=COMFYUI_OUTPUT_DIR)
@@ -262,18 +263,19 @@ def _save_mask_asset(
     safe_asset_name = _sanitize_asset_name(asset_name)
     safe_filename = _normalize_mask_filename(filename, safe_asset_name)
 
-    os.makedirs(COMFYUI_INPUT_DIR, exist_ok=True)
-    dst = os.path.join(COMFYUI_INPUT_DIR, safe_filename)
     try:
-        with open(dst, "wb") as f:
-            f.write(binary)
+        stored_ref = upload_user_image(
+            session_id=f"mask-{uuid.uuid4().hex}",
+            original_filename=safe_filename,
+            binary=binary,
+        )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"遮罩保存失败：{exc}")
+        raise ensure_storage_error(exc)
 
     return MaskAssetSaveResponseV2(
         asset_name=safe_asset_name,
-        filename=safe_filename,
-        preview_url=build_input_asset_url(safe_filename),
+        filename=stored_ref,
+        preview_url=build_asset_url(stored_ref) or build_input_asset_url(stored_ref),
         prompt_hint=(prompt_hint or "").strip() or None,
         source=(source or "mask_editor").strip() or "mask_editor",
         mime_type="image/png",
@@ -281,7 +283,7 @@ def _save_mask_asset(
         width=width,
         height=height,
         metadata=dict(metadata or {}),
-        user_assets_patch={safe_asset_name: safe_filename},
+        user_assets_patch={safe_asset_name: stored_ref},
     )
 
 

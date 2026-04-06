@@ -15,6 +15,7 @@ from app.api.v1.endpoints import community as community_endpoint
 from app.api.v1.endpoints import market as market_endpoint
 from app.api.v1.endpoints import chat as chat_endpoint
 from app.api.v1.endpoints import editor_sessions as editor_sessions_endpoint
+from app.api.v1.endpoints import storage as storage_endpoint
 
 # 数据库与注册表
 from app.core.database import init_db, SessionLocal
@@ -101,6 +102,7 @@ app.include_router(community_endpoint.router,  prefix="/api/v1/community",  tags
 app.include_router(market_endpoint.router,     prefix="/api/v1/market",     tags=["market"])
 app.include_router(chat_endpoint.router,       prefix="/api/v1/chat",       tags=["chat"])
 app.include_router(editor_sessions_endpoint.router, prefix="/api/v1/editor-sessions", tags=["editor-sessions"])
+app.include_router(storage_endpoint.router, prefix="/api/v1/storage", tags=["storage"])
 
 # --- 3. 根路由（健康检查）---
 @app.get("/")
