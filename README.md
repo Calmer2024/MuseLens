@@ -117,6 +117,10 @@ cp .env.docker.example .env
 docker compose -f docker-compose.backend.yml build
 docker compose -f docker-compose.backend.yml up -d
 ```
+我在服务器上用
+```bash 
+docker-compose -f docker-compose.backend.yml up -d --build
+```
 
 首次或依赖变更后可用 `build --no-cache`。
 
