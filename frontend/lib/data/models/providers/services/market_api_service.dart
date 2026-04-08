@@ -13,11 +13,8 @@ class MarketApiService {
       return (response.data as List<dynamic>)
           .map((item) => MarketTag.fromJson(item as Map<String, dynamic>))
           .toList();
-    } on DioException catch (error) {
-      if (_isNotFound(error)) {
-        return const <MarketTag>[];
-      }
-      rethrow;
+    } catch (error) {
+      return const <MarketTag>[];
     }
   }
 
@@ -50,18 +47,18 @@ class MarketApiService {
       return (response.data as List<dynamic>)
           .map((item) => MarketLens.fromJson(item as Map<String, dynamic>))
           .toList();
-    } on DioException catch (error) {
-      if (!_isNotFound(error)) {
-        rethrow;
+    } catch (_) {
+      try {
+        final response = await _dio.get(
+          '$_basePath/lenses',
+          queryParameters: queryParameters,
+        );
+        return (response.data as List<dynamic>)
+            .map((item) => MarketLens.fromJson(item as Map<String, dynamic>))
+            .toList();
+      } catch (fallbackError) {
+        return const <MarketLens>[];
       }
-
-      final response = await _dio.get(
-        '$_basePath/lenses',
-        queryParameters: queryParameters,
-      );
-      return (response.data as List<dynamic>)
-          .map((item) => MarketLens.fromJson(item as Map<String, dynamic>))
-          .toList();
     }
   }
 
@@ -69,13 +66,13 @@ class MarketApiService {
     try {
       final response = await _dio.get('$_basePath/templates/$templateId');
       return response.data as Map<String, dynamic>;
-    } on DioException catch (error) {
-      if (!_isNotFound(error)) {
+    } catch (_) {
+      try {
+        final response = await _dio.get('$_basePath/lenses/$templateId');
+        return response.data as Map<String, dynamic>;
+      } catch (fallbackError) {
         rethrow;
       }
-
-      final response = await _dio.get('$_basePath/lenses/$templateId');
-      return response.data as Map<String, dynamic>;
     }
   }
 
@@ -85,14 +82,15 @@ class MarketApiService {
         '$_basePath/templates/$lensId/favorite',
         data: {'user_id': userId},
       );
-    } on DioException catch (error) {
-      if (!_isNotFound(error)) {
+    } catch (_) {
+      try {
+        await _dio.post(
+          '$_basePath/lenses/$lensId/favorite',
+          data: {'user_id': userId},
+        );
+      } catch (fallbackError) {
         rethrow;
       }
-      await _dio.post(
-        '$_basePath/lenses/$lensId/favorite',
-        data: {'user_id': userId},
-      );
     }
   }
 
@@ -105,14 +103,15 @@ class MarketApiService {
         '$_basePath/templates/$lensId/favorite',
         data: {'user_id': userId},
       );
-    } on DioException catch (error) {
-      if (!_isNotFound(error)) {
+    } catch (_) {
+      try {
+        await _dio.delete(
+          '$_basePath/lenses/$lensId/favorite',
+          data: {'user_id': userId},
+        );
+      } catch (fallbackError) {
         rethrow;
       }
-      await _dio.delete(
-        '$_basePath/lenses/$lensId/favorite',
-        data: {'user_id': userId},
-      );
     }
   }
 
@@ -124,10 +123,7 @@ class MarketApiService {
       return (response.data as List<dynamic>)
           .map((item) => MarketLens.fromJson(item as Map<String, dynamic>))
           .toList();
-    } on DioException catch (error) {
-      if (!_isNotFound(error)) {
-        rethrow;
-      }
+    } catch (_) {
       return listTemplates(authorId: userId);
     }
   }
@@ -140,15 +136,15 @@ class MarketApiService {
       return (response.data as List<dynamic>)
           .map((item) => MarketLens.fromJson(item as Map<String, dynamic>))
           .toList();
-    } on DioException catch (error) {
-      if (!_isNotFound(error)) {
-        rethrow;
+    } catch (_) {
+      try {
+        final response = await _dio.get('$_basePath/users/$userId/favorites');
+        return (response.data as List<dynamic>)
+            .map((item) => MarketLens.fromJson(item as Map<String, dynamic>))
+            .toList();
+      } catch (fallbackError) {
+        return const <MarketLens>[];
       }
-
-      final response = await _dio.get('$_basePath/users/$userId/favorites');
-      return (response.data as List<dynamic>)
-          .map((item) => MarketLens.fromJson(item as Map<String, dynamic>))
-          .toList();
     }
   }
 
@@ -164,31 +160,31 @@ class MarketApiService {
       return MarketLensApplyResult.fromJson(
         response.data as Map<String, dynamic>,
       );
-    } on DioException catch (error) {
-      if (!_isNotFound(error)) {
+    } catch (_) {
+      try {
+        final response = await _dio.post(
+          '$_basePath/lenses/$templateId/apply',
+          data: input.toJson(),
+        );
+        final legacy = response.data as Map<String, dynamic>;
+        final templateJson = Map<String, dynamic>.from(
+          legacy['template'] as Map<String, dynamic>? ??
+              legacy['lens'] as Map<String, dynamic>? ??
+              const <String, dynamic>{},
+        );
+        final versionJson = Map<String, dynamic>.from(
+          legacy['version'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+        );
+
+        return MarketLensApplyResult.fromJson({
+          ...legacy,
+          'template': templateJson,
+          'version': versionJson,
+          'musedna': legacy['musedna'] ?? legacy['blueprint'] ?? const {},
+        });
+      } catch (fallbackError) {
         rethrow;
       }
-
-      final response = await _dio.post(
-        '$_basePath/lenses/$templateId/apply',
-        data: input.toJson(),
-      );
-      final legacy = response.data as Map<String, dynamic>;
-      final templateJson = Map<String, dynamic>.from(
-        legacy['template'] as Map<String, dynamic>? ??
-            legacy['lens'] as Map<String, dynamic>? ??
-            const <String, dynamic>{},
-      );
-      final versionJson = Map<String, dynamic>.from(
-        legacy['version'] as Map<String, dynamic>? ?? const <String, dynamic>{},
-      );
-
-      return MarketLensApplyResult.fromJson({
-        ...legacy,
-        'template': templateJson,
-        'version': versionJson,
-        'musedna': legacy['musedna'] ?? legacy['blueprint'] ?? const {},
-      });
     }
   }
 
