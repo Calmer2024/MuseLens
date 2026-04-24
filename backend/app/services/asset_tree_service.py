@@ -746,3 +746,89 @@ def remove_node_tag(db: Session, tag_id: str) -> bool:
     db.delete(tag)
     db.commit()
     return True
+
+
+# ============================================================
+# Blueprint 合成（从资产树路径构建可复用的 DAGBlueprint）
+# ============================================================
+
+# 仅本地执行的操作 lens_id 集合 —— 这些操作无对应 ComfyUI 工作流，不可远程复用
+LOCAL_ONLY_LENS_IDS = frozenset({
+    "mirror_horizontal",
+    "flip_vertical",
+    "free_crop",
+    "ratio_crop",
+    "manual_save",
+})
+
+
+def build_blueprint_from_path(
+    db: Session,
+    node_id: str,
+) -> Optional[Dict[str, Any]]:
+    """
+    根据资产树中从根节点到目标节点的路径，自动合成一个可复用的 DAGBlueprint。
+
+    遍历路径上的所有 edge，筛选出可远程执行的 AI lens 步骤，
+    将它们串联为一个线性 DAG 管线。
+
+    返回值：
+      - 合成好的 blueprint dict（可以直接传给 DAGBlueprint.model_validate）
+      - 如果路径上没有可远程执行的 AI lens 步骤，返回 None
+
+    注意：
+      - initial_inputs 中的文件路径会被清空（留空给应用者填充）
+      - 每个步骤的 input_links 按线性串联：第一步读 $initial.user_base_image，
+        后续步骤读取上一步的输出
+    """
+    ancestor_data = get_node_ancestors(db, node_id)
+    if ancestor_data is None:
+        return None
+
+    path_edges: List[Dict[str, Any]] = ancestor_data.get("path_edges", [])
+    if not path_edges:
+        return None
+
+    # 筛选可远程执行的 AI lens 步骤
+    ai_steps = []
+    for edge in path_edges:
+        lens_id = (edge.get("lens_id") or "").strip()
+        if not lens_id or lens_id in LOCAL_ONLY_LENS_IDS:
+            continue
+        ai_steps.append(edge)
+
+    if not ai_steps:
+        return None
+
+    # 构建 DAGBlueprint
+    dag_steps = []
+    for idx, edge in enumerate(ai_steps):
+        step_id = f"step_{idx + 1}"
+        lens_id = edge["lens_id"]
+
+        # 输入串联：第一步从 initial_inputs 取图，后续取前一步输出
+        if idx == 0:
+            input_links = {"base_image": "$initial.user_base_image"}
+        else:
+            prev_step_id = f"step_{idx}"
+            input_links = {"base_image": f"${prev_step_id}.result_image"}
+
+        # 保留原始参数
+        params = dict(edge.get("parameters") or {})
+        user_prompt = (edge.get("user_prompt") or "").strip()
+        if user_prompt:
+            params["prompt"] = user_prompt
+
+        dag_steps.append({
+            "step_id": step_id,
+            "lens_id": lens_id,
+            "input_links": input_links,
+            "params": params,
+        })
+
+    blueprint = {
+        "initial_inputs": {"user_base_image": ""},
+        "steps": dag_steps,
+    }
+
+    return blueprint

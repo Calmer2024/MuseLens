@@ -546,3 +546,62 @@ DateTime? _readDateTime(dynamic value) {
   }
   return DateTime.tryParse(raw);
 }
+
+// ───────────────────────────────────────────────────────
+// 发布模板相关模型
+// ───────────────────────────────────────────────────────
+
+@immutable
+class PublishTemplateFromNodeInput {
+  final int authorId;
+  final String title;
+  final String description;
+  final String resultAssetNodeId;
+  final List<String> tagNames;
+  final String? category;
+
+  const PublishTemplateFromNodeInput({
+    required this.authorId,
+    required this.title,
+    required this.resultAssetNodeId,
+    this.description = '',
+    this.tagNames = const <String>[],
+    this.category,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'author_id': authorId,
+      'title': title,
+      'description': description,
+      'result_asset_node_id': resultAssetNodeId,
+      'tag_names': tagNames,
+      if (category != null && category!.trim().isNotEmpty) 'category': category,
+      'status': 'active',
+      'changelog': '首次发布',
+    };
+  }
+}
+
+@immutable
+class PublishTemplateResult {
+  final MarketLens template;
+  final MarketLensVersion version;
+
+  const PublishTemplateResult({
+    required this.template,
+    required this.version,
+  });
+
+  factory PublishTemplateResult.fromJson(Map<String, dynamic> json) {
+    return PublishTemplateResult(
+      template: MarketLens.fromJson(
+        json['template'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+      ),
+      version: MarketLensVersion.fromJson(
+        json['version'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+      ),
+    );
+  }
+}
+

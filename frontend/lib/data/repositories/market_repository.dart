@@ -153,6 +153,12 @@ class MarketRepository {
     return _apiService.applyTemplate(lensId, input);
   }
 
+  Future<PublishTemplateResult> publishTemplateFromNode(
+    PublishTemplateFromNodeInput input,
+  ) {
+    return _apiService.publishTemplateFromNode(input);
+  }
+
   Future<List<MarketLensView>> _buildViews(
     List<MarketLens> lenses, {
     required Set<int> favoritedIds,

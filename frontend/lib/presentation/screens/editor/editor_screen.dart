@@ -26,6 +26,7 @@ import '../../widgets/editor/editor_header.dart';
 import '../../widgets/editor/editor_tools_panel.dart';
 import '../../widgets/editor/image_history_tree.dart';
 import '../../widgets/shared/adaptive_media.dart';
+import 'export_screen.dart';
 
 enum ToolType { none, aiChat, aiToolbox, crop, adjust, templates }
 
@@ -481,26 +482,31 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     }
 
     try {
-      dynamic result;
       if (isAdaptiveLocalFilePath(currentPath)) {
-        result = await ImageGallerySaverPlus.saveFile(
+        await ImageGallerySaverPlus.saveFile(
           normalizeAdaptiveFilePath(currentPath),
           name: 'muse_${DateTime.now().millisecondsSinceEpoch}',
         );
       } else {
         final bytes = await _loadEditableBytes(currentPath);
-        result = await ImageGallerySaverPlus.saveImage(
+        await ImageGallerySaverPlus.saveImage(
           bytes,
           quality: 100,
           name: 'muse_${DateTime.now().millisecondsSinceEpoch}',
         );
       }
 
-      final success = result is Map && result['isSuccess'] == true;
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success ? '已导出到相册' : '导出已提交，请检查系统相册'),
+
+      // 导出成功后导航到 ExportScreen
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ExportScreen(
+            exportedImagePath: currentPath,
+            projectId: _project?.projectId,
+            currentNodeId: _currentNodeId,
+          ),
         ),
       );
     } catch (error) {
@@ -1527,8 +1533,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     );
   }
 
-  void _showExportHint() {
-    _exportToGallery();
+  Future<void> _showExportHint() async {
+    // 如果有待保存的编辑，先自动保存到资产树再导出
+    if (_hasPendingEdits && _project != null && _currentNodeId != null) {
+      await _handleSave();
+    }
+    await _exportToGallery();
   }
 
   @override

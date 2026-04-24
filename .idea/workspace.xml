@@ -13,6 +13,18 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "Calmer2024"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/Calmer2024/MuseLens.git",
+    "accountId": "3aff514b-ceae-4fd3-a668-2a5bc40a8d20"
+  }
+}]]></component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 2
 }</component>
@@ -60,6 +72,7 @@
       <option name="presentableId" value="Default" />
       <updated>1774772721964</updated>
       <workItem from="1774772723200" duration="3274000" />
+      <workItem from="1774952435287" duration="41000" />
     </task>
     <servers />
   </component>
