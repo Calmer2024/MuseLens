@@ -188,5 +188,17 @@ class MarketApiService {
     }
   }
 
+  Future<PublishTemplateResult> publishTemplateFromNode(
+    PublishTemplateFromNodeInput input,
+  ) async {
+    final response = await _dio.post(
+      '$_basePath/templates/publish-from-node',
+      data: input.toJson(),
+    );
+    return PublishTemplateResult.fromJson(
+      response.data as Map<String, dynamic>,
+    );
+  }
+
   bool _isNotFound(DioException error) => error.response?.statusCode == 404;
 }

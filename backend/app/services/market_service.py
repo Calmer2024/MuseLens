@@ -776,8 +776,21 @@ def publish_template_from_asset_node(
 ) -> tuple[MarketLens, MarketLensVersion]:
     _require_existing_user(db, author_id)
     result_node = _require_existing_asset_node(db, result_asset_node_id)
-    if not result_node.muse_dna:
-        raise ValueError("来源资产节点没有可分享的 MuseDNA / blueprint 快照")
+
+    # 优先使用节点自带的 muse_dna，否则从资产树路径自动合成
+    musedna = None
+    if result_node.muse_dna:
+        musedna = dict(result_node.muse_dna)
+    else:
+        from app.services.asset_tree_service import build_blueprint_from_path
+        synthesized = build_blueprint_from_path(db, result_asset_node_id)
+        if synthesized is not None:
+            musedna = synthesized
+        else:
+            raise ValueError(
+                "该修图记录中没有可复用的 AI 修图步骤，"
+                "无法发布为模板。至少需要使用一个 AI 工具（如风格转换、智能抠图等）后才能上传到模板市场。"
+            )
 
     media = _derive_template_media_from_result_node(db, result_node)
     return publish_template(
@@ -787,7 +800,7 @@ def publish_template_from_asset_node(
         author_id=author_id,
         title=title,
         description=description,
-        musedna=dict(result_node.muse_dna),
+        musedna=musedna,
         tag_names=tag_names,
         category=category,
         is_official=is_official,
