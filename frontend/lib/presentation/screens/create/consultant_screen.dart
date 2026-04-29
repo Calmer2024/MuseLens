@@ -51,7 +51,8 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
   bool _isUploadingBaseImage = false;
   bool _isSending = false;
 
-  List<RouterClarifyQuestion> _pendingQuestions = const <RouterClarifyQuestion>[];
+  List<RouterClarifyQuestion> _pendingQuestions =
+      const <RouterClarifyQuestion>[];
 
   @override
   void initState() {
@@ -166,14 +167,7 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
   }
 
   Uri _buildRouterWsUri(String streamId) {
-    final baseUri = Uri.parse(ApiConstants.baseUrl);
-    final scheme = baseUri.scheme == 'https' ? 'wss' : 'ws';
-    return baseUri.replace(
-      scheme: scheme,
-      path: '/api/v1/router/ws/run/$streamId',
-      query: null,
-      fragment: null,
-    );
+    return ApiConstants.webSocketUri('/api/v1/router/ws/run/$streamId');
   }
 
   Future<void> _closeStreamChannel({bool clearIdentifiers = true}) async {
@@ -189,7 +183,8 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
 
   Future<String?> _prepareStreamChannel() async {
     await _closeStreamChannel(clearIdentifiers: false);
-    final streamId = (await ref.read(routerRepositoryProvider).createStreamId()).streamId;
+    final streamId =
+        (await ref.read(routerRepositoryProvider).createStreamId()).streamId;
     if (streamId.isEmpty) {
       return null;
     }
@@ -240,19 +235,7 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
   }
 
   String _rewriteLocalUrl(String raw) {
-    final uri = Uri.tryParse(raw);
-    if (uri == null) return raw;
-    final host = uri.host.trim();
-    if (host != '127.0.0.1' && host != 'localhost') {
-      return raw;
-    }
-
-    final baseUri = Uri.parse(ApiConstants.baseUrl);
-    final updated = uri.replace(
-      host: baseUri.host,
-      port: uri.hasPort ? uri.port : baseUri.port,
-    );
-    return updated.toString();
+    return ApiConstants.rewriteLoopbackUrl(raw);
   }
 
   Future<void> _runRouterRequest({
@@ -276,7 +259,9 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
         await _closeStreamChannel();
         streamId = null;
       }
-      final response = await ref.read(routerRepositoryProvider).routeAndRun(
+      final response = await ref
+          .read(routerRepositoryProvider)
+          .routeAndRun(
             userId: userId,
             sessionId: sessionId,
             userMessage: userMessage,
@@ -323,7 +308,9 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
       case RouterStatus.needClarification:
         unawaited(_closeStreamChannel());
         _bindPendingQuestions(response.questions);
-        final questionText = response.questions.map((item) => item.prompt).join('\n');
+        final questionText = response.questions
+            .map((item) => item.prompt)
+            .join('\n');
         _appendMessage(
           _ChatMessage(
             role: _ChatRole.assistant,
@@ -356,7 +343,9 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
         if (!seededResponse.executionStarted &&
             !seededResponse.hasExecutionError &&
             seededResponse.resultUrl != null) {
-          Future<void>.microtask(() => _cacheResultForMessage(index, seededResponse));
+          Future<void>.microtask(
+            () => _cacheResultForMessage(index, seededResponse),
+          );
         }
         break;
       case RouterStatus.failed:
@@ -418,7 +407,9 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
       case 'blueprint_ready':
         _updateActiveResultMessage((current) {
           final blueprint = event['blueprint'] is Map<String, dynamic>
-              ? RouterBlueprint.fromJson(event['blueprint'] as Map<String, dynamic>)
+              ? RouterBlueprint.fromJson(
+                  event['blueprint'] as Map<String, dynamic>,
+                )
               : current.blueprint;
           return current.copyWith(
             blueprint: blueprint,
@@ -432,10 +423,7 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
         _updateActiveResultMessage((current) {
           final nextExtra = Map<String, dynamic>.from(current.extra);
           nextExtra['stream_state'] = '开始执行透镜流程';
-          return current.copyWith(
-            executionStarted: true,
-            extra: nextExtra,
-          );
+          return current.copyWith(executionStarted: true, extra: nextExtra);
         });
         return;
       case 'step_started':
@@ -445,19 +433,21 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
         _updateActiveResultMessage((current) {
           final nextExtra = Map<String, dynamic>.from(current.extra);
           nextExtra['current_step_id'] = event['step_id']?.toString();
-          nextExtra['stream_state'] = '正在执行 ${stepIndex ?? ''}/${totalSteps ?? ''} · $lensId';
-          return current.copyWith(
-            executionStarted: true,
-            extra: nextExtra,
-          );
+          nextExtra['stream_state'] =
+              '正在执行 ${stepIndex ?? ''}/${totalSteps ?? ''} · $lensId';
+          return current.copyWith(executionStarted: true, extra: nextExtra);
         });
         return;
       case 'step_completed':
         final stepId = event['step_id']?.toString() ?? '';
         final lensId = event['lens_id']?.toString() ?? '';
-        final outputs = (event['outputs'] as List<dynamic>? ?? const <dynamic>[])
-            .map((item) => RouterStepOutput.fromJson(item as Map<String, dynamic>))
-            .toList();
+        final outputs =
+            (event['outputs'] as List<dynamic>? ?? const <dynamic>[])
+                .map(
+                  (item) =>
+                      RouterStepOutput.fromJson(item as Map<String, dynamic>),
+                )
+                .toList();
         _updateActiveResultMessage((current) {
           final nextExtra = Map<String, dynamic>.from(current.extra);
           nextExtra['current_step_id'] = stepId;
@@ -470,7 +460,10 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
               RouterStepResult(
                 stepId: stepId,
                 lensId: lensId,
-                tweakControls: _existingTweakControls(current.stepResults, stepId),
+                tweakControls: _existingTweakControls(
+                  current.stepResults,
+                  stepId,
+                ),
                 outputs: outputs,
               ),
             ),
@@ -487,14 +480,20 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
             executed: true,
             executionStarted: true,
             executionContext: Map<String, dynamic>.from(
-              event['execution_context'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+              event['execution_context'] as Map<String, dynamic>? ??
+                  const <String, dynamic>{},
             ),
             resultFilename: event['result_filename']?.toString(),
             resultUrl: event['result_url']?.toString(),
             extra: nextExtra,
-            stepResults: (event['step_results'] as List<dynamic>? ?? const <dynamic>[])
-                .map((item) => RouterStepResult.fromJson(item as Map<String, dynamic>))
-                .toList(),
+            stepResults:
+                (event['step_results'] as List<dynamic>? ?? const <dynamic>[])
+                    .map(
+                      (item) => RouterStepResult.fromJson(
+                        item as Map<String, dynamic>,
+                      ),
+                    )
+                    .toList(),
           );
         });
         final index = _activeResultMessageIndex;
@@ -549,13 +548,16 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
       tweakControls: incoming.tweakControls.isEmpty
           ? next[index].tweakControls
           : incoming.tweakControls,
-      outputs: incoming.outputs.isEmpty ? next[index].outputs : incoming.outputs,
+      outputs: incoming.outputs.isEmpty
+          ? next[index].outputs
+          : incoming.outputs,
     );
     return next;
   }
 
   void _updateActiveResultMessage(
-    RouterRouteAndRunResponse Function(RouterRouteAndRunResponse current) update,
+    RouterRouteAndRunResponse Function(RouterRouteAndRunResponse current)
+    update,
   ) {
     final index = _activeResultMessageIndex;
     if (index == null || index < 0 || index >= _messages.length) {
@@ -566,9 +568,7 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
       return;
     }
     setState(() {
-      _messages[index] = _messages[index].copyWith(
-        response: update(current),
-      );
+      _messages[index] = _messages[index].copyWith(response: update(current));
     });
   }
 
@@ -599,7 +599,9 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
       );
       if (!mounted || index >= _messages.length) return;
       setState(() {
-        _messages[index] = _messages[index].copyWith(localResultPath: savedPath);
+        _messages[index] = _messages[index].copyWith(
+          localResultPath: savedPath,
+        );
       });
     } catch (_) {}
   }
@@ -632,7 +634,9 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
           break;
         case RouterQuestionType.slider:
           _pendingAnswers[question.id] =
-              (defaultValue as num?)?.toDouble() ?? question.uiSchema.min ?? 0.0;
+              (defaultValue as num?)?.toDouble() ??
+              question.uiSchema.min ??
+              0.0;
           break;
       }
     }
@@ -655,9 +659,11 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
     return switch (question.type) {
       RouterQuestionType.text || RouterQuestionType.unknown =>
         _answerControllers[question.id]?.text.trim(),
-      RouterQuestionType.singleChoice => _pendingAnswers[question.id]?.toString(),
-      RouterQuestionType.multiChoice =>
-        List<String>.from(_pendingAnswers[question.id] as List<String>? ?? const <String>[]),
+      RouterQuestionType.singleChoice =>
+        _pendingAnswers[question.id]?.toString(),
+      RouterQuestionType.multiChoice => List<String>.from(
+        _pendingAnswers[question.id] as List<String>? ?? const <String>[],
+      ),
       RouterQuestionType.slider => _pendingAnswers[question.id],
     };
   }
@@ -687,7 +693,10 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
     });
   }
 
-  void _openEditorWithDraft(String draftPath, RouterRouteAndRunResponse response) {
+  void _openEditorWithDraft(
+    String draftPath,
+    RouterRouteAndRunResponse response,
+  ) {
     if (widget.returnDraftToPrevious) {
       Navigator.pop(
         context,
@@ -828,7 +837,9 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -992,21 +1003,25 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
           ),
           child: switch (message.kind) {
             _ChatMessageKind.text => _TextBubble(message: message),
-            _ChatMessageKind.error => _TextBubble(message: message, error: true),
+            _ChatMessageKind.error => _TextBubble(
+              message: message,
+              error: true,
+            ),
             _ChatMessageKind.imagePreview => _ImagePreviewBubble(
-                imagePath: widget.selectedImagePath,
-                isUploading: _isUploadingBaseImage,
-                isReady: _uploadedBaseImageName != null,
-              ),
+              imagePath: widget.selectedImagePath,
+              isUploading: _isUploadingBaseImage,
+              isReady: _uploadedBaseImageName != null,
+            ),
             _ChatMessageKind.result => _ResultBubble(
-                message: message,
-                onOpenEditor: message.localResultPath == null || message.response == null
-                    ? null
-                    : () => _openEditorWithDraft(
-                          message.localResultPath!,
-                          message.response!,
-                        ),
-              ),
+              message: message,
+              onOpenEditor:
+                  message.localResultPath == null || message.response == null
+                  ? null
+                  : () => _openEditorWithDraft(
+                      message.localResultPath!,
+                      message.response!,
+                    ),
+            ),
           },
         ),
       ),
@@ -1098,10 +1113,14 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
           ),
           const SizedBox(height: 10),
           switch (question.type) {
-            RouterQuestionType.text || RouterQuestionType.unknown =>
-              _buildTextQuestion(question),
-            RouterQuestionType.singleChoice => _buildSingleChoiceQuestion(question),
-            RouterQuestionType.multiChoice => _buildMultiChoiceQuestion(question),
+            RouterQuestionType.text ||
+            RouterQuestionType.unknown => _buildTextQuestion(question),
+            RouterQuestionType.singleChoice => _buildSingleChoiceQuestion(
+              question,
+            ),
+            RouterQuestionType.multiChoice => _buildMultiChoiceQuestion(
+              question,
+            ),
             RouterQuestionType.slider => _buildSliderQuestion(question),
           },
         ],
@@ -1142,7 +1161,8 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
         return ChoiceChip(
           label: Text(option),
           selected: active,
-          onSelected: (_) => setState(() => _pendingAnswers[question.id] = option),
+          onSelected: (_) =>
+              setState(() => _pendingAnswers[question.id] = option),
           labelStyle: TextStyle(
             color: active ? Colors.white : Colors.white.withValues(alpha: 0.78),
             fontWeight: FontWeight.w600,
@@ -1281,7 +1301,8 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
                     children: [
                       _QuickPromptChip(
                         label: '宫崎骏风格',
-                        onTap: () => _textController.text = '帮我把这张图改成宫崎骏动画风格，保留主体构图',
+                        onTap: () =>
+                            _textController.text = '帮我把这张图改成宫崎骏动画风格，保留主体构图',
                       ),
                       _QuickPromptChip(
                         label: '背景清理',
@@ -1301,7 +1322,10 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
                     Expanded(
                       child: TextField(
                         controller: _textController,
-                        style: const TextStyle(color: Colors.white, fontSize: 15),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                        ),
                         minLines: 1,
                         maxLines: 5,
                         enabled: !_isSending,
@@ -1318,7 +1342,12 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
                             borderRadius: BorderRadius.circular(20),
                             borderSide: BorderSide.none,
                           ),
-                          contentPadding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                          contentPadding: const EdgeInsets.fromLTRB(
+                            14,
+                            14,
+                            14,
+                            14,
+                          ),
                         ),
                         onSubmitted: (_) =>
                             _pendingQuestions.isEmpty ? _submitPrompt() : null,
@@ -1326,7 +1355,9 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
                     ),
                     const SizedBox(width: 10),
                     InkWell(
-                      onTap: _pendingQuestions.isEmpty && !_isSending ? _submitPrompt : null,
+                      onTap: _pendingQuestions.isEmpty && !_isSending
+                          ? _submitPrompt
+                          : null,
                       borderRadius: BorderRadius.circular(22),
                       child: Ink(
                         width: 48,
@@ -1338,7 +1369,9 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
                           borderRadius: BorderRadius.circular(22),
                         ),
                         child: Icon(
-                          _isSending ? Icons.hourglass_top_rounded : Icons.arrow_upward_rounded,
+                          _isSending
+                              ? Icons.hourglass_top_rounded
+                              : Icons.arrow_upward_rounded,
                           color: Colors.white,
                         ),
                       ),
@@ -1407,10 +1440,7 @@ class _ChatMessage {
 }
 
 class _TextBubble extends StatelessWidget {
-  const _TextBubble({
-    required this.message,
-    this.error = false,
-  });
+  const _TextBubble({required this.message, this.error = false});
 
   final _ChatMessage message;
   final bool error;
@@ -1431,8 +1461,8 @@ class _TextBubble extends StatelessWidget {
         color: isUser
             ? null
             : error
-                ? const Color(0xFF2B1218)
-                : const Color(0xCC121219),
+            ? const Color(0xFF2B1218)
+            : const Color(0xCC121219),
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(22),
           topRight: const Radius.circular(22),
@@ -1447,11 +1477,7 @@ class _TextBubble extends StatelessWidget {
       ),
       child: Text(
         message.text ?? '',
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 14,
-          height: 1.55,
-        ),
+        style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.55),
       ),
     );
   }
@@ -1506,7 +1532,9 @@ class _ImagePreviewBubble extends StatelessWidget {
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: isReady ? AppTheme.electricIndigo : const Color(0xFFF4B740),
+                  color: isReady
+                      ? AppTheme.electricIndigo
+                      : const Color(0xFFF4B740),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -1515,8 +1543,8 @@ class _ImagePreviewBubble extends StatelessWidget {
                 isReady
                     ? '原图已就绪，可以直接开始 AI 修图'
                     : isUploading
-                        ? '正在上传原图到编排引擎...'
-                        : '等待原图接入',
+                    ? '正在上传原图到编排引擎...'
+                    : '等待原图接入',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.7),
                   fontSize: 12,
@@ -1532,10 +1560,7 @@ class _ImagePreviewBubble extends StatelessWidget {
 }
 
 class _ResultBubble extends StatelessWidget {
-  const _ResultBubble({
-    required this.message,
-    required this.onOpenEditor,
-  });
+  const _ResultBubble({required this.message, required this.onOpenEditor});
 
   final _ChatMessage message;
   final VoidCallback? onOpenEditor;
@@ -1548,9 +1573,11 @@ class _ResultBubble extends StatelessWidget {
     }
 
     final resultImage = message.localResultPath ?? response.resultUrl;
-    final retrievedLenses = (response.extra['retrieved_lenses'] as List<dynamic>? ?? const <dynamic>[])
-        .map((item) => item.toString())
-        .toList();
+    final retrievedLenses =
+        (response.extra['retrieved_lenses'] as List<dynamic>? ??
+                const <dynamic>[])
+            .map((item) => item.toString())
+            .toList();
     final streamState = response.extra['stream_state']?.toString();
     final currentStepId = response.extra['current_step_id']?.toString();
 
@@ -1586,8 +1613,8 @@ class _ResultBubble extends StatelessWidget {
                 response.executed
                     ? '已执行'
                     : response.executionStarted
-                        ? '执行中'
-                        : '已编排',
+                    ? '执行中'
+                    : '已编排',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.58),
                   fontSize: 12,
@@ -1710,7 +1737,9 @@ class _ResultBubble extends StatelessWidget {
               ),
               child: Text(
                 onOpenEditor == null
-                    ? (response.executionStarted ? '正在生成修图草稿...' : '正在准备修图草稿...')
+                    ? (response.executionStarted
+                          ? '正在生成修图草稿...'
+                          : '正在准备修图草稿...')
                     : '进入修图',
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
@@ -1723,10 +1752,7 @@ class _ResultBubble extends StatelessWidget {
 }
 
 class _StepResultCard extends StatelessWidget {
-  const _StepResultCard({
-    required this.step,
-    this.isActive = false,
-  });
+  const _StepResultCard({required this.step, this.isActive = false});
 
   final RouterStepResult step;
   final bool isActive;
@@ -1870,7 +1896,9 @@ class _LensTag extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.electricIndigo.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppTheme.electricIndigo.withValues(alpha: 0.24)),
+        border: Border.all(
+          color: AppTheme.electricIndigo.withValues(alpha: 0.24),
+        ),
       ),
       child: Text(
         label,
@@ -1920,10 +1948,7 @@ class _TypingBubble extends StatelessWidget {
 }
 
 class _QuickPromptChip extends StatelessWidget {
-  const _QuickPromptChip({
-    required this.label,
-    required this.onTap,
-  });
+  const _QuickPromptChip({required this.label, required this.onTap});
 
   final String label;
   final VoidCallback onTap;

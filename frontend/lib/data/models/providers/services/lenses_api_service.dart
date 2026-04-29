@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../../core/constants/api_constants.dart';
 import '../../lens_tool_models.dart';
 import '../../router_models.dart';
 import 'api_client.dart';
@@ -60,9 +61,7 @@ class LensesApiService {
         receiveTimeout: _defaultTimeout,
       ),
     );
-    return RouterStreamIdResult.fromJson(
-      response.data as Map<String, dynamic>,
-    );
+    return RouterStreamIdResult.fromJson(response.data as Map<String, dynamic>);
   }
 
   Future<LensToolRunResponse> runLens({
@@ -140,18 +139,6 @@ class LensesApiService {
   }
 
   String _rewriteLocalUrl(String raw) {
-    final uri = Uri.tryParse(raw);
-    if (uri == null) return raw;
-    final host = uri.host.trim();
-    if (host != '127.0.0.1' && host != 'localhost') {
-      return raw;
-    }
-
-    final baseUri = Uri.parse(ApiClient().dio.options.baseUrl);
-    final updated = uri.replace(
-      host: baseUri.host,
-      port: uri.hasPort ? uri.port : baseUri.port,
-    );
-    return updated.toString();
+    return ApiConstants.rewriteLoopbackUrl(raw);
   }
 }
