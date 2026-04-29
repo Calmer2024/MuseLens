@@ -347,6 +347,9 @@ class ApiConstants {
 
 ```Bash
 flutter run
+
+连接远程后端的前端需要使用：
+flutter run --dart-define=PUBLIC_API_BASE_URL=http://47.99.211.191
 ```
 
 推荐优先选择 **Chrome** 或 **Windows** 进行快速 UI 调试。
