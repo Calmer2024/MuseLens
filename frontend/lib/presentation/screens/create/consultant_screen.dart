@@ -166,14 +166,7 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
   }
 
   Uri _buildRouterWsUri(String streamId) {
-    final baseUri = Uri.parse(ApiConstants.baseUrl);
-    final scheme = baseUri.scheme == 'https' ? 'wss' : 'ws';
-    return baseUri.replace(
-      scheme: scheme,
-      path: '/api/v1/router/ws/run/$streamId',
-      query: null,
-      fragment: null,
-    );
+    return ApiConstants.buildWebSocketUri('/api/v1/router/ws/run/$streamId');
   }
 
   Future<void> _closeStreamChannel({bool clearIdentifiers = true}) async {
@@ -221,38 +214,7 @@ class _ConsultantScreenState extends ConsumerState<ConsultantScreen> {
   }
 
   Map<String, dynamic> _normalizeLoopbackUrls(Map<String, dynamic> data) {
-    return _normalizeNode(data) as Map<String, dynamic>;
-  }
-
-  dynamic _normalizeNode(dynamic value) {
-    if (value is Map<String, dynamic>) {
-      return value.map<String, dynamic>(
-        (key, nested) => MapEntry<String, dynamic>(key, _normalizeNode(nested)),
-      );
-    }
-    if (value is List<dynamic>) {
-      return value.map<dynamic>(_normalizeNode).toList();
-    }
-    if (value is String) {
-      return _rewriteLocalUrl(value);
-    }
-    return value;
-  }
-
-  String _rewriteLocalUrl(String raw) {
-    final uri = Uri.tryParse(raw);
-    if (uri == null) return raw;
-    final host = uri.host.trim();
-    if (host != '127.0.0.1' && host != 'localhost') {
-      return raw;
-    }
-
-    final baseUri = Uri.parse(ApiConstants.baseUrl);
-    final updated = uri.replace(
-      host: baseUri.host,
-      port: uri.hasPort ? uri.port : baseUri.port,
-    );
-    return updated.toString();
+    return ApiConstants.normalizeLoopbackUrls(data);
   }
 
   Future<void> _runRouterRequest({

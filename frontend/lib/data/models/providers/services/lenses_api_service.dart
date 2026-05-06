@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../../core/constants/api_constants.dart';
 import '../../lens_tool_models.dart';
 import '../../router_models.dart';
 import 'api_client.dart';
@@ -35,7 +36,7 @@ class LensesApiService {
       ),
     );
     return LensToolDetail.fromJson(
-      _normalizeLoopbackUrls(response.data as Map<String, dynamic>),
+      ApiConstants.normalizeLoopbackUrls(response.data as Map<String, dynamic>),
     );
   }
 
@@ -48,7 +49,7 @@ class LensesApiService {
       ),
     );
     return LensToolTweakControlsResponse.fromJson(
-      _normalizeLoopbackUrls(response.data as Map<String, dynamic>),
+      ApiConstants.normalizeLoopbackUrls(response.data as Map<String, dynamic>),
     );
   }
 
@@ -87,7 +88,7 @@ class LensesApiService {
       ),
     );
     return LensToolRunResponse.fromJson(
-      _normalizeLoopbackUrls(response.data as Map<String, dynamic>),
+      ApiConstants.normalizeLoopbackUrls(response.data as Map<String, dynamic>),
     );
   }
 
@@ -116,42 +117,7 @@ class LensesApiService {
       ),
     );
     return LensToolApplyControlsResponse.fromJson(
-      _normalizeLoopbackUrls(response.data as Map<String, dynamic>),
+      ApiConstants.normalizeLoopbackUrls(response.data as Map<String, dynamic>),
     );
-  }
-
-  Map<String, dynamic> _normalizeLoopbackUrls(Map<String, dynamic> data) {
-    return _normalizeNode(data) as Map<String, dynamic>;
-  }
-
-  dynamic _normalizeNode(dynamic value) {
-    if (value is Map<String, dynamic>) {
-      return value.map<String, dynamic>(
-        (key, nested) => MapEntry<String, dynamic>(key, _normalizeNode(nested)),
-      );
-    }
-    if (value is List<dynamic>) {
-      return value.map<dynamic>(_normalizeNode).toList();
-    }
-    if (value is String) {
-      return _rewriteLocalUrl(value);
-    }
-    return value;
-  }
-
-  String _rewriteLocalUrl(String raw) {
-    final uri = Uri.tryParse(raw);
-    if (uri == null) return raw;
-    final host = uri.host.trim();
-    if (host != '127.0.0.1' && host != 'localhost') {
-      return raw;
-    }
-
-    final baseUri = Uri.parse(ApiClient().dio.options.baseUrl);
-    final updated = uri.replace(
-      host: baseUri.host,
-      port: uri.hasPort ? uri.port : baseUri.port,
-    );
-    return updated.toString();
   }
 }
