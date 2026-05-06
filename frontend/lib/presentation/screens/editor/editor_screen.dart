@@ -9,6 +9,8 @@ import 'package:image/image.dart' as img;
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../widgets/editor/paint_brush_overlay.dart';
+
 import '../../../core/providers/asset_tree_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/local_media_store.dart';
@@ -95,6 +97,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   String? _pendingLensName;
   String? _pendingPrompt;
   String? _pendingTagLabel;
+
+  // Paint brush state
+  bool _isPaintMode = false;
+  final PaintBrushData _paintData = PaintBrushData();
+  PaintBrushMode _paintBrushMode = PaintBrushMode.brush;
+  double _paintBrushSize = 24;
 
   AssetTreeProject? _project;
   AssetTreeProjectTree? _tree;
@@ -1533,6 +1541,34 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     );
   }
 
+  void _togglePaintMode() {
+    setState(() {
+      _isPaintMode = !_isPaintMode;
+      if (!_isPaintMode) {
+        // Exiting paint mode — if there are strokes, mark as pending edit
+        if (_paintData.isNotEmpty) {
+          _hasPendingEdits = true;
+          _pendingLensId = 'paint_brush';
+          _pendingLensName = '画笔涂抹';
+          _pendingPrompt = '用户使用画笔在图片上进行了涂抹标记';
+          _pendingTagLabel = '画笔涂抹';
+        }
+      }
+    });
+  }
+
+  void _paintUndo() {
+    setState(() {
+      _paintData.undoLast();
+    });
+  }
+
+  void _paintClear() {
+    setState(() {
+      _paintData.clear();
+    });
+  }
+
   Future<void> _showExportHint() async {
     // 如果有待保存的编辑，先自动保存到资产树再导出
     if (_hasPendingEdits && _project != null && _currentNodeId != null) {
@@ -1624,6 +1660,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                   cropRect: _cropRect,
                   onCropRectChanged: _updateCropRect,
                   onConfirmCrop: _confirmCrop,
+                  isPaintMode: _isPaintMode,
+                  paintData: _paintData,
+                  paintBrushMode: _paintBrushMode,
+                  paintBrushSize: _paintBrushSize,
+                  onTogglePaintMode: _togglePaintMode,
+                  onPaintChanged: () => setState(() {}),
+                  onPaintBrushModeChanged: (mode) => setState(() => _paintBrushMode = mode),
+                  onPaintBrushSizeChanged: (size) => setState(() => _paintBrushSize = size),
+                  onPaintUndo: _paintUndo,
+                  onPaintClear: _paintClear,
                 ),
               ),
               EditorToolsPanel(
