@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../screens/editor/editor_screen.dart';
 import '../shared/adaptive_media.dart';
+import 'paint_brush_overlay.dart';
 
 class EditorCanvas extends StatelessWidget {
   const EditorCanvas({
@@ -22,6 +23,16 @@ class EditorCanvas extends StatelessWidget {
     required this.cropRect,
     required this.onCropRectChanged,
     required this.onConfirmCrop,
+    this.isPaintMode = false,
+    this.paintData,
+    this.paintBrushMode = PaintBrushMode.brush,
+    this.paintBrushSize = 24,
+    this.onTogglePaintMode,
+    this.onPaintChanged,
+    this.onPaintBrushModeChanged,
+    this.onPaintBrushSizeChanged,
+    this.onPaintUndo,
+    this.onPaintClear,
   });
 
   final File? originalImage;
@@ -36,6 +47,18 @@ class EditorCanvas extends StatelessWidget {
   final Rect cropRect;
   final ValueChanged<Rect> onCropRectChanged;
   final VoidCallback onConfirmCrop;
+
+  // Paint brush properties
+  final bool isPaintMode;
+  final PaintBrushData? paintData;
+  final PaintBrushMode paintBrushMode;
+  final double paintBrushSize;
+  final VoidCallback? onTogglePaintMode;
+  final VoidCallback? onPaintChanged;
+  final ValueChanged<PaintBrushMode>? onPaintBrushModeChanged;
+  final ValueChanged<double>? onPaintBrushSizeChanged;
+  final VoidCallback? onPaintUndo;
+  final VoidCallback? onPaintClear;
 
   @override
   Widget build(BuildContext context) {
@@ -109,6 +132,45 @@ class EditorCanvas extends StatelessWidget {
                           filled: true,
                         ),
                       ],
+                    ),
+                  ),
+                // Paint brush overlay
+                if (isPaintMode && paintData != null)
+                  Positioned.fromRect(
+                    rect: mediaRect,
+                    child: PaintBrushOverlay(
+                      paintData: paintData!,
+                      mode: paintBrushMode,
+                      brushSize: paintBrushSize,
+                      onChanged: onPaintChanged ?? () {},
+                    ),
+                  ),
+                // Paint brush toggle button (top-right corner)
+                if (!isPaintMode && !isGenerating)
+                  Positioned(
+                    right: 12,
+                    top: 12,
+                    child: _PaintBrushToggleButton(
+                      onTap: onTogglePaintMode ?? () {},
+                    ),
+                  ),
+                // Paint brush floating toolbar (bottom center)
+                if (isPaintMode)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 14,
+                    child: Center(
+                      child: PaintBrushToolbar(
+                        mode: paintBrushMode,
+                        brushSize: paintBrushSize,
+                        onModeChanged: onPaintBrushModeChanged ?? (_) {},
+                        onBrushSizeChanged: onPaintBrushSizeChanged ?? (_) {},
+                        onUndo: onPaintUndo ?? () {},
+                        onClear: onPaintClear ?? () {},
+                        onClose: onTogglePaintMode ?? () {},
+                        canUndo: paintData?.isNotEmpty ?? false,
+                      ),
                     ),
                   ),
                 if (isGenerating)
@@ -199,6 +261,80 @@ class EditorCanvas extends StatelessWidget {
       return Image.file(originalImage!, fit: BoxFit.contain);
     }
     return const _CanvasFallback();
+  }
+}
+
+/// Floating paint brush toggle button shown at the top-right of the canvas.
+class _PaintBrushToggleButton extends StatefulWidget {
+  const _PaintBrushToggleButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  State<_PaintBrushToggleButton> createState() =>
+      _PaintBrushToggleButtonState();
+}
+
+class _PaintBrushToggleButtonState extends State<_PaintBrushToggleButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: _scaleAnimation,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF7B61FF), Color(0xFFAB7CFF)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF7B61FF).withValues(alpha: 0.4),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.brush_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
