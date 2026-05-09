@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 class ApiConstants {
   static const String _defaultProductionBaseUrl =
-      'https://api.ywtshuai.online';
+      'http://47.99.211.191';
   static const String _apiBaseUrlOverride =
       String.fromEnvironment('MUSELENS_API_BASE_URL', defaultValue: '');
 
