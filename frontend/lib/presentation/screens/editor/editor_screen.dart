@@ -217,9 +217,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       final imagePath = _normalizeProjectImagePath(
         node?.imageUrl ?? tree.project.coverUrl ?? _initialImagePath,
       );
-      final imageSize = (node?.width != null && node?.height != null)
-          ? Size(node!.width!.toDouble(), node.height!.toDouble())
-          : await _resolveImageSize(imagePath);
+      final imageSize = await _resolveImageSize(imagePath);
 
       if (!mounted) return;
       setState(() {
@@ -695,7 +693,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => ConsultantScreen(
-          selectedImagePath: launchPath,
+          selectedImagePath: launchPath!,
           returnDraftToPrevious: true,
         ),
       ),
