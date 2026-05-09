@@ -10,9 +10,9 @@ import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/community_provider.dart';
 import '../../../core/providers/user_provider.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/utils/local_media_store.dart';
 import '../../../data/models/community_models.dart';
 import '../../../data/repositories/community_repository.dart';
+import '../../../data/services/upload_service.dart';
 
 class CreatePostScreen extends ConsumerStatefulWidget {
   const CreatePostScreen({super.key, required this.initialImages});
@@ -413,13 +413,15 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           final index = entry.key;
           final file = entry.value;
           final imageSize = await _readImageSize(file);
-          final persistedPath = await LocalMediaStore.persistXFile(
+          final uploadResult = await UploadService.instance.uploadXFile(
             file,
-            folder: 'community/posts',
-            prefix: 'post_image',
+            purpose: 'community_post',
+          );
+          final resolvedUrl = UploadService.resolveDownloadUrl(
+            uploadResult.downloadUrl,
           );
           return CreatePostImageInput(
-            imageUrl: persistedPath,
+            imageUrl: resolvedUrl,
             width: imageSize?.$1,
             height: imageSize?.$2,
             orderIndex: index,

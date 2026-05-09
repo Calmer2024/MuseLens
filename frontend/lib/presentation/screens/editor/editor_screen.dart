@@ -20,6 +20,7 @@ import '../../../data/models/router_models.dart';
 import '../../../data/repositories/asset_tree_repository.dart';
 import '../../../data/repositories/lenses_repository.dart';
 import '../../../data/repositories/router_repository.dart';
+import '../../../data/services/upload_service.dart';
 import '../create/consultant_screen.dart';
 import '../../widgets/editor/asset_tree_node_sheet.dart';
 import '../../widgets/editor/editor_ai_toolbox_panel.dart';
@@ -157,10 +158,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
   Future<void> _createProjectFromFile(File source) async {
     final repository = ref.read(assetTreeRepositoryProvider);
-    final storedPath = await LocalMediaStore.persistFile(
+
+    // Upload to MinIO for cross-device persistence
+    final uploadResult = await UploadService.instance.uploadImageFile(
       source,
-      folder: 'asset_tree',
-      prefix: 'root',
+      purpose: 'project_cover',
+    );
+    final storedPath = UploadService.resolveDownloadUrl(
+      uploadResult.downloadUrl,
     );
     final payload = await _buildFilePayload(source, storedPath);
 
@@ -283,6 +288,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     }
 
     try {
+      // If the image is a local file, upload to MinIO first
+      String persistedPath = currentPath;
+      if (isAdaptiveLocalFilePath(currentPath)) {
+        final localFile = File(normalizeAdaptiveFilePath(currentPath));
+        if (await localFile.exists()) {
+          final uploadResult = await UploadService.instance.uploadImageFile(
+            localFile,
+            purpose: 'editor_result',
+          );
+          persistedPath = UploadService.resolveDownloadUrl(
+            uploadResult.downloadUrl,
+          );
+        }
+      }
+
       final repository = ref.read(assetTreeRepositoryProvider);
       final currentSize = await _resolveImageSize(currentPath);
       final imageFileSize = isAdaptiveLocalFilePath(currentPath)
@@ -292,8 +312,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
             projectId: project.projectId,
             input: CreateAssetTreeChildNodeInput(
               parentNodeId: currentNodeId,
-              imageUrl: currentPath,
-              thumbnailUrl: currentPath,
+              imageUrl: persistedPath,
+              thumbnailUrl: persistedPath,
               width: currentSize?.width.round(),
               height: currentSize?.height.round(),
               fileSize: imageFileSize,

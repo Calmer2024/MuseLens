@@ -7,7 +7,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/utils/local_media_store.dart';
+import '../../../data/services/upload_service.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
@@ -98,18 +98,29 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       );
 
       if (image != null) {
-        final persistedPath = await LocalMediaStore.persistXFile(
-          image,
-          folder: isAvatar ? 'profile/avatar' : 'profile/banner',
-          prefix: isAvatar ? 'avatar' : 'banner',
-        );
-        setState(() {
-          if (isAvatar) {
-            _avatarPath = persistedPath;
-          } else {
-            _bannerPath = persistedPath;
+        try {
+          final purpose = isAvatar ? 'avatar' : 'banner';
+          final uploadResult = await UploadService.instance.uploadXFile(
+            image,
+            purpose: purpose,
+          );
+          final resolvedUrl = UploadService.resolveDownloadUrl(
+            uploadResult.downloadUrl,
+          );
+          setState(() {
+            if (isAvatar) {
+              _avatarPath = resolvedUrl;
+            } else {
+              _bannerPath = resolvedUrl;
+            }
+          });
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('上传图片失败: $e')));
           }
-        });
+        }
       }
     } catch (e) {
       if (mounted) {
