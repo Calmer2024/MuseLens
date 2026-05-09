@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 
 bool isAdaptiveLocalFilePath(String path) {
   final trimmed = path.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return false;
+  }
   return trimmed.startsWith('file://') ||
       trimmed.startsWith('/') ||
       trimmed.contains(':\\') ||

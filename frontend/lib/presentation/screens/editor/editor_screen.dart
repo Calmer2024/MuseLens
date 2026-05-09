@@ -1476,19 +1476,17 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       return File(normalizeAdaptiveFilePath(path)).readAsBytes();
     }
     if (path.startsWith('http')) {
-      final http = Dio(
-        BaseOptions(
-          connectTimeout: const Duration(seconds: 30),
-          receiveTimeout: const Duration(minutes: 5),
-        ),
-      );
-      final response = await http.get<List<int>>(
-        path,
-        options: Options(responseType: ResponseType.bytes),
-      );
-      final bytes = response.data;
-      if (bytes == null || bytes.isEmpty) {
-        throw StateError('远程图片下载失败');
+      final request = await HttpClient().getUrl(Uri.parse(path));
+      final response = await request.close();
+      if (response.statusCode != 200) {
+        throw StateError('远程图片下载失败: HTTP ${response.statusCode}');
+      }
+      final bytes = <int>[];
+      await for (final chunk in response) {
+        bytes.addAll(chunk);
+      }
+      if (bytes.isEmpty) {
+        throw StateError('远程图片下载失败: 数据为空');
       }
       return Uint8List.fromList(bytes);
     }
