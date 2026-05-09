@@ -159,15 +159,22 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   Future<void> _createProjectFromFile(File source) async {
     final repository = ref.read(assetTreeRepositoryProvider);
 
-    // Upload to MinIO for cross-device persistence
+    // Keep a local copy for editing operations (crop, export, etc.)
+    final localPath = await LocalMediaStore.persistFile(
+      source,
+      folder: 'asset_tree',
+      prefix: 'root',
+    );
+
+    // Upload to MinIO for cross-device persistence (DB stores remote URL)
     final uploadResult = await UploadService.instance.uploadImageFile(
       source,
       purpose: 'project_cover',
     );
-    final storedPath = UploadService.resolveDownloadUrl(
+    final remoteUrl = UploadService.resolveDownloadUrl(
       uploadResult.downloadUrl,
     );
-    final payload = await _buildFilePayload(source, storedPath);
+    final payload = await _buildFilePayload(source, remoteUrl);
 
     final project = await repository.createProject(
       CreateAssetTreeProjectInput(
@@ -181,7 +188,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       input: payload,
     );
 
-    _initialImagePath = storedPath;
+    // _initialImagePath keeps local path for editing; DB already has remote URL
+    _initialImagePath = localPath;
     await _loadProject(project.projectId, preferredNodeId: rootNode.nodeId);
   }
 
@@ -209,7 +217,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       final imagePath = _normalizeProjectImagePath(
         node?.imageUrl ?? tree.project.coverUrl ?? _initialImagePath,
       );
-      final imageSize = await _resolveImageSize(imagePath);
+      final imageSize = (node?.width != null && node?.height != null)
+          ? Size(node!.width!.toDouble(), node.height!.toDouble())
+          : await _resolveImageSize(imagePath);
 
       if (!mounted) return;
       setState(() {
@@ -661,9 +671,19 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     final currentPath = _normalizeProjectImagePath(
       _displayedImagePath ?? _initialImagePath,
     );
-    final launchPath = currentPath != null && isAdaptiveLocalFilePath(currentPath)
-        ? normalizeAdaptiveFilePath(currentPath)
-        : widget.selectedImage?.path;
+    String? launchPath;
+    if (currentPath != null && isAdaptiveLocalFilePath(currentPath)) {
+      launchPath = normalizeAdaptiveFilePath(currentPath);
+    } else if (currentPath != null && currentPath.startsWith('http')) {
+      // Remote URL from DB — download to local for AI tool upload
+      try {
+        launchPath = await _ensureLocalCopyOfUrl(currentPath);
+      } catch (_) {
+        launchPath = widget.selectedImage?.path;
+      }
+    } else {
+      launchPath = widget.selectedImage?.path;
+    }
 
     if (launchPath == null || launchPath.trim().isEmpty) {
       _showError(StateError('当前项目没有可用于 AI 修图的图片'), '当前项目没有可用于 AI 修图的图片');
@@ -1204,6 +1224,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     if (currentPath != null && isAdaptiveLocalFilePath(currentPath)) {
       return _ensureUploadedAssetPath(currentPath);
     }
+    if (currentPath != null && currentPath.startsWith('http')) {
+      // Remote URL — download first then upload via router endpoint
+      final localPath = await _ensureLocalCopyOfUrl(currentPath);
+      return _ensureUploadedAssetPath(localPath);
+    }
     final selectedImage = widget.selectedImage;
     if (selectedImage != null) {
       return _ensureUploadedAssetPath(selectedImage.path);
@@ -1422,6 +1447,19 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       if (size == null) return null;
       return Size(size.$1.toDouble(), size.$2.toDouble());
     }
+    if (path.startsWith('http')) {
+      try {
+        final bytes = await _loadEditableBytes(path);
+        final codec = await ui.instantiateImageCodec(bytes);
+        final frame = await codec.getNextFrame();
+        return Size(
+          frame.image.width.toDouble(),
+          frame.image.height.toDouble(),
+        );
+      } catch (_) {
+        return null;
+      }
+    }
     try {
       final data = await rootBundle.load(path);
       final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
@@ -1439,8 +1477,38 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     if (isAdaptiveLocalFilePath(path)) {
       return File(normalizeAdaptiveFilePath(path)).readAsBytes();
     }
+    if (path.startsWith('http')) {
+      final http = Dio(
+        BaseOptions(
+          connectTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(minutes: 5),
+        ),
+      );
+      final response = await http.get<List<int>>(
+        path,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final bytes = response.data;
+      if (bytes == null || bytes.isEmpty) {
+        throw StateError('远程图片下载失败');
+      }
+      return Uint8List.fromList(bytes);
+    }
     final data = await rootBundle.load(path);
     return data.buffer.asUint8List();
+  }
+
+  /// Download a remote URL to local cache, returning the local file path.
+  Future<String> _ensureLocalCopyOfUrl(String url) async {
+    final bytes = await _loadEditableBytes(url);
+    final ext = _guessExtension(url);
+    final localPath = await LocalMediaStore.persistBytes(
+      bytes,
+      folder: 'remote_cache',
+      prefix: 'cached',
+      extension: ext,
+    );
+    return normalizeAdaptiveFilePath(localPath);
   }
 
   void _resetCropRect([double? ratio]) {
